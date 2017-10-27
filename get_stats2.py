@@ -69,17 +69,21 @@ all_insertLengths_per_read = []
 all_insertPos_per_read = []
 
 ref_wt = [base for base in all_refs[0] if base != '-'] 
+ref_coverage = np.zeros(len(ref_wt)-1) # count number of reads covering each bp AND its successor (therefore do not calc coverage for last bp)
 refn_noGap = ref_wt  ## rename this at some point below!
 
 # loop over all alignments, test for presence of an ITD
-for read,ref,i in zip(all_reads, all_refs, range(len(all_reads))):
+for read,ref,counts,i in zip(all_reads, all_refs, all_readCounts, range(len(all_reads))):
 	readn = np.array(list(read))
 	refn = np.array(list(ref))
-#	
+	readn_onRef = readn[refn != '-'] ## compare readn_nonIns below
+	readn_onRef_covered = np.bitwise_and(readn_onRef[0:len(readn_onRef)-1] != '-', np.append(readn_onRef,'-')[1:len(readn_onRef)] != '-') 
+	ref_coverage[readn_onRef_covered] = ref_coverage[readn_onRef_covered] + counts
+	
 	# get indeces of inserts in read (positions where reference has a gap and read does not)
 	insert_idxs_all = np.arange(len(readn))[refn == '-']
 	assert('-' not in readn[insert_idxs_all]) # two gaps should never align at the same pos!
-#	
+	
 	# get indeces of each individual insert in each read
 	insert_idxs_each = []
 	insert_idxs_tmp = []
@@ -96,14 +100,7 @@ for read,ref,i in zip(all_reads, all_refs, range(len(all_reads))):
 	insert_idxs_each.append(insert_idxs_tmp)
 	assert(np.all(np.concatenate(insert_idxs_each) == insert_idxs_all))		
 
-
 	for insert_idxs in insert_idxs_each:
-	    # clean up inserts -> ignore single base insertions 
-	    #shift_left = np.append(0, insert_idxs)[0:len(insert_idxs)]
-	    #shift_right = np.append(insert_idxs, [0])[1:]
-	    #insert_idxs = insert_idxs[np.bitwise_or((insert_idxs -shift_left == 1),(insert_idxs -shift_right == -1))]
-	    #assert len(insert_idxs) != 1  # make sure insert length can never be 1 
-	
 	    insert_length = len(insert_idxs)	
 	    # if there is an insert  --> require min 6 bp length, in-frame insert and no "N"s within insert
 	    if(insert_length >= 6 and insert_length % 3 == 0 and "N" not in readn[insert_idxs]):
@@ -126,9 +123,7 @@ for read,ref,i in zip(all_reads, all_refs, range(len(all_reads))):
 			    readn_nonIns = np.delete(readn,insert_idxs)
 			    ins = readn[insert_idxs]
 
-			    ################################
 			    # FIND INS IN REF --> THAT MAKES INS AN ITD
-			
 			    # search for nearest tandem before and after ITD
 			    tandem2_after = ''.join(refn_noGap).find(''.join(ins).lower(), insert_start_ref,len(refn_noGap))
 			    tandem2_before = ''.join(reversed(refn_noGap)).find(''.join(reversed(ins)).lower(), len(refn_noGap) -1 -insert_start_ref, len(refn_noGap))
@@ -155,8 +150,7 @@ for read,ref,i in zip(all_reads, all_refs, range(len(all_reads))):
 				    w_itd_exact["start"].append(insert_start_ref)
 				    w_itd_exact["tandem2_start"].append(tandem2_start_ref)
 			    else:
-				    # otherwise search for sufficiently similar second tandem by realignment of the insert within the remainder of the read
-				    # "sufficiently similar" = > 90% of bases mapped 
+				    # otherwise search for sufficiently similar (> 90 % bases mapped) second tandem by realignment of the insert within the remainder of the read
 				    max_score = len(ins) * 5  # +5 score per matching base
 				    min_score = max_score * 0.9
 				    # arguments: seq1, seq2, match-score, mismatch-score, gapopen-score, gapextend-score --> match/mismatch from needle default (/usr/share/EMBOSS/data/EDNAFULL), gap as passed to needle in my script
@@ -222,9 +216,7 @@ df_itd = pd.DataFrame(w_itd)
 df_itd["counts"] = np.zeros(len(df_itd))
 
 for ins_type,ins_filename,title_ in zip([w_ins_single, w_itd_exact, w_itd_nonexact, w_itd, w_itd_nonexact_fail],["w_ins_single", "w_itd_exact", "w_itd_nonexact", "w_itd", "w_itd_nonexact_fail"],["Single insertions", "Single ITDs - exact matching", "Single ITDs - non-exact matching", "Single ITDs - all", "Single insertions - failed ITD matching"]):
-	#print(title_)
 	for stat,xlab_ in zip(["length","start"], ["Insert length (bp)","Insert start position"]):
-		#print(xlab_)
 		counts_table = None
 		counts_table_value = None
 		counts_table_value_toIndexOffset = 0
@@ -248,9 +240,7 @@ for ins_type,ins_filename,title_ in zip([w_ins_single, w_itd_exact, w_itd_nonexa
 			if((ins_filename=="w_itd_exact" or ins_filename=="w_itd_nonexact") and stat=="length"):
 				df_itd.ix[df_itd["idx"] == i_idx, "counts"] = all_readCounts[i_idx]
 
-		#print(counts_table)
 		vafs = counts_table/sum(all_readCounts) * 100   # in percent
-		#print(vafs)
 		# PLOT
 		fig = plt.figure(figsize=(8.27, 11.69)) #A4 DIN size
 		n_plots = 6
