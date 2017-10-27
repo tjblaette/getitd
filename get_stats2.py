@@ -14,13 +14,15 @@ import sys
 
 # file should contain aligned sequences only with different alignments separated by an empty line
 f = open("./all.alignments","r")
+#f = open("./test.alignments","r")
 
 # alignments are of unique reads only, read in separately the number of each of these reads in the original (qc-filtered) FASTQ file 
 cfile = open("all.readCounts_needleOrder","r")
+#cfile = open("test.readCounts_needleOrder","r")
 all_readCounts = [int(readCount) for readCount in cfile.read().splitlines()]
 
 #######################################
-# READ IN ALIGNMENTS, STORE REF AND READ IN SEPERATE LISTS
+# READ IN ALIGNMENTS
 
 next_ = [] # save read and ref sequences of the next alignment
 all_reads = [] # save all read sequences in f, each element is one read stored as one string 
@@ -46,6 +48,7 @@ all_refs.append(''.join(next_[1:len(next_):2]))
 
 # close the file!
 f.close()
+cfile.close()
 
 # make sure there is a 1:1 matching between these files -> must all have the same length!
 assert(len(all_reads) == len(all_refs))
@@ -57,28 +60,28 @@ assert(len(all_reads) == len(all_readCounts))
 
 
 # check each alignment for insert/itd and save index in all_reads/all_refs/all_files to idx, insert/itd length to length and insert/itd start/stop position to start/end dicts based on insert/itd classification
-w_ins = {"idx": []}
-w_ins_single = {"idx": [], "length": [], "start": []}
+w_ins = {"idx": [], "length": [], "start": []}
 w_itd_exact = {"idx": [], "length": [], "start": [], "tandem2_start": []}
 w_itd_nonexact = {"idx": [], "length": [], "start": [], "tandem2_start": []}
 w_itd_nonexact_fail = {"idx": [], "length": [], "start": []}
 
-# collect statistics on the number and lengths of insertions found within each read
-counting = False
-all_insertLengths_per_read = []
-all_insertPos_per_read = []
-
 ref_wt = [base for base in all_refs[0] if base != '-'] 
-ref_coverage = np.zeros(len(ref_wt)-1) # count number of reads covering each bp AND its successor (therefore do not calc coverage for last bp)
-refn_noGap = ref_wt  ## rename this at some point below!
+ref_coverage = np.zeros(len(ref_wt)) # count number of reads covering each bp AND its successor (therefore do not calc coverage for last bp)
 
 # loop over all alignments, test for presence of an ITD
 for read,ref,counts,i in zip(all_reads, all_refs, all_readCounts, range(len(all_reads))):
+#this_i = 11831
+#if True:
+#	read = all_reads[this_i]
+#	ref = all_refs[this_i]
+#	counts = all_readCounts[this_i]
+#	i = this_i
 	readn = np.array(list(read))
 	refn = np.array(list(ref))
 	readn_onRef = readn[refn != '-'] ## compare readn_nonIns below
-	readn_onRef_covered = np.bitwise_and(readn_onRef[0:len(readn_onRef)-1] != '-', np.append(readn_onRef,'-')[1:len(readn_onRef)] != '-') 
-	ref_coverage[readn_onRef_covered] = ref_coverage[readn_onRef_covered] + counts
+	readn_onRef_covered = np.where(readn_onRef != '-')
+	readn_onRef_covered_range = np.arange(np.min(readn_onRef_covered), np.max(readn_onRef_covered)) # do not count last index -> read ending here holds no information on whether or not an ITD starts here --> but what about a read that covers the first 5 bases of an ITD > 5bp, I still wouldn't know...
+	ref_coverage[readn_onRef_covered_range] = ref_coverage[readn_onRef_covered_range] + counts
 	
 	# get indeces of inserts in read (positions where reference has a gap and read does not)
 	insert_idxs_all = np.arange(len(readn))[refn == '-']
@@ -89,7 +92,7 @@ for read,ref,counts,i in zip(all_reads, all_refs, all_readCounts, range(len(all_
 	insert_idxs_tmp = []
 	i_prev = None
 	for i_this in insert_idxs_all:
-		if not i_prev or i_prev == i_this -1: #start saving first/continue saving next insert index
+		if i_prev is None or i_prev == i_this -1: #start saving first/continue saving next insert index
 			insert_idxs_tmp.append(i_this)
 			i_prev = i_this
 		else: #save current insert_idxs_tmp list and open up a new one for the next insert
@@ -104,70 +107,68 @@ for read,ref,counts,i in zip(all_reads, all_refs, all_readCounts, range(len(all_
 	    insert_length = len(insert_idxs)	
 	    # if there is an insert  --> require min 6 bp length, in-frame insert and no "N"s within insert
 	    if(insert_length >= 6 and insert_length % 3 == 0 and "N" not in readn[insert_idxs]):
-		    w_ins["idx"].append(i)
 		    insert_start = insert_idxs[0]
 		    insert_end = insert_idxs[-1]
 
-		    # relative to the reference, get coord of the first WT base after insert	
+		    # relative to the reference, get coord of the first WT base before insert	
 		    insert_start_ref = insert_start - sum(refn[0:insert_start] == '-')  
 		    if insert_start == 0: 
 			    insert_start_ref = insert_start_ref - insert_length
-		
-		    # if there is one insert only  --> later think about how to handle multiple inserts...   --> not sure if this is actually always working! (all_insertions_single included an alignment with multiple gaps!)
-		    if(insert_length == insert_end - insert_start +1):
-			    w_ins_single["idx"].append(i)
-			    w_ins_single["length"].append(insert_length)
-			    w_ins_single["start"].append(insert_start_ref)
-				
-			    # check whether the insert is contained within non-insert read a second time -> that'd be an exact ITD, later think about how to handle non-exact matches or matches +/- a few bases
-			    readn_nonIns = np.delete(readn,insert_idxs)
-			    ins = readn[insert_idxs]
+	    
+		    w_ins["idx"].append(i)
+		    w_ins["length"].append(insert_length)
+		    w_ins["start"].append(insert_start_ref)
+			
+		    # check whether the insert is contained within non-insert read a second time -> that makes it an ITD!
+		    readn_nonIns = np.delete(readn,insert_idxs)
+		    ins = readn[insert_idxs]
 
-			    # FIND INS IN REF --> THAT MAKES INS AN ITD
-			    # search for nearest tandem before and after ITD
-			    tandem2_after = ''.join(refn_noGap).find(''.join(ins).lower(), insert_start_ref,len(refn_noGap))
-			    tandem2_before = ''.join(reversed(refn_noGap)).find(''.join(reversed(ins)).lower(), len(refn_noGap) -1 -insert_start_ref, len(refn_noGap))
-			    tandem2_before_converted = len(refn_noGap) -1 -tandem2_before -insert_length +1  # convert coords back from reverse to forward sense
+		    # search for nearest tandem before and after ITD
+		    tandem2_after = ''.join(ref_wt).find(''.join(ins).lower(), insert_start_ref,len(ref_wt))
+		    tandem2_before = ''.join(reversed(ref_wt)).find(''.join(reversed(ins)).lower(), len(ref_wt) -1 -insert_start_ref, len(ref_wt))
+		    tandem2_before_converted = len(ref_wt) -1 -tandem2_before -insert_length +1  # convert coords back from reverse to forward sense
 
-			    # take the one closest to the insert (should be relevant only for small ITDs that may be contained multiple time within a read
-			    tandem2_start_ref = None
-			    if tandem2_after == -1 and tandem2_before == -1:
-				    tandem2_start_ref = -1 # not found --> no itd present
-			    elif tandem2_after != -1:
-				    tandem2_start_ref = tandem2_after
-			    elif tandem2_before != -1:
-				    tandem2_start_ref = tandem2_before_converted
-			    elif tandem2_after < tandem2_before:
-				    tandem2_start_ref = tandem2_after
-			    elif tandem2_before < tandem2_after:
-				    tandem2_start_ref = tandem2_before_converted
-			    assert tandem2_start_ref is not None  # should be assigned something!
+		    # take the one closest to the insert (should be relevant only for small ITDs that may be contained multiple time within a read
+		    tandem2_start_ref = None
+		    if tandem2_after == -1 and tandem2_before == -1:
+			    tandem2_start_ref = -1 # not found --> no itd present
+		    elif tandem2_after != -1:
+			    tandem2_start_ref = tandem2_after
+		    elif tandem2_before != -1:
+			    tandem2_start_ref = tandem2_before_converted
+		    elif tandem2_after < tandem2_before:
+			    tandem2_start_ref = tandem2_after
+		    elif tandem2_before < tandem2_after:
+			    tandem2_start_ref = tandem2_before_converted
+		    assert tandem2_start_ref is not None  # should be assigned something!
 
-			    # save if an exact second tandem of the insert was found
-			    if(tandem2_start_ref != -1):   # ---> also check that index of second match is sufficiently close to insert! (for exact match and alignment approach!)
-				    w_itd_exact["idx"].append(i)
-				    w_itd_exact["length"].append(insert_length)
-				    w_itd_exact["start"].append(insert_start_ref)
-				    w_itd_exact["tandem2_start"].append(tandem2_start_ref)
+		    # save if an exact second tandem of the insert was found
+		    if tandem2_start_ref != -1:   # ---> also check that index of second match is sufficiently close to insert! (for exact match and alignment approach!)
+			    w_itd_exact["idx"].append(i)
+			    w_itd_exact["length"].append(insert_length)
+			    w_itd_exact["start"].append(insert_start_ref)
+			    w_itd_exact["tandem2_start"].append(tandem2_start_ref)
+		    else:
+			    # otherwise search for sufficiently similar (> 90 % bases mapped) second tandem by realignment of the insert within the remainder of the read
+			    max_score = len(ins) * 5  # +5 score per matching base
+			    min_score = max_score * 0.9
+			    # arguments: seq1, seq2, match-score, mismatch-score, gapopen-score, gapextend-score --> match/mismatch from needle default (/usr/share/EMBOSS/data/EDNAFULL), gap as passed to needle in my script
+			    # output: list of optimal alignments, each a list of seq1, seq2, score, start-idx, end-idx 
+			    alignment = bio.align.localms(''.join(ins), ''.join(readn_nonIns), 5, -4, -20, -0.05)[0]
+			    alignment_score, alignment_start, alignment_end = alignment[2:5]
+			
+			    if alignment_score >= min_score:
+				    if insert_start_ref == -12:
+					    print(i) 
+				    w_itd_nonexact["idx"].append(i)
+				    w_itd_nonexact["length"].append(insert_length)
+				    w_itd_nonexact["start"].append(insert_start_ref)
+				    w_itd_nonexact["tandem2_start"].append(alignment_start)
 			    else:
-				    # otherwise search for sufficiently similar (> 90 % bases mapped) second tandem by realignment of the insert within the remainder of the read
-				    max_score = len(ins) * 5  # +5 score per matching base
-				    min_score = max_score * 0.9
-				    # arguments: seq1, seq2, match-score, mismatch-score, gapopen-score, gapextend-score --> match/mismatch from needle default (/usr/share/EMBOSS/data/EDNAFULL), gap as passed to needle in my script
-				    # output: list of optimal alignments, each a list of seq1, seq2, score, start-idx, end-idx 
-				    alignment = bio.align.localms(''.join(ins), ''.join(readn_nonIns), 5, -4, -20, -0.05)[0]
-				    alignment_score, alignment_start, alignment_end = alignment[2:5]
-				
-				    if(alignment_score >= min_score):
-					    w_itd_nonexact["idx"].append(i)
-					    w_itd_nonexact["length"].append(insert_length)
-					    w_itd_nonexact["start"].append(insert_start_ref)
-					    w_itd_nonexact["tandem2_start"].append(alignment_start)
-				    else:
-					    w_itd_nonexact_fail["idx"].append(i)
-					    w_itd_nonexact_fail["length"].append(insert_length)
-					    w_itd_nonexact_fail["start"].append(insert_start_ref)
-					    #print(bio.format_alignment(*alignment))
+				    w_itd_nonexact_fail["idx"].append(i)
+				    w_itd_nonexact_fail["length"].append(insert_length)
+				    w_itd_nonexact_fail["start"].append(insert_start_ref)
+				    #print(bio.format_alignment(*alignment))
 
 w_itd = {"idx": w_itd_exact["idx"] + w_itd_nonexact["idx"], "length": w_itd_exact["length"] + w_itd_nonexact["length"], "start": w_itd_exact["start"] + w_itd_nonexact["start"], "tandem2_start": w_itd_exact["tandem2_start"] + w_itd_nonexact["tandem2_start"]}
 print("-----------------------------------")
@@ -215,22 +216,27 @@ def plot_hist(title_, xlab_, top=True, bottom=True):
 df_itd = pd.DataFrame(w_itd)
 df_itd["counts"] = np.zeros(len(df_itd))
 
-for ins_type,ins_filename,title_ in zip([w_ins_single, w_itd_exact, w_itd_nonexact, w_itd, w_itd_nonexact_fail],["w_ins_single", "w_itd_exact", "w_itd_nonexact", "w_itd", "w_itd_nonexact_fail"],["Single insertions", "Single ITDs - exact matching", "Single ITDs - non-exact matching", "Single ITDs - all", "Single insertions - failed ITD matching"]):
+for ins_type,ins_filename,title_ in zip([w_ins, w_itd_exact, w_itd_nonexact, w_itd, w_itd_nonexact_fail],["w_ins", "w_itd_exact", "w_itd_nonexact", "w_itd", "w_itd_nonexact_fail"],["Single insertions", "Single ITDs - exact matching", "Single ITDs - non-exact matching", "Single ITDs - all", "Single insertions - failed ITD matching"]):
+	#print(ins_type)
 	for stat,xlab_ in zip(["length","start"], ["Insert length (bp)","Insert start position"]):
+		#print(stat)
+		if not ins_type[stat]: # prevent failure for empty lists (happened for small test sets)
+			continue
+		
 		counts_table = None
 		counts_table_value = None
 		counts_table_value_toIndexOffset = 0
 		if stat == "length":
-			counts_table = np.zeros(max(ins_type[stat]) +1)
+			counts_table = np.zeros(max(ins_type["length"]) +1)
 			counts_table_value = np.arange(0,len(counts_table))
-		else:
-			assert(stat == "start")
+		elif stat == "start":
 			min_val = min(0,min(ins_type[stat]))
 			max_val = max(ins_type[stat])
 			counts_table = np.zeros(max_val + abs(min_val) + 1)
 			counts_table_value = np.arange(min_val, max_val +1) 
 			assert(len(counts_table) == len(counts_table_value))
 			counts_table_value_toIndexOffset = abs(min_val)
+		assert(counts_table is not None) # should be assigned sth
 		
 		# sum up counts of insert/itds with the same lengths/statistic (length, start or stop)
 		for i in range(len(ins_type[stat])):
@@ -287,10 +293,6 @@ out = open("flt3_insertions.txt","w")
 out.write("\n".join(np.array(all_files)[w_ins["idx"]]) + "\n")
 out.close()
 
-out = open("flt3_insertions_single.txt","w")
-out.write("\n".join(np.array(all_files)[w_ins_single["idx"]]) + "\n")
-out.close()
-
 out = open("flt3_insertions_single_itd_exact.txt","w")
 out.write("\n".join(np.array(all_files)[w_itd_exact["idx"]]) + "\n")
 out.close()
@@ -310,7 +312,6 @@ out.close()
 print("--------------------")
 print("Unique reads supporting each type of insert -> NOT number of distinct inserts!")
 print("Insertions: {}".format(len(w_ins["idx"])))
-print("One insertion only: {}".format(len(w_ins_single["idx"])))
 print("Single exact ITD: {}".format(len(w_itd_exact["idx"])))
 print("Single non-exact ITD: {}".format(len(w_itd_nonexact["idx"])))
 print("Single insertion failed alignment: {}".format(len(w_itd_nonexact_fail["idx"])))
@@ -332,7 +333,8 @@ def get_known(klength, kstart, kstart2):
 
 
 # save known ITD counts for MOLM cellline
-get_known(21,77,77) 
+get_known(21,71,71) 
+#get_known(21,77,77) 
 
 
 
