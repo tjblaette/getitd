@@ -47,7 +47,7 @@ echo "$UNIQ_COUNTS_ALL" | cut -f1 > all.readCounts
 
 
 # rev complement reference and keep reads unchanged or rev-complement reads of one direction and use one reference for both -> the latter will put start and end coords of ITDs into the same coord space (as long as they are generated relative to the reference and not the reads!)
-i=0; while read line; do i=$((i+1)); needle -asequence <(echo $line) -bsequence anno/amplicon.txt -gapopen 20 -gapextend 0.5 -outfile all_${i}.needle; done < all.reads
+i=0; while read line; do i=$((i+1)); needle -asequence <(echo $line) -bsequence anno/amplicon_wAdapter.txt -gapopen 20 -gapextend 0.5 -outfile all_${i}.needle; done < all.reads
 
 # clean up files by copying everything into one file
 # make sure to sort files so that lines match those of all.reads, all.readCounts and all.reads_counted above (= original sort order based on index i in file name as assigned by while loop above)

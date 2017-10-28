@@ -17,7 +17,8 @@ f = open("./all.alignments","r")
 #f = open("./test.alignments","r")
 
 # alignments are of unique reads only, read in separately the number of each of these reads in the original (qc-filtered) FASTQ file 
-cfile = open("all.readCounts_needleOrder","r")
+#cfile = open("all.readCounts_needleOrder","r")
+cfile = open("all.readCounts","r")
 #cfile = open("test.readCounts_needleOrder","r")
 all_readCounts = [int(readCount) for readCount in cfile.read().splitlines()]
 
