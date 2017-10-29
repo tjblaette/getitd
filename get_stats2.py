@@ -71,7 +71,7 @@ ref_coverage = np.zeros(len(ref_wt)) # count number of reads covering each bp AN
 
 # loop over all alignments, test for presence of an ITD
 for read,ref,counts,i in zip(all_reads, all_refs, all_readCounts, range(len(all_reads))):
-#this_i = 11831
+#this_i = 12432
 #if True:
 #	read = all_reads[this_i]
 #	ref = all_refs[this_i]
@@ -83,11 +83,11 @@ for read,ref,counts,i in zip(all_reads, all_refs, all_readCounts, range(len(all_
 	readn_onRef_covered = np.where(readn_onRef != '-')
 	readn_onRef_covered_range = np.arange(np.min(readn_onRef_covered), np.max(readn_onRef_covered)) # do not count last index -> read ending here holds no information on whether or not an ITD starts here --> but what about a read that covers the first 5 bases of an ITD > 5bp, I still wouldn't know...
 	ref_coverage[readn_onRef_covered_range] = ref_coverage[readn_onRef_covered_range] + counts
-	
+#	
 	# get indeces of inserts in read (positions where reference has a gap and read does not)
 	insert_idxs_all = np.arange(len(readn))[refn == '-']
 	assert('-' not in readn[insert_idxs_all]) # two gaps should never align at the same pos!
-	
+#	
 	# get indeces of each individual insert in each read
 	insert_idxs_each = []
 	insert_idxs_tmp = []
@@ -103,32 +103,32 @@ for read,ref,counts,i in zip(all_reads, all_refs, all_readCounts, range(len(all_
 	# save last insert as well
 	insert_idxs_each.append(insert_idxs_tmp)
 	assert(np.all(np.concatenate(insert_idxs_each) == insert_idxs_all))		
-
+#
 	for insert_idxs in insert_idxs_each:
 	    insert_length = len(insert_idxs)	
 	    # if there is an insert  --> require min 6 bp length, in-frame insert and no "N"s within insert
 	    if(insert_length >= 6 and insert_length % 3 == 0 and "N" not in readn[insert_idxs]):
 		    insert_start = insert_idxs[0]
 		    insert_end = insert_idxs[-1]
-
+#
 		    # relative to the reference, get coord of the first WT base before insert	
 		    insert_start_ref = insert_start - sum(refn[0:insert_start] == '-')  
 		    if insert_start == 0: 
 			    insert_start_ref = insert_start_ref - insert_length
-	    
+#	    
 		    w_ins["idx"].append(i)
 		    w_ins["length"].append(insert_length)
 		    w_ins["start"].append(insert_start_ref)
-			
+#			
 		    # check whether the insert is contained within non-insert read a second time -> that makes it an ITD!
 		    readn_nonIns = np.delete(readn,insert_idxs)
 		    ins = readn[insert_idxs]
-
+#
 		    # search for nearest tandem before and after ITD
 		    tandem2_after = ''.join(ref_wt).find(''.join(ins).lower(), insert_start_ref,len(ref_wt))
 		    tandem2_before = ''.join(reversed(ref_wt)).find(''.join(reversed(ins)).lower(), len(ref_wt) -1 -insert_start_ref, len(ref_wt))
 		    tandem2_before_converted = len(ref_wt) -1 -tandem2_before -insert_length +1  # convert coords back from reverse to forward sense
-
+#
 		    # take the one closest to the insert (should be relevant only for small ITDs that may be contained multiple time within a read
 		    tandem2_start_ref = None
 		    if tandem2_after == -1 and tandem2_before == -1:
@@ -142,7 +142,7 @@ for read,ref,counts,i in zip(all_reads, all_refs, all_readCounts, range(len(all_
 		    elif tandem2_before < tandem2_after:
 			    tandem2_start_ref = tandem2_before_converted
 		    assert tandem2_start_ref is not None  # should be assigned something!
-
+#
 		    # save if an exact second tandem of the insert was found
 		    if tandem2_start_ref != -1:   # ---> also check that index of second match is sufficiently close to insert! (for exact match and alignment approach!)
 			    w_itd_exact["idx"].append(i)
@@ -157,10 +157,8 @@ for read,ref,counts,i in zip(all_reads, all_refs, all_readCounts, range(len(all_
 			    # output: list of optimal alignments, each a list of seq1, seq2, score, start-idx, end-idx 
 			    alignment = bio.align.localms(''.join(ins), ''.join(readn_nonIns), 5, -4, -20, -0.05)[0]
 			    alignment_score, alignment_start, alignment_end = alignment[2:5]
-			
+#			
 			    if alignment_score >= min_score:
-				    if insert_start_ref == -12:
-					    print(i) 
 				    w_itd_nonexact["idx"].append(i)
 				    w_itd_nonexact["length"].append(insert_length)
 				    w_itd_nonexact["start"].append(insert_start_ref)
@@ -276,11 +274,13 @@ df_itd_grouped["counts_each"] = np.zeros(len(df_itd_grouped))
 df_itd_grouped[["idx","counts_each"]] = df_itd_grouped[["idx","counts_each"]].astype("object")
 
 for i in range(len(df_itd_grouped)):
-	this_itd = df_itd[np.array(df_itd["start"] == df_itd_grouped.ix[i,"start"]) * np.array(df_itd["tandem2_start"] == df_itd_grouped.ix[i,"tandem2_start"])]
+	this_itd = df_itd[np.array(df_itd["length"] == df_itd_grouped.ix[i,"length"]) * np.array(df_itd["start"] == df_itd_grouped.ix[i,"start"]) * np.array(df_itd["tandem2_start"] == df_itd_grouped.ix[i,"tandem2_start"])]
 	
 	df_itd_grouped.set_value(i,"idx",np.array(all_files)[this_itd["idx"]].tolist())
 	df_itd_grouped.set_value(i,"counts_each",[np.int(x) for x in this_itd["counts"]])
 
+# check that sum of "counts_each" (= read counts of each unique read) equals total counts in "counts"
+assert([sum(x) for x in df_itd_grouped["counts_each"]] == [int(x) for x in df_itd_grouped["counts"]])
 df_itd_grouped.to_csv("flt3_itds.csv")
 
 df_itd_maxClone = df_itd_grouped.groupby(by=["length"], as_index=False).max()[["length","counts"]]
@@ -333,7 +333,7 @@ def get_known(klength, kstart, kstart2):
 	
 
 
-# save known ITD counts for MOLM cellline
+# get known ITD counts for MOLM14 cellline
 get_known(21,71,71) 
 #get_known(21,77,77) 
 
