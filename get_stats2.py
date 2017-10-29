@@ -172,6 +172,91 @@ for read,ref,counts,i in zip(all_reads, all_refs, all_readCounts, range(len(all_
 w_itd = {"idx": w_itd_exact["idx"] + w_itd_nonexact["idx"], "length": w_itd_exact["length"] + w_itd_nonexact["length"], "start": w_itd_exact["start"] + w_itd_nonexact["start"], "tandem2_start": w_itd_exact["tandem2_start"] + w_itd_nonexact["tandem2_start"]}
 print("-----------------------------------")
 
+
+########################################
+# COLLECT AND SAVE TO FILE ALL ITDs DETECTED ALONG WITH LENGTH, START, STOP, TOTAL COUNTS AND INDICES AND COUNTS OF INDIVIDUAL UNIQUE READS
+
+df_itd = pd.DataFrame(w_itd)
+# require that insert start and tandem2_start are identical --> means they are adjacent and insert comes before tandem -> otherwise coverage calculation doesn't make much sense (mut reads / reads covering 1st + 2nd bp of tandem2)
+#df_itd = df_itd.ix[df_itd["start"] == df_itd["tandem2_start"]]
+
+df_itd["counts_old"] = np.zeros(len(df_itd))
+df_itd["counts"] = [all_readCounts[i] for i in df_itd["idx"]]
+
+df_itd_grouped = df_itd.groupby(by=["length","start","tandem2_start"], as_index=False).sum()
+df_itd_grouped["ref_coverage"] = [ref_coverage[pos] for pos in df_itd_grouped["tandem2_start"]]
+df_itd_grouped["vaf"] = (df_itd_grouped["counts"]/df_itd_grouped["ref_coverage"] * 100).round(5)
+df_itd_grouped["counts_each"] = np.zeros(len(df_itd_grouped))
+df_itd_grouped[["idx","counts_each"]] = df_itd_grouped[["idx","counts_each"]].astype("object")
+
+for i in range(len(df_itd_grouped)):
+	this_itd = df_itd[np.array(df_itd["length"] == df_itd_grouped.ix[i,"length"]) * np.array(df_itd["start"] == df_itd_grouped.ix[i,"start"]) * np.array(df_itd["tandem2_start"] == df_itd_grouped.ix[i,"tandem2_start"])]
+	df_itd_grouped.set_value(i,"idx",np.array(all_files)[this_itd["idx"]].tolist())
+	df_itd_grouped.set_value(i,"counts_each",[np.int(x) for x in this_itd["counts"]])
+
+# check that sum of "counts_each" (= read counts of each unique read) equals total counts in "counts"
+assert([sum(x) for x in df_itd_grouped["counts_each"]] == [int(x) for x in df_itd_grouped["counts"]])
+
+df_itd_grouped[['length', 'start', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'idx']].to_csv("flt3_itds.csv")
+
+df_itd_maxClone = df_itd_grouped.groupby(by=["length"], as_index=False).max()[["length","counts"]]
+#df_itd_maxClone["vaf"] = (df_itd_maxClone["counts"]/sum(all_readCounts) * 100).round(5)   # in percent
+df_itd_maxClone["tandem2_start"] = [list(df_itd_grouped.ix[np.array(df_itd_grouped["length"] == this_length) * np.array(df_itd_grouped["counts"] == max_counts)]["tandem2_start"]) for this_length,max_counts in zip(df_itd_maxClone["length"],df_itd_maxClone["counts"])]
+df_itd_maxClone["vaf"] = [list(df_itd_grouped.ix[np.array(df_itd_grouped["length"] == this_length) * np.array(df_itd_grouped["counts"] == max_counts)]["vaf"]) for this_length,max_counts in zip(df_itd_maxClone["length"],df_itd_maxClone["counts"])]
+df_itd_maxClone.to_csv("flt3_itds_mostFrequentClonePerLength.csv")
+
+########################################
+# PRINT FILENAMES OF EACH CATEGORY TO FILE
+			
+out = open("flt3_insertions.txt","w")
+out.write("\n".join(np.array(all_files)[w_ins["idx"]]) + "\n")
+out.close()
+
+out = open("flt3_insertions_single_itd_exact.txt","w")
+out.write("\n".join(np.array(all_files)[w_itd_exact["idx"]]) + "\n")
+out.close()
+
+out = open("flt3_insertions_single_itd_nonexact.txt","w")
+out.write("\n".join(np.array(all_files)[w_itd_nonexact["idx"]]) + "\n")
+out.close()
+
+out = open("flt3_insertions_single_itd_nonexact_fail.txt","w")
+out.write("\n".join(np.array(all_files)[w_itd_nonexact_fail["idx"]]) + "\n")
+out.close()
+
+
+########################################
+# PRINT SUMMARY STATISTICS on the number of reads in each category
+
+print("--------------------")
+print("Unique reads supporting each type of insert -> NOT number of distinct inserts!")
+print("Insertions: {}".format(len(w_ins["idx"])))
+print("Single exact ITD: {}".format(len(w_itd_exact["idx"])))
+print("Single non-exact ITD: {}".format(len(w_itd_nonexact["idx"])))
+print("Single insertion failed alignment: {}".format(len(w_itd_nonexact_fail["idx"])))
+
+
+#########################################
+# COLLECT DATA TO PLOT MOLM DILUTION SERIES' VAF AND READ COUNTS OF KNOWN ITD
+# ----> LATER EXTEND THIS TO SUPPORT PLOTTING OF ANY/ALL KNOWN ITDs SUPPLIED?!
+
+def get_known(klength, kstart, kstart2):
+	kstat = df_itd_grouped.ix[np.array(df_itd_grouped["length"] == klength) * np.array(df_itd_grouped["start"] == kstart) * np.array(df_itd_grouped["tandem2_start"] == kstart2)][["counts","vaf"]]
+	kindex = "_".join([str(x) for x in [klength,kstart,kstart2]])
+#	
+	known = pd.DataFrame({"itd": kindex, "counts": kstat["counts"], "vaf": kstat["vaf"]})[["itd","counts","vaf"]]
+	print(known)
+	known.to_csv("known_itds.csv")
+	
+
+
+# get known ITD counts for MOLM14 cellline
+get_known(21,71,71) 
+#get_known(21,77,77) 
+
+
+
+
 ########################################
 # PLOT SEPARATE HISTOGRAMS FOR COUNTS OF INSERT/ITD LENGTH/START/STOP/START-STOP PER CATEGORY
 
@@ -212,13 +297,8 @@ def plot_hist(title_, xlab_, top=True, bottom=True):
 		plt.tick_params(axis='x',which='both',bottom='on',top='off',labelbottom='on') 
 		# changes apply to the x-axis, both major and minor ticks are affected, ticks along the bottom edge are on, ticks along the top edge are off, labels along the bottom edge are on
 
-df_itd = pd.DataFrame(w_itd)
-df_itd["counts"] = np.zeros(len(df_itd))
-
-for ins_type,ins_filename,title_ in zip([w_ins, w_itd_exact, w_itd_nonexact, w_itd, w_itd_nonexact_fail],["w_ins", "w_itd_exact", "w_itd_nonexact", "w_itd", "w_itd_nonexact_fail"],["Single insertions", "Single ITDs - exact matching", "Single ITDs - non-exact matching", "Single ITDs - all", "Single insertions - failed ITD matching"]):
-	#print(ins_type)
+for ins_type,ins_filename,title_ in zip([w_ins, w_itd_exact, w_itd_nonexact, w_itd, w_itd_nonexact_fail],["w_ins", "w_itd_exact", "w_itd_nonexact", "w_itd", "w_itd_nonexact_fail"],["Insertions", "ITDs - exact matching", "ITDs - non-exact matching", "ITDs - all", "Insertions - failed ITD matching"]):
 	for stat,xlab_ in zip(["length","start"], ["Insert length (bp)","Insert start position"]):
-		#print(stat)
 		if not ins_type[stat]: # prevent failure for empty lists (happened for small test sets)
 			continue
 		
@@ -243,7 +323,7 @@ for ins_type,ins_filename,title_ in zip([w_ins, w_itd_exact, w_itd_nonexact, w_i
 			i_idx = ins_type["idx"][i]
 			counts_table[i_stat] = counts_table[i_stat] + all_readCounts[i_idx]
 			if((ins_filename=="w_itd_exact" or ins_filename=="w_itd_nonexact") and stat=="length"):
-				df_itd.ix[df_itd["idx"] == i_idx, "counts"] = all_readCounts[i_idx]
+				df_itd.ix[df_itd["idx"] == i_idx, "counts_old"] = all_readCounts[i_idx]
 
 		vafs = counts_table/sum(all_readCounts) * 100   # in percent
 		# PLOT
@@ -264,78 +344,8 @@ for ins_type,ins_filename,title_ in zip([w_ins, w_itd_exact, w_itd_nonexact, w_i
 		# save counts as CSV table and as histogram 
 		pd.DataFrame(counts_table, index=counts_table_value, columns=["counts"]).to_csv("table_" + stat + "_" + ins_filename + ".csv")
 		plt.savefig("plot_" + stat + "_" + ins_filename + ".pdf")
+assert(list(df_itd["counts"]) == list(df_itd["counts_old"])) # remove this and counts_old at some point!
 
-
-########################################
-# COLLECT AND SAVE TO FILE ALL ITDs DETECTED ALONG WITH LENGTH, START, STOP, TOTAL COUNTS AND INDICES AND COUNTS OF INDIVIDUAL UNIQUE READS
-
-df_itd_grouped = df_itd.groupby(by=["length","start","tandem2_start"], as_index=False).sum()
-df_itd_grouped["counts_each"] = np.zeros(len(df_itd_grouped))
-df_itd_grouped[["idx","counts_each"]] = df_itd_grouped[["idx","counts_each"]].astype("object")
-
-for i in range(len(df_itd_grouped)):
-	this_itd = df_itd[np.array(df_itd["length"] == df_itd_grouped.ix[i,"length"]) * np.array(df_itd["start"] == df_itd_grouped.ix[i,"start"]) * np.array(df_itd["tandem2_start"] == df_itd_grouped.ix[i,"tandem2_start"])]
-	
-	df_itd_grouped.set_value(i,"idx",np.array(all_files)[this_itd["idx"]].tolist())
-	df_itd_grouped.set_value(i,"counts_each",[np.int(x) for x in this_itd["counts"]])
-
-# check that sum of "counts_each" (= read counts of each unique read) equals total counts in "counts"
-assert([sum(x) for x in df_itd_grouped["counts_each"]] == [int(x) for x in df_itd_grouped["counts"]])
-df_itd_grouped.to_csv("flt3_itds.csv")
-
-df_itd_maxClone = df_itd_grouped.groupby(by=["length"], as_index=False).max()[["length","counts"]]
-df_itd_maxClone["vaf"] = (df_itd_maxClone["counts"]/sum(all_readCounts) * 100).round(5)   # in percent
-df_itd_maxClone.to_csv("flt3_itds_mostFrequentClonePerLength.csv")
-
-########################################
-# PRINT FILENAMES OF EACH CATEGORY TO FILE
-			
-out = open("flt3_insertions.txt","w")
-out.write("\n".join(np.array(all_files)[w_ins["idx"]]) + "\n")
-out.close()
-
-out = open("flt3_insertions_single_itd_exact.txt","w")
-out.write("\n".join(np.array(all_files)[w_itd_exact["idx"]]) + "\n")
-out.close()
-
-out = open("flt3_insertions_single_itd_nonexact.txt","w")
-out.write("\n".join(np.array(all_files)[w_itd_nonexact["idx"]]) + "\n")
-out.close()
-
-out = open("flt3_insertions_single_itd_nonexact_fail.txt","w")
-out.write("\n".join(np.array(all_files)[w_itd_nonexact_fail["idx"]]) + "\n")
-out.close()
-
-
-########################################
-# PRINT SUMMARY STATISTICS on the number of reads in each category
-
-print("--------------------")
-print("Unique reads supporting each type of insert -> NOT number of distinct inserts!")
-print("Insertions: {}".format(len(w_ins["idx"])))
-print("Single exact ITD: {}".format(len(w_itd_exact["idx"])))
-print("Single non-exact ITD: {}".format(len(w_itd_nonexact["idx"])))
-print("Single insertion failed alignment: {}".format(len(w_itd_nonexact_fail["idx"])))
-
-
-#########################################
-# COLLECT DATA TO PLOT MOLM DILUTION SERIES' VAF AND READ COUNTS OF KNOWN ITD
-# ----> LATER EXTEND THIS TO SUPPORT PLOTTING OF ANY/ALL KNOWN ITDs SUPPLIED?!
-
-def get_known(klength, kstart, kstart2):
-	kcounts = df_itd_grouped.ix[np.array(df_itd_grouped["length"] == klength) * np.array(df_itd_grouped["start"] == kstart) * np.array(df_itd_grouped["tandem2_start"] == kstart2)]["counts"]
-	kvaf = (kcounts/sum(all_readCounts) * 100).round(5)   # in percent
-	kindex = "_".join([str(x) for x in [klength,kstart,kstart2]])
-#	
-	known = pd.DataFrame({"itd": kindex, "counts": kcounts, "vaf": kvaf})
-	print(known)
-	known.to_csv("known_itds.csv")
-	
-
-
-# get known ITD counts for MOLM14 cellline
-get_known(21,71,71) 
-#get_known(21,77,77) 
 
 
 
