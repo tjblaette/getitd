@@ -71,12 +71,14 @@ print("Filtering {} low quality allignments with a score < {}".format(sum(np.arr
 all_reads = [read for read,score in zip(all_reads,all_scores) if score >= min_score]
 all_refs = [ref for ref,score in zip(all_refs,all_scores) if score >= min_score]
 all_readCounts = [readCount for readCount,score in zip(all_readCounts,all_scores) if score >= min_score]
+all_files = [file_ for file_,score in zip(all_files,all_scores) if score >= min_score]
 all_scores = [score for score in all_scores if score >= min_score]
 
 # again make sure there is a 1:1 matching between these files -> must all have the same length!
 assert(len(all_reads) == len(all_refs))
 assert(len(all_reads) == len(all_readCounts))
 assert(len(all_reads) == len(all_scores))
+assert(len(all_reads) == len(all_files))
 
 
 
@@ -108,24 +110,21 @@ def read_to_wt_coord(readn_coord, refn):
 # EXTRACT INSERT SEQUENCE FROM READ
 
 # check each alignment for insert/itd and save index in all_reads/all_refs/all_files to idx, insert/itd length to length and insert/itd start/stop position to start/end dicts based on insert/itd classification
-w_ins = {"idx": [], "length": [], "start": [], "insert": []}
-w_itd_exact = {"idx": [], "length": [], "start": [], "tandem2_start": [], "offset": [], "insert": []}
-w_itd_nonexact = {"idx": [], "length": [], "start": [], "tandem2_start": [], "offset": [], "insert": []}
-w_itd_nonexact_fail = {"idx": [], "length": [], "start": [], "offset": [], "insert": []}
+w_ins = {"idx": [], "file": [], "length": [], "start": [], "insert": []}
+w_itd_exact = {"idx": [], "file": [], "length": [], "start": [], "tandem2_start": [], "offset": [], "insert": []}
+w_itd_nonexact = {"idx": [], "file": [], "length": [], "start": [], "tandem2_start": [], "offset": [], "insert": []}
+w_itd_nonexact_fail = {"idx": [], "file": [], "length": [], "start": [], "offset": [], "insert": []}
 
 ref_wt = [base for base in all_refs[0] if base != '-'] 
 ref_coverage = np.zeros(len(ref_wt)) # count number of reads covering each bp AND its successor (therefore do not calc coverage for last bp)
 
 # loop over all alignments, test for presence of an ITD
 #for read,ref,score,counts,i in zip(all_reads, all_refs, all_scores, all_readCounts, range(len(all_reads))):
-for read,ref,score,counts,filename in zip(all_reads, all_refs, all_scores, all_readCounts, all_files):
-#this_i = 1080
-#if True:
-#	read = all_reads[this_i]
-#	ref = all_refs[this_i]
-#	counts = all_readCounts[this_i]
-#	i = this_i
-	i = int(''.join(x for x in filename if x.isdigit())) -1
+test = False
+#i_of_interest = 14807
+#test = True
+for read,ref,score,counts,filename,i in zip(all_reads, all_refs, all_scores, all_readCounts, all_files, range(len(all_reads))):
+	#i = int(''.join(x for x in filename if x.isdigit())) -1
 	readn = np.array(list(read))
 	refn = np.array(list(ref))
 	assert(len(readn) == len(refn))
@@ -169,6 +168,7 @@ for read,ref,score,counts,filename in zip(all_reads, all_refs, all_scores, all_r
 			    insert_start_ref = insert_start_ref - insert_length
 #	    
 		    w_ins["idx"].append(i)
+		    w_ins["file"].append(filename)
 		    w_ins["length"].append(insert_length)
 		    w_ins["start"].append(insert_start_ref)
 		    w_ins["insert"].append(''.join(ins))
@@ -199,6 +199,7 @@ for read,ref,score,counts,filename in zip(all_reads, all_refs, all_scores, all_r
 		    # save if an exact second tandem of the insert was found
 		    if tandem2_start != -1:   # ---> also check that index of second match is sufficiently close to insert! (for exact match and alignment approach!)
 			    w_itd_exact["idx"].append(i)
+			    w_itd_exact["file"].append(filename)
 			    w_itd_exact["length"].append(insert_length)
 			    w_itd_exact["start"].append(insert_start_ref)
 			    w_itd_exact["tandem2_start"].append(read_to_wt_coord(tandem2_start, refn))
@@ -215,6 +216,7 @@ for read,ref,score,counts,filename in zip(all_reads, all_refs, all_scores, all_r
 #			
 			    if alignment_score >= min_score:
 				    w_itd_nonexact["idx"].append(i)
+				    w_itd_nonexact["file"].append(filename)
 				    w_itd_nonexact["length"].append(insert_length)
 				    w_itd_nonexact["start"].append(insert_start_ref)
 				    w_itd_nonexact["tandem2_start"].append(read_to_wt_coord(alignment_start, refn))
@@ -222,12 +224,15 @@ for read,ref,score,counts,filename in zip(all_reads, all_refs, all_scores, all_r
 				    w_itd_nonexact["insert"].append(''.join(ins))
 			    else:
 				    w_itd_nonexact_fail["idx"].append(i)
+				    w_itd_nonexact_fail["file"].append(filename)
 				    w_itd_nonexact_fail["length"].append(insert_length)
 				    w_itd_nonexact_fail["start"].append(insert_start_ref)
 				    w_itd_nonexact_fail["insert"].append(''.join(ins))
 				    #print(bio.format_alignment(*alignment))
+	if test == True and i == i_of_interest:
+		break
 
-w_itd = {"idx": w_itd_exact["idx"] + w_itd_nonexact["idx"], "length": w_itd_exact["length"] + w_itd_nonexact["length"], "start": w_itd_exact["start"] + w_itd_nonexact["start"], "tandem2_start": w_itd_exact["tandem2_start"] + w_itd_nonexact["tandem2_start"], "offset": w_itd_exact["offset"] + w_itd_nonexact["offset"], "insert": w_itd_exact["insert"] + w_itd_nonexact["insert"]}
+w_itd = {"idx": w_itd_exact["idx"] + w_itd_nonexact["idx"], "file": w_itd_exact["file"] + w_itd_nonexact["file"], "length": w_itd_exact["length"] + w_itd_nonexact["length"], "tandem2_start": w_itd_exact["tandem2_start"] + w_itd_nonexact["tandem2_start"], "insert": w_itd_exact["insert"] + w_itd_nonexact["insert"]}
 print("-----------------------------------")
 
 
@@ -241,25 +246,102 @@ df_itd["counts"] = [all_readCounts[i] for i in df_itd["idx"]]
 #df_itd = df_itd.ix[df_itd["offset"] == len(df_itd["insert"]]
 
 
-df_itd_grouped = df_itd.groupby(by=["length","offset","tandem2_start","insert"], as_index=False).sum()
+df_itd_grouped = df_itd.groupby(by=["length","tandem2_start","insert"], as_index=False).sum()
 df_itd_grouped["ref_coverage"] = [ref_coverage[pos] for pos in df_itd_grouped["tandem2_start"]]
 df_itd_grouped["vaf"] = (df_itd_grouped["counts"]/df_itd_grouped["ref_coverage"] * 100).round(5)
-df_itd_grouped["counts_each"] = np.zeros(len(df_itd_grouped))
+df_itd_grouped["counts_each"] = np.zeros(len(df_itd_grouped)) 
 df_itd_grouped[["idx","counts_each"]] = df_itd_grouped[["idx","counts_each"]].astype("object")
+df_itd_grouped_files = []
 
 for i in range(len(df_itd_grouped)):
-	this_itd = df_itd[np.array(df_itd["length"] == df_itd_grouped.ix[i,"length"]) * np.array(df_itd["offset"] == df_itd_grouped.ix[i,"offset"]) * np.array(df_itd["tandem2_start"] == df_itd_grouped.ix[i,"tandem2_start"]) * np.array(df_itd["insert"] == df_itd_grouped.ix[i,"insert"])]
-	#this_itd = df_itd[np.array(df_itd["length"] == df_itd_grouped.ix[i,"length"]) * np.array(df_itd["start"] == df_itd_grouped.ix[i,"start"]) * np.array(df_itd["tandem2_start"] == df_itd_grouped.ix[i,"tandem2_start"])]
+	this_itd = df_itd[np.array(df_itd["length"] == df_itd_grouped.ix[i,"length"]) * np.array(df_itd["tandem2_start"] == df_itd_grouped.ix[i,"tandem2_start"]) * np.array(df_itd["insert"] == df_itd_grouped.ix[i,"insert"])]
 	df_itd_grouped.set_value(i,"idx",np.array(all_files)[this_itd["idx"]].tolist())
+	df_itd_grouped_files.append([this_itd["file"]])
 	df_itd_grouped.set_value(i,"counts_each",[np.int(x) for x in this_itd["counts"]])
+
+df_itd_grouped["file"] = df_itd_grouped_files
 
 # check that sum of "counts_each" (= read counts of each unique read) equals total counts in "counts"
 assert([sum(x) for x in df_itd_grouped["counts_each"]] == [int(x) for x in df_itd_grouped["counts"]])
 
-df_itd_grouped[['length', 'offset', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'idx']].to_csv("flt3_itds.csv")
+
+
+########################################
+# COLLAPSE ITDs #2 
+# --> align inserts of same length and tandem2_start, collapse if they are sufficiently similar
+
+
+df_itd_collapsed = pd.DataFrame(columns=['length', 'tandem2_start', 'insert', 'idx', 'file', 'counts', 'ref_coverage', 'vaf', 'counts_each'])
+df_itd_collapsed["idx"] = []
+df_itd_collapsed["file"] = []
+df_itd_collapsed["counts_each"] = []
+
+for length in set(df_itd_grouped["length"]):
+    #print("-------\nlength: {}".format(length))
+    this_df_length = df_itd_grouped.ix[df_itd_grouped["length"] == length]
+    #
+    for tandem2_start in set(this_df_length["tandem2_start"]):
+        #print("tandem2_start: {}".format(tandem2_start))
+        this_df = this_df_length.ix[this_df_length["tandem2_start"] == tandem2_start]
+        #
+        max_score = length * 5
+        min_score = max_score * 0.5
+        #
+        for i in range(this_df.shape[0]):
+            #print("i: {}".format(i))
+            i_idx = this_df.index[i]
+            this_ins = this_df["insert"][i_idx]
+            collapsed = False
+            #
+            for ii,iirow in df_itd_collapsed[::-1].iterrows(): #[::-1] to reverse df and speed up pos alignment
+                #print("ii: {}".format(ii))
+                other_ins = iirow["insert"]
+                #
+                alignment = bio.align.globalcs(this_ins, other_ins, get_alignment_score, -20, -0.05)[0]
+                alignment_score = alignment[2]
+                #
+                #print(alignment_score)
+                #print(min_score)
+                #print(max_score)
+                if alignment_score >= min_score:
+                    collapsed = True
+                    # collapse
+                    # add together some statistics
+                    df_itd_collapsed.at[ii,"counts"] = df_itd_collapsed["counts"][ii] + this_df["counts"][i_idx]
+                    df_itd_collapsed.at[ii, "vaf"] = df_itd_collapsed["vaf"][ii] + this_df["vaf"][i_idx]
+                    #
+                    # pick one or the other for the others OR keep both but in specific order (first list for picked insert) -> go for the most abundant one (or the one closest to reference?!)
+                    if this_df["counts"][i_idx] > df_itd_collapsed["counts"][ii]:
+                        df_itd_collapsed.at[ii, "insert"] = this_df["insert"][i_idx]
+                        df_itd_collapsed.at[ii, "ref_coverage"] = this_df["ref_coverage"][i_idx]
+                        #
+                        df_itd_collapsed.at[ii, "idx"] = this_df["idx"][i_idx] + df_itd_collapsed["idx"][ii]
+                        df_itd_collapsed.at[ii, "file"] = this_df["file"][i_idx] + df_itd_collapsed["file"][ii]
+                        df_itd_collapsed.at[ii, "counts_each"] = this_df["counts_each"][i_idx] + df_itd_collapsed["counts_each"][ii]
+                    else:
+                        df_itd_collapsed.at[ii, "idx"] = df_itd_collapsed["idx"][ii] + this_df["idx"][i_idx]
+                        df_itd_collapsed.at[ii, "file"] = df_itd_collapsed["file"][ii] + this_df["file"][i_idx]
+                        df_itd_collapsed.at[ii, "counts_each"] = df_itd_collapsed["counts_each"][ii] + this_df["counts_each"][i_idx]
+                    #print("COLLAPSED")
+                    break
+            #
+            if not collapsed:
+                df_itd_collapsed = df_itd_collapsed.append(this_df.ix[i_idx], ignore_index=True)
+# when doing read collapsing, I should consider the entire read! -> add masked flanking sequences to take insert pos into consideration -> mask with sth other than 'Z', penalize as regular mismatch -> flanking sequences should fill up complete wt reference
+
+
+########################################
+# COLLAPSE ITDs #3
+# --> align inserts of same length with masked flanking sequence, collapse if they are sufficiently similar
+
+
+
+
+
+
+df_itd_grouped[['length', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv("flt3_itds.csv")
 
 df_itd_maxClone = df_itd_grouped.groupby(by=["length"], as_index=False).max()[["length","counts"]]
-#df_itd_maxClone["vaf"] = (df_itd_maxClone["counts"]/sum(all_readCounts) * 100).round(5)   # in percent
 df_itd_maxClone["tandem2_start"] = [list(df_itd_grouped.ix[np.array(df_itd_grouped["length"] == this_length) * np.array(df_itd_grouped["counts"] == max_counts)]["tandem2_start"]) for this_length,max_counts in zip(df_itd_maxClone["length"],df_itd_maxClone["counts"])]
 df_itd_maxClone["vaf"] = [list(df_itd_grouped.ix[np.array(df_itd_grouped["length"] == this_length) * np.array(df_itd_grouped["counts"] == max_counts)]["vaf"]) for this_length,max_counts in zip(df_itd_maxClone["length"],df_itd_maxClone["counts"])]
 df_itd_maxClone.to_csv("flt3_itds_mostFrequentClonePerLength.csv")
@@ -300,7 +382,7 @@ print("Single insertion failed alignment: {}".format(len(w_itd_nonexact_fail["id
 # ----> LATER EXTEND THIS TO SUPPORT PLOTTING OF ANY/ALL KNOWN ITDs SUPPLIED?!
 
 def get_known(klength, kstart):
-	kstat = df_itd_grouped.ix[np.array(df_itd_grouped["length"] == klength) * np.array(df_itd_grouped["offset"] == klength) * np.array(df_itd_grouped["tandem2_start"] == kstart)][["counts","vaf"]]
+	kstat = df_itd_grouped.ix[np.array(df_itd_grouped["length"] == klength) * np.array(df_itd_grouped["tandem2_start"] == kstart)][["counts","vaf"]]
 	kindex = "_".join([str(x) for x in [klength,kstart]])
 #	
 	known = pd.DataFrame({"itd": kindex, "counts": kstat["counts"], "vaf": kstat["vaf"]})[["itd","counts","vaf"]]
@@ -311,7 +393,6 @@ def get_known(klength, kstart):
 
 # get known ITD counts for MOLM14 cellline
 get_known(21,71) 
-#get_known(21,77,77) 
 
 
 
@@ -356,8 +437,8 @@ def plot_hist(title_, xlab_, top=True, bottom=True):
 		plt.tick_params(axis='x',which='both',bottom='on',top='off',labelbottom='on') 
 		# changes apply to the x-axis, both major and minor ticks are affected, ticks along the bottom edge are on, ticks along the top edge are off, labels along the bottom edge are on
 
-for ins_type,ins_filename,title_ in zip([w_ins, w_itd_exact, w_itd_nonexact, w_itd, w_itd_nonexact_fail],["w_ins", "w_itd_exact", "w_itd_nonexact", "w_itd", "w_itd_nonexact_fail"],["Insertions", "ITDs - exact matching", "ITDs - non-exact matching", "ITDs - all", "Insertions - failed ITD matching"]):
-	for stat,xlab_ in zip(["length","start"], ["Insert length (bp)","Insert start position"]):
+for ins_type,ins_filename,title_ in zip([w_itd_exact, w_itd_nonexact, w_itd],["w_itd_exact", "w_itd_nonexact", "w_itd"],["ITDs - exact matching", "ITDs - non-exact matching", "ITDs - all"]):
+	for stat,xlab_ in zip(["length","tandem2_start"], ["Insert length (bp)","Tandem2 start position"]):
 		if not ins_type[stat]: # prevent failure for empty lists (happened for small test sets)
 			continue
 		
@@ -367,7 +448,7 @@ for ins_type,ins_filename,title_ in zip([w_ins, w_itd_exact, w_itd_nonexact, w_i
 		if stat == "length":
 			counts_table = np.zeros(max(ins_type["length"]) +1)
 			counts_table_value = np.arange(0,len(counts_table))
-		elif stat == "start":
+		elif stat == "tandem2_start":
 			min_val = min(0,min(ins_type[stat]))
 			max_val = max(ins_type[stat])
 			counts_table = np.zeros(max_val + abs(min_val) + 1)
