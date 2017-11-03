@@ -249,20 +249,20 @@ df_itd["counts"] = [all_readCounts[i] for i in df_itd["idx"]]
 df_itd_grouped = df_itd.groupby(by=["length","tandem2_start","insert"], as_index=False).sum()
 df_itd_grouped["ref_coverage"] = [ref_coverage[pos] for pos in df_itd_grouped["tandem2_start"]]
 df_itd_grouped["vaf"] = (df_itd_grouped["counts"]/df_itd_grouped["ref_coverage"] * 100).round(5)
+df_itd_grouped["file"] = np.zeros(len(df_itd_grouped)) 
 df_itd_grouped["counts_each"] = np.zeros(len(df_itd_grouped)) 
-df_itd_grouped[["idx","counts_each"]] = df_itd_grouped[["idx","counts_each"]].astype("object")
-df_itd_grouped_files = []
+df_itd_grouped[["idx","file","counts_each"]] = df_itd_grouped[["idx","file","counts_each"]].astype("object")
 
 for i in range(len(df_itd_grouped)):
 	this_itd = df_itd[np.array(df_itd["length"] == df_itd_grouped.ix[i,"length"]) * np.array(df_itd["tandem2_start"] == df_itd_grouped.ix[i,"tandem2_start"]) * np.array(df_itd["insert"] == df_itd_grouped.ix[i,"insert"])]
-	df_itd_grouped.set_value(i,"idx",np.array(all_files)[this_itd["idx"]].tolist())
-	df_itd_grouped_files.append([this_itd["file"]])
+	df_itd_grouped.set_value(i,"idx",this_itd["idx"].tolist())
+	df_itd_grouped.set_value(i,"file",this_itd["file"].tolist())
 	df_itd_grouped.set_value(i,"counts_each",[np.int(x) for x in this_itd["counts"]])
-
-df_itd_grouped["file"] = df_itd_grouped_files
 
 # check that sum of "counts_each" (= read counts of each unique read) equals total counts in "counts"
 assert([sum(x) for x in df_itd_grouped["counts_each"]] == [int(x) for x in df_itd_grouped["counts"]])
+
+df_itd_grouped[['length', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv("flt3_itds.csv", index=False)
 
 
 
@@ -339,12 +339,10 @@ for length in set(df_itd_grouped["length"]):
 
 
 
-df_itd_grouped[['length', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv("flt3_itds.csv")
-
 df_itd_maxClone = df_itd_grouped.groupby(by=["length"], as_index=False).max()[["length","counts"]]
 df_itd_maxClone["tandem2_start"] = [list(df_itd_grouped.ix[np.array(df_itd_grouped["length"] == this_length) * np.array(df_itd_grouped["counts"] == max_counts)]["tandem2_start"]) for this_length,max_counts in zip(df_itd_maxClone["length"],df_itd_maxClone["counts"])]
 df_itd_maxClone["vaf"] = [list(df_itd_grouped.ix[np.array(df_itd_grouped["length"] == this_length) * np.array(df_itd_grouped["counts"] == max_counts)]["vaf"]) for this_length,max_counts in zip(df_itd_maxClone["length"],df_itd_maxClone["counts"])]
-df_itd_maxClone.to_csv("flt3_itds_mostFrequentClonePerLength.csv")
+df_itd_maxClone.to_csv("flt3_itds_mostFrequentClonePerLength.csv", index=False)
 
 ########################################
 # PRINT FILENAMES OF EACH CATEGORY TO FILE
@@ -387,7 +385,7 @@ def get_known(klength, kstart):
 #	
 	known = pd.DataFrame({"itd": kindex, "counts": kstat["counts"], "vaf": kstat["vaf"]})[["itd","counts","vaf"]]
 	print(known)
-	known.to_csv("known_itds.csv")
+	known.to_csv("known_itds.csv", index=False)
 	
 
 
@@ -480,7 +478,7 @@ for ins_type,ins_filename,title_ in zip([w_itd_exact, w_itd_nonexact, w_itd],["w
 	
 		fig.tight_layout() # required to not have subplots overlap
 		# save counts as CSV table and as histogram 
-		pd.DataFrame(counts_table, index=counts_table_value, columns=["counts"]).to_csv("table_" + stat + "_" + ins_filename + ".csv")
+		pd.DataFrame(counts_table, index=counts_table_value, columns=["counts"]).to_csv("table_" + stat + "_" + ins_filename + ".csv", index=False)
 		plt.savefig("plot_" + stat + "_" + ins_filename + ".pdf")
 
 
