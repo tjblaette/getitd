@@ -6,6 +6,8 @@ mpl.use('Agg')  # required to use matplotlib without X (via ssh + screen)
 import matplotlib.pyplot as plt
 import sys
 
+print("###\n###")
+
 #######################################
 ## OPEN FILE
 
@@ -67,6 +69,7 @@ assert(len(all_reads) == len(all_scores))
 max_score = max(all_scores) # should be wt, but doesn't have to be!  --> use len(read
 min_score = max_score * 0.5
 print("Filtering {} low quality allignments with a score < {}".format(sum(np.array(all_scores) < min_score), min_score))
+print("--------------------")
 
 all_reads = [read for read,score in zip(all_reads,all_scores) if score >= min_score]
 all_refs = [ref for ref,score in zip(all_refs,all_scores) if score >= min_score]
@@ -106,6 +109,12 @@ def read_to_wt_coord(readn_coord, refn):
   return wt_coord
 
 
+# check that insert was realigned in one piece
+def integral_insert_realignment(insert_alignment, insert_length):
+    insert_idxs = [i for i in range(len(insert_alignment)) if insert_alignment[i] != '-']
+    return insert_idxs[-1] - insert_idxs[0] +1 == insert_length
+
+
 #######################################
 # EXTRACT INSERT SEQUENCE FROM READ
 
@@ -118,13 +127,15 @@ w_itd_nonexact_fail = {"idx": [], "file": [], "length": [], "start": [], "offset
 ref_wt = [base for base in all_refs[0] if base != '-'] 
 ref_coverage = np.zeros(len(ref_wt)) # count number of reads covering each bp AND its successor (therefore do not calc coverage for last bp)
 
+ambig_i = []
+ambig_als = []
+
 # loop over all alignments, test for presence of an ITD
 #for read,ref,score,counts,i in zip(all_reads, all_refs, all_scores, all_readCounts, range(len(all_reads))):
 test = False
-#i_of_interest = 14807
+i_of_interest = 10
 #test = True
 for read,ref,score,counts,filename,i in zip(all_reads, all_refs, all_scores, all_readCounts, all_files, range(len(all_reads))):
-	#i = int(''.join(x for x in filename if x.isdigit())) -1
 	readn = np.array(list(read))
 	refn = np.array(list(ref))
 	assert(len(readn) == len(refn))
@@ -211,8 +222,16 @@ for read,ref,score,counts,filename,i in zip(all_reads, all_refs, all_scores, all
 			    min_score = max_score * 0.9
 			    # arguments: seq1, seq2, match-score, mismatch-score, gapopen-score, gapextend-score --> match/mismatch from needle default (/usr/share/EMBOSS/data/EDNAFULL), gap as passed to needle in my script
 			    # output: list of optimal alignments, each a list of seq1, seq2, score, start-idx, end-idx 
-			    alignment = bio.align.localcs(''.join(ins), ''.join(readn_maskedIns), get_alignment_score, -20, -0.05)[0]
-			    alignment_score, alignment_start, alignment_end = alignment[2:5]
+			    alignments = bio.align.localcs(''.join(ins), ''.join(readn_maskedIns), get_alignment_score, -20, -0.05)
+			    # filter alignments where insert cannot be realigned in one piece
+			    alignments = [al for al in alignments if integral_insert_realignment(al[0],21)]
+			    alignment_score = None
+			    #
+			    if alignments == []:
+				    alignment_score = -1
+			    else:
+				    alignment = alignments[0]
+				    alignment_score, alignment_start, alignment_end = alignment[2:5]
 #			
 			    if alignment_score >= min_score:
 				    w_itd_nonexact["idx"].append(i)
@@ -229,22 +248,28 @@ for read,ref,score,counts,filename,i in zip(all_reads, all_refs, all_scores, all
 				    w_itd_nonexact_fail["start"].append(insert_start_ref)
 				    w_itd_nonexact_fail["insert"].append(''.join(ins))
 				    #print(bio.format_alignment(*alignment))
+			    if len(alignments) > 1:
+				    ambig_i.append(i)
+				    ambig_als.append(alignments)
 	if test == True and i == i_of_interest:
 		break
 
-w_itd = {"idx": w_itd_exact["idx"] + w_itd_nonexact["idx"], "file": w_itd_exact["file"] + w_itd_nonexact["file"], "length": w_itd_exact["length"] + w_itd_nonexact["length"], "tandem2_start": w_itd_exact["tandem2_start"] + w_itd_nonexact["tandem2_start"], "insert": w_itd_exact["insert"] + w_itd_nonexact["insert"]}
-print("-----------------------------------")
+# print number of ambiguous alignments (to see if this is sth I need to handle or not)
+print("There were {} inserts that generated ambiguous alignments.".format(len(ambig_i)))
+print("--------------------")
+
+#w_itd = {"idx": w_itd_exact["idx"] + w_itd_nonexact["idx"], "file": w_itd_exact["file"] + w_itd_nonexact["file"], "length": w_itd_exact["length"] + w_itd_nonexact["length"], "tandem2_start": w_itd_exact["tandem2_start"] + w_itd_nonexact["tandem2_start"], "insert": w_itd_exact["insert"] + w_itd_nonexact["insert"]}
+w_itd = {"idx": w_itd_exact["idx"] + w_itd_nonexact["idx"], "file": w_itd_exact["file"] + w_itd_nonexact["file"], "length": w_itd_exact["length"] + w_itd_nonexact["length"], "tandem2_start": w_itd_exact["tandem2_start"] + w_itd_nonexact["tandem2_start"], "insert": w_itd_exact["insert"] + w_itd_nonexact["insert"], 'offset': w_itd_exact["offset"] + w_itd_nonexact["offset"]}
 
 
 ########################################
-# COLLECT AND SAVE TO FILE ALL ITDs DETECTED 
+# COLLECT AND COLLAPSE ITDs
 
 df_itd = pd.DataFrame(w_itd)
 df_itd["counts"] = [all_readCounts[i] for i in df_itd["idx"]]
 
-# require that insert offset == insert length --> means they are adjacent 
-#df_itd = df_itd.ix[df_itd["offset"] == len(df_itd["insert"]]
-
+# require that insert offset == insert length --> means they are adjacent   -> test this much earlier already, when saving inserts above! (left shift + extend first)
+df_itd = df_itd.ix[df_itd["offset"] == df_itd["length"]][['file', 'idx', 'insert', 'length', 'tandem2_start', 'counts']]
 
 df_itd_grouped = df_itd.groupby(by=["length","tandem2_start","insert"], as_index=False).sum()
 df_itd_grouped["ref_coverage"] = [ref_coverage[pos] for pos in df_itd_grouped["tandem2_start"]]
@@ -330,19 +355,35 @@ for length in set(df_itd_grouped["length"]):
 # when doing read collapsing, I should consider the entire read! -> add masked flanking sequences to take insert pos into consideration -> mask with sth other than 'Z', penalize as regular mismatch -> flanking sequences should fill up complete wt reference
 
 
+
 ########################################
 # COLLAPSE ITDs #3
 # --> align inserts of same length with masked flanking sequence, collapse if they are sufficiently similar
 
 
 
+########################################
+# APPLY SOME MORE FILTERS
+
+# filter low support ITDs
+#print(df_itd_collapsed)
+#df_itd_collapsed = df_itd_collapsed.ix[df_itd_collapsed["counts"] > 10]
+
+# filter duplications that change codons instead of simply duplicating them (check with other samples, if this is always a valid filter & ask the others)
+#print(df_itd_collapsed)
+#df_itd_collapsed = df_itd_collapsed.ix[(df_itd_collapsed["tandem2_start"] +1 ) % 3 == 0]
 
 
+
+########################################
+# FIND MOST ABUNDANT CLONE PER ITD LENGTH
 
 df_itd_maxClone = df_itd_grouped.groupby(by=["length"], as_index=False).max()[["length","counts"]]
 df_itd_maxClone["tandem2_start"] = [list(df_itd_grouped.ix[np.array(df_itd_grouped["length"] == this_length) * np.array(df_itd_grouped["counts"] == max_counts)]["tandem2_start"]) for this_length,max_counts in zip(df_itd_maxClone["length"],df_itd_maxClone["counts"])]
 df_itd_maxClone["vaf"] = [list(df_itd_grouped.ix[np.array(df_itd_grouped["length"] == this_length) * np.array(df_itd_grouped["counts"] == max_counts)]["vaf"]) for this_length,max_counts in zip(df_itd_maxClone["length"],df_itd_maxClone["counts"])]
 df_itd_maxClone.to_csv("flt3_itds_mostFrequentClonePerLength.csv", index=False)
+
+
 
 ########################################
 # PRINT FILENAMES OF EACH CATEGORY TO FILE
@@ -367,20 +408,20 @@ out.close()
 ########################################
 # PRINT SUMMARY STATISTICS on the number of reads in each category
 
-print("--------------------")
 print("Unique reads supporting each type of insert -> NOT number of distinct inserts!")
 print("Insertions: {}".format(len(w_ins["idx"])))
 print("Single exact ITD: {}".format(len(w_itd_exact["idx"])))
 print("Single non-exact ITD: {}".format(len(w_itd_nonexact["idx"])))
 print("Single insertion failed alignment: {}".format(len(w_itd_nonexact_fail["idx"])))
+print("--------------------")
 
 
 #########################################
 # COLLECT DATA TO PLOT MOLM DILUTION SERIES' VAF AND READ COUNTS OF KNOWN ITD
 # ----> LATER EXTEND THIS TO SUPPORT PLOTTING OF ANY/ALL KNOWN ITDs SUPPLIED?!
 
-def get_known(klength, kstart):
-	kstat = df_itd_grouped.ix[np.array(df_itd_grouped["length"] == klength) * np.array(df_itd_grouped["tandem2_start"] == kstart)][["counts","vaf"]]
+def get_known(df, klength, kstart):
+	kstat = df.ix[np.bitwise_and(df["length"] == klength, df["tandem2_start"] == kstart)][["counts","vaf"]]
 	kindex = "_".join([str(x) for x in [klength,kstart]])
 #	
 	known = pd.DataFrame({"itd": kindex, "counts": kstat["counts"], "vaf": kstat["vaf"]})[["itd","counts","vaf"]]
@@ -390,7 +431,7 @@ def get_known(klength, kstart):
 
 
 # get known ITD counts for MOLM14 cellline
-get_known(21,71) 
+get_known(df_itd_collapsed,21,71) 
 
 
 
