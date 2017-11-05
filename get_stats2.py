@@ -6,7 +6,7 @@ mpl.use('Agg')  # required to use matplotlib without X (via ssh + screen)
 import matplotlib.pyplot as plt
 import sys
 
-print("###\n###")
+print("###\n###\n###")
 
 #######################################
 ## OPEN FILE
@@ -68,7 +68,7 @@ assert(len(all_reads) == len(all_scores))
 # filter alignments by their score
 max_score = max(all_scores) # should be wt, but doesn't have to be!  --> use len(read
 min_score = max_score * 0.5
-print("Filtering {} low quality allignments with a score < {}".format(sum(np.array(all_scores) < min_score), min_score))
+print("Filtering {} / {} low quality alignments with a score < {}".format(sum(np.array(all_scores) < min_score),len(all_scores),  min_score))
 print("--------------------")
 
 all_reads = [read for read,score in zip(all_reads,all_scores) if score >= min_score]
@@ -84,16 +84,13 @@ assert(len(all_reads) == len(all_scores))
 assert(len(all_reads) == len(all_files))
 
 
-
-
-
 #######################################
 # HELPER FUNCTIONS
 
 # callback function to calculate match and mismatch score for realignment of insert to its read
 # insert is masked by 'Z' -> return max penalty (min score of -Inf) to prohibit realignment of insert to itself
 def get_alignment_score(char1,char2):
-  #assert(not (char1 == 'Z' and char2 == 'Z')) # only ever one of the sequences chars are taken from should contain masking letter 'Z', i.e. the read sequence but not the ref
+  assert(not (char1 == 'Z' and char2 == 'Z')) # only ever one of the sequences chars are taken from should contain masking letter 'Z', i.e. the read sequence but not the ref
   if char1 == char2:
     return 5
   elif char1 == 'Z' or char2 == 'Z':
@@ -105,7 +102,7 @@ def get_alignment_score(char1,char2):
 # transform read coordinates to WT reference coords
 def read_to_wt_coord(readn_coord, refn):
   wt_coord = readn_coord - sum(np.where(refn == '-')[0] < readn_coord)
-  #assert(wt_coord >= 0 and wt_coord < len(refn) - sum(refn == '-')) #wt_coord should be in the range of [0,len(wt_ref)[
+  assert(wt_coord >= 0 and wt_coord < len(refn) - sum(refn == '-')) #wt_coord should be in the range of [0,len(wt_ref)[
   return wt_coord
 
 
@@ -113,6 +110,14 @@ def read_to_wt_coord(readn_coord, refn):
 def integral_insert_realignment(insert_alignment, insert_length):
     insert_idxs = [i for i in range(len(insert_alignment)) if insert_alignment[i] != '-']
     return insert_idxs[-1] - insert_idxs[0] +1 == insert_length
+
+
+# check whether insert requires left normalization, i.e. has an ambiguous alignment and is not fully shifted to the left 
+def left_normalize(refn, readn, insert_start, insert_end, i):
+    if insert_start > 0 and refn[insert_start -1].lower() == readn[insert_end].lower():
+        print("LEFT NORMALIZE: {}".format(i))
+        return True
+    return False
 
 
 #######################################
@@ -129,11 +134,14 @@ ref_coverage = np.zeros(len(ref_wt)) # count number of reads covering each bp AN
 
 ambig_i = []
 ambig_als = []
+should_left_normalize = 0
+
+trailing5 = []
+trailing3 = []
 
 # loop over all alignments, test for presence of an ITD
-#for read,ref,score,counts,i in zip(all_reads, all_refs, all_scores, all_readCounts, range(len(all_reads))):
 test = False
-i_of_interest = 10
+#i_of_interest = 10
 #test = True
 for read,ref,score,counts,filename,i in zip(all_reads, all_refs, all_scores, all_readCounts, all_files, range(len(all_reads))):
 	readn = np.array(list(read))
@@ -172,6 +180,8 @@ for read,ref,score,counts,filename,i in zip(all_reads, all_refs, all_scores, all
 		    ins = readn[insert_idxs]
 		    insert_start = insert_idxs[0]
 		    insert_end = insert_idxs[-1]
+		    if insert_start > 0:
+			    should_left_normalize = should_left_normalize + left_normalize(readn, refn, insert_start, insert_end, i)
 #
 		    # relative to the reference, get coord of the first WT base before insert	
 		    insert_start_ref = insert_start - sum(refn[0:insert_start] == '-')  
@@ -248,6 +258,10 @@ for read,ref,score,counts,filename,i in zip(all_reads, all_refs, all_scores, all
 				    w_itd_nonexact_fail["start"].append(insert_start_ref)
 				    w_itd_nonexact_fail["insert"].append(''.join(ins))
 				    #print(bio.format_alignment(*alignment))
+				    if insert_length > insert_start:
+					    trailing5.append(i)
+				    if insert_length > len(readn) -1 -insert_end:
+					    trailing3.append(i)
 			    if len(alignments) > 1:
 				    ambig_i.append(i)
 				    ambig_als.append(alignments)
@@ -256,6 +270,9 @@ for read,ref,score,counts,filename,i in zip(all_reads, all_refs, all_scores, all
 
 # print number of ambiguous alignments (to see if this is sth I need to handle or not)
 print("There were {} inserts that generated ambiguous alignments.".format(len(ambig_i)))
+print("--------------------")
+
+print("There were {} inserts whose alignment should have been left normalized.".format(should_left_normalize))
 print("--------------------")
 
 #w_itd = {"idx": w_itd_exact["idx"] + w_itd_nonexact["idx"], "file": w_itd_exact["file"] + w_itd_nonexact["file"], "length": w_itd_exact["length"] + w_itd_nonexact["length"], "tandem2_start": w_itd_exact["tandem2_start"] + w_itd_nonexact["tandem2_start"], "insert": w_itd_exact["insert"] + w_itd_nonexact["insert"]}
@@ -269,6 +286,8 @@ df_itd = pd.DataFrame(w_itd)
 df_itd["counts"] = [all_readCounts[i] for i in df_itd["idx"]]
 
 # require that insert offset == insert length --> means they are adjacent   -> test this much earlier already, when saving inserts above! (left shift + extend first)
+#df_itd = pd.concat([df_itd.ix[df_itd["offset"] == df_itd["length"]], df_itd.ix[df_itd["offset"] != df_itd["length"]]])
+#df_itd = pd.concat([df_itd.ix[df_itd["offset"] != df_itd["length"]], df_itd.ix[df_itd["offset"] == df_itd["length"]]])
 df_itd = df_itd.ix[df_itd["offset"] == df_itd["length"]][['file', 'idx', 'insert', 'length', 'tandem2_start', 'counts']]
 
 df_itd_grouped = df_itd.groupby(by=["length","tandem2_start","insert"], as_index=False).sum()
@@ -302,32 +321,25 @@ df_itd_collapsed["file"] = []
 df_itd_collapsed["counts_each"] = []
 
 for length in set(df_itd_grouped["length"]):
-    #print("-------\nlength: {}".format(length))
     this_df_length = df_itd_grouped.ix[df_itd_grouped["length"] == length]
     #
     for tandem2_start in set(this_df_length["tandem2_start"]):
-        #print("tandem2_start: {}".format(tandem2_start))
         this_df = this_df_length.ix[this_df_length["tandem2_start"] == tandem2_start]
         #
         max_score = length * 5
         min_score = max_score * 0.5
         #
         for i in range(this_df.shape[0]):
-            #print("i: {}".format(i))
             i_idx = this_df.index[i]
             this_ins = this_df["insert"][i_idx]
             collapsed = False
             #
             for ii,iirow in df_itd_collapsed[::-1].iterrows(): #[::-1] to reverse df and speed up pos alignment
-                #print("ii: {}".format(ii))
                 other_ins = iirow["insert"]
                 #
                 alignment = bio.align.globalcs(this_ins, other_ins, get_alignment_score, -20, -0.05)[0]
                 alignment_score = alignment[2]
                 #
-                #print(alignment_score)
-                #print(min_score)
-                #print(max_score)
                 if alignment_score >= min_score:
                     collapsed = True
                     # collapse
@@ -347,12 +359,16 @@ for length in set(df_itd_grouped["length"]):
                         df_itd_collapsed.at[ii, "idx"] = df_itd_collapsed["idx"][ii] + this_df["idx"][i_idx]
                         df_itd_collapsed.at[ii, "file"] = df_itd_collapsed["file"][ii] + this_df["file"][i_idx]
                         df_itd_collapsed.at[ii, "counts_each"] = df_itd_collapsed["counts_each"][ii] + this_df["counts_each"][i_idx]
-                    #print("COLLAPSED")
                     break
             #
             if not collapsed:
                 df_itd_collapsed = df_itd_collapsed.append(this_df.ix[i_idx], ignore_index=True)
-# when doing read collapsing, I should consider the entire read! -> add masked flanking sequences to take insert pos into consideration -> mask with sth other than 'Z', penalize as regular mismatch -> flanking sequences should fill up complete wt reference
+
+
+# check that sum of "counts_each" (= read counts of each unique read) equals total counts in "counts"
+assert([sum(x) for x in df_itd_collapsed["counts_each"]] == [int(x) for x in df_itd_collapsed["counts"]])
+
+df_itd_collapsed[['length', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv("flt3_itds_collapsed.csv", index=False)
 
 
 
@@ -371,16 +387,17 @@ for length in set(df_itd_grouped["length"]):
 
 # filter duplications that change codons instead of simply duplicating them (check with other samples, if this is always a valid filter & ask the others)
 #print(df_itd_collapsed)
-#df_itd_collapsed = df_itd_collapsed.ix[(df_itd_collapsed["tandem2_start"] +1 ) % 3 == 0]
+df_itd_collapsed_noShift = df_itd_collapsed.ix[(df_itd_collapsed["tandem2_start"] +1 ) % 3 == 0]
 
+df_itd_collapsed_noShift[['length', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv("flt3_itds_collapsed_noShift.csv", index=False)
 
 
 ########################################
 # FIND MOST ABUNDANT CLONE PER ITD LENGTH
 
-df_itd_maxClone = df_itd_grouped.groupby(by=["length"], as_index=False).max()[["length","counts"]]
-df_itd_maxClone["tandem2_start"] = [list(df_itd_grouped.ix[np.array(df_itd_grouped["length"] == this_length) * np.array(df_itd_grouped["counts"] == max_counts)]["tandem2_start"]) for this_length,max_counts in zip(df_itd_maxClone["length"],df_itd_maxClone["counts"])]
-df_itd_maxClone["vaf"] = [list(df_itd_grouped.ix[np.array(df_itd_grouped["length"] == this_length) * np.array(df_itd_grouped["counts"] == max_counts)]["vaf"]) for this_length,max_counts in zip(df_itd_maxClone["length"],df_itd_maxClone["counts"])]
+df_itd_maxClone = df_itd_collapsed.groupby(by=["length"], as_index=False).max()[["length","counts"]]
+df_itd_maxClone["tandem2_start"] = [list(df_itd_collapsed.ix[np.array(df_itd_collapsed["length"] == this_length) * np.array(df_itd_collapsed["counts"] == max_counts)]["tandem2_start"]) for this_length,max_counts in zip(df_itd_maxClone["length"],df_itd_maxClone["counts"])]
+df_itd_maxClone["vaf"] = [list(df_itd_collapsed.ix[np.array(df_itd_collapsed["length"] == this_length) * np.array(df_itd_collapsed["counts"] == max_counts)]["vaf"]) for this_length,max_counts in zip(df_itd_maxClone["length"],df_itd_maxClone["counts"])]
 df_itd_maxClone.to_csv("flt3_itds_mostFrequentClonePerLength.csv", index=False)
 
 
