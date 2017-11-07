@@ -113,12 +113,120 @@ def integral_insert_realignment(insert_alignment, insert_length):
 
 
 # check whether insert requires left normalization, i.e. has an ambiguous alignment and is not fully shifted to the left 
-def left_normalize(refn, readn, insert_start, insert_end, i):
-    if insert_start > 0 and refn[insert_start -1].lower() == readn[insert_end].lower():
+def left_normalize(readn, refn, insert_start, insert_end, i):
+    if insert_start > 0 and insert_end < len(readn)-1 and refn[insert_start -1].lower() == readn[insert_end].lower():
         print("LEFT NORMALIZE: {}".format(i))
         return True
     return False
 
+
+# filter inserts from a df supported by less than n unique_reads 
+def filter_number_unique_reads(df, min_unique_reads):
+    return df.loc[[len(x) > min_unique_reads for x in df["idx"]]]
+
+# filter inserts from a df supported by less than n total reads
+def filter_number_total_reads(df, min_total_reads):
+    return df.loc[[x > min_total_reads for x in df["counts"]]]
+
+# filter inserts from df that do not pass min_vaf
+def filter_vaf(df, min_vaf):
+    return df.loc[[x > min_vaf for x in df["vaf"]]]
+
+
+def norm_start_coord(start, ref_wt):
+    return min(max(0,start), len(ref_wt)-1)
+
+
+# collapse inserts that have the same length, insert sequence and reference-based start coordinate
+def collapse_same_inserts(df, start_col, ref_wt):
+    # require that insert offset == insert length --> means they are adjacent   -> test this much earlier already, when saving inserts above! (left shift + extend first)
+    if "offset" in df:
+        df = df.ix[df["offset"] == df["length"]][['file', 'idx', 'insert', 'length', start_col, 'counts']]
+    df_grouped = df.groupby(by=["length",start_col,"insert"], as_index=False).sum()
+    # 
+    if start_col == "start":
+        df_grouped["norm_start"] = [norm_start_coord(x, ref_wt) for x in df_grouped["start"]]
+        df["norm_start"] = [norm_start_coord(x, ref_wt) for x in df["start"]]
+        start_col = "norm_start"
+    df_grouped["ref_coverage"] = [ref_coverage[pos] for pos in df_grouped[start_col]]
+    df_grouped["vaf"] = (df_grouped["counts"]/df_grouped["ref_coverage"] * 100).round(5)
+    df_grouped["file"] = np.zeros(len(df_grouped)) 
+    df_grouped["counts_each"] = np.zeros(len(df_grouped)) 
+    df_grouped[["idx","file","counts_each"]] = df_grouped[["idx","file","counts_each"]].astype("object")
+    #
+    for i in range(len(df_grouped)):
+        this_df = df[np.array(df["length"] == df_grouped.ix[i,"length"]) * np.array(df[start_col] == df_grouped.ix[i,start_col]) * np.array(df["insert"] == df_grouped.ix[i,"insert"])]
+        df_grouped.set_value(i,"idx",this_df["idx"].tolist())
+        df_grouped.set_value(i,"file",this_df["file"].tolist())
+        df_grouped.set_value(i,"counts_each",[np.int(x) for x in this_df["counts"]])
+    #
+    # check that sum of "counts_each" (= read counts of each unique read) equals total counts in "counts"
+    assert([sum(x) for x in df_grouped["counts_each"]] == [int(x) for x in df_grouped["counts"]])
+    return df_grouped
+
+
+# collapse inserts that have the same length and start coordinate and a SIMILAR insert sequence
+def collapse_similar_inserts(df, start_col):
+    df_collapsed = pd.DataFrame(columns=['length', start_col, 'insert', 'idx', 'file', 'counts', 'ref_coverage', 'vaf', 'counts_each'])
+    df_collapsed["idx"] = []
+    df_collapsed["file"] = []
+    df_collapsed["counts_each"] = []
+    #
+    for length in set(df["length"]):
+        this_df_length = df.ix[df["length"] == length]
+        #
+        for start in set(this_df_length[start_col]):
+            this_df = this_df_length.ix[this_df_length[start_col] == start]
+            #
+            max_score = length * 5
+            min_score = max_score * 0.5
+            #
+            for i in range(this_df.shape[0]):
+                i_idx = this_df.index[i]
+                this_ins = this_df["insert"][i_idx]
+                collapsed = False
+                #
+                for ii,iirow in df_collapsed[::-1].iterrows(): #[::-1] to reverse df and speed up pos alignment
+                    other_ins = iirow["insert"]
+                    #
+                    alignment = bio.align.globalcs(this_ins, other_ins, get_alignment_score, -20, -0.05)[0]
+                    alignment_score = alignment[2]
+                    #
+                    if alignment_score >= min_score:
+                        collapsed = True
+                        # collapse
+                        # add together some statistics
+                        df_collapsed.at[ii,"counts"] = df_collapsed["counts"][ii] + this_df["counts"][i_idx]
+                        df_collapsed.at[ii, "vaf"] = df_collapsed["vaf"][ii] + this_df["vaf"][i_idx]
+                        #
+                        # pick one or the other for the others OR keep both but in specific order (first list for picked insert) -> go for the most abundant one (or the one closest to reference?!)
+                        if this_df["counts"][i_idx] > df_collapsed["counts"][ii]:
+                            df_collapsed.at[ii, "insert"] = this_df["insert"][i_idx]
+                            df_collapsed.at[ii, "ref_coverage"] = this_df["ref_coverage"][i_idx]
+                            #
+                            df_collapsed.at[ii, "idx"] = this_df["idx"][i_idx] + df_collapsed["idx"][ii]
+                            df_collapsed.at[ii, "file"] = this_df["file"][i_idx] + df_collapsed["file"][ii]
+                            df_collapsed.at[ii, "counts_each"] = this_df["counts_each"][i_idx] + df_collapsed["counts_each"][ii]
+                        else:
+                            df_collapsed.at[ii, "idx"] = df_collapsed["idx"][ii] + this_df["idx"][i_idx]
+                            df_collapsed.at[ii, "file"] = df_collapsed["file"][ii] + this_df["file"][i_idx]
+                            df_collapsed.at[ii, "counts_each"] = df_collapsed["counts_each"][ii] + this_df["counts_each"][i_idx]
+                        break
+                #
+                if not collapsed:
+                    df_collapsed = df_collapsed.append(this_df.ix[i_idx], ignore_index=True)
+    #
+    # check that sum of "counts_each" (= read counts of each unique read) equals total counts in "counts"
+    assert([sum(x) for x in df_collapsed["counts_each"]] == [int(x) for x in df_collapsed["counts"]])
+    return df_collapsed
+
+
+# filter ITDs
+def filter_inserts(df):
+    df = filter_number_unique_reads(df, 2)
+    df = filter_number_total_reads(df, 10)
+    df = filter_vaf(df, 0.001)
+    return df
 
 #######################################
 # EXTRACT INSERT SEQUENCE FROM READ
@@ -127,7 +235,7 @@ def left_normalize(refn, readn, insert_start, insert_end, i):
 w_ins = {"idx": [], "file": [], "length": [], "start": [], "insert": []}
 w_itd_exact = {"idx": [], "file": [], "length": [], "start": [], "tandem2_start": [], "offset": [], "insert": []}
 w_itd_nonexact = {"idx": [], "file": [], "length": [], "start": [], "tandem2_start": [], "offset": [], "insert": []}
-w_itd_nonexact_fail = {"idx": [], "file": [], "length": [], "start": [], "offset": [], "insert": []}
+w_itd_nonexact_fail = {"idx": [], "file": [], "length": [], "start": [], "insert": []}
 
 ref_wt = [base for base in all_refs[0] if base != '-'] 
 ref_coverage = np.zeros(len(ref_wt)) # count number of reads covering each bp AND its successor (therefore do not calc coverage for last bp)
@@ -141,7 +249,7 @@ trailing3 = []
 
 # loop over all alignments, test for presence of an ITD
 test = False
-#i_of_interest = 10
+#i_of_interest = 124361
 #test = True
 for read,ref,score,counts,filename,i in zip(all_reads, all_refs, all_scores, all_readCounts, all_files, range(len(all_reads))):
 	readn = np.array(list(read))
@@ -234,7 +342,7 @@ for read,ref,score,counts,filename,i in zip(all_reads, all_refs, all_scores, all
 			    # output: list of optimal alignments, each a list of seq1, seq2, score, start-idx, end-idx 
 			    alignments = bio.align.localcs(''.join(ins), ''.join(readn_maskedIns), get_alignment_score, -20, -0.05)
 			    # filter alignments where insert cannot be realigned in one piece
-			    alignments = [al for al in alignments if integral_insert_realignment(al[0],21)]
+			    alignments = [al for al in alignments if integral_insert_realignment(al[0],insert_length)]
 			    alignment_score = None
 			    #
 			    if alignments == []:
@@ -279,34 +387,20 @@ print("--------------------")
 w_itd = {"idx": w_itd_exact["idx"] + w_itd_nonexact["idx"], "file": w_itd_exact["file"] + w_itd_nonexact["file"], "length": w_itd_exact["length"] + w_itd_nonexact["length"], "tandem2_start": w_itd_exact["tandem2_start"] + w_itd_nonexact["tandem2_start"], "insert": w_itd_exact["insert"] + w_itd_nonexact["insert"], 'offset': w_itd_exact["offset"] + w_itd_nonexact["offset"]}
 
 
+
 ########################################
 # COLLECT AND COLLAPSE ITDs
 
-df_itd = pd.DataFrame(w_itd)
+df_itd =  pd.concat([pd.DataFrame(w_itd_exact), pd.DataFrame(w_itd_nonexact)])
 df_itd["counts"] = [all_readCounts[i] for i in df_itd["idx"]]
-
-# require that insert offset == insert length --> means they are adjacent   -> test this much earlier already, when saving inserts above! (left shift + extend first)
-#df_itd = pd.concat([df_itd.ix[df_itd["offset"] == df_itd["length"]], df_itd.ix[df_itd["offset"] != df_itd["length"]]])
-#df_itd = pd.concat([df_itd.ix[df_itd["offset"] != df_itd["length"]], df_itd.ix[df_itd["offset"] == df_itd["length"]]])
-df_itd = df_itd.ix[df_itd["offset"] == df_itd["length"]][['file', 'idx', 'insert', 'length', 'tandem2_start', 'counts']]
-
-df_itd_grouped = df_itd.groupby(by=["length","tandem2_start","insert"], as_index=False).sum()
-df_itd_grouped["ref_coverage"] = [ref_coverage[pos] for pos in df_itd_grouped["tandem2_start"]]
-df_itd_grouped["vaf"] = (df_itd_grouped["counts"]/df_itd_grouped["ref_coverage"] * 100).round(5)
-df_itd_grouped["file"] = np.zeros(len(df_itd_grouped)) 
-df_itd_grouped["counts_each"] = np.zeros(len(df_itd_grouped)) 
-df_itd_grouped[["idx","file","counts_each"]] = df_itd_grouped[["idx","file","counts_each"]].astype("object")
-
-for i in range(len(df_itd_grouped)):
-	this_itd = df_itd[np.array(df_itd["length"] == df_itd_grouped.ix[i,"length"]) * np.array(df_itd["tandem2_start"] == df_itd_grouped.ix[i,"tandem2_start"]) * np.array(df_itd["insert"] == df_itd_grouped.ix[i,"insert"])]
-	df_itd_grouped.set_value(i,"idx",this_itd["idx"].tolist())
-	df_itd_grouped.set_value(i,"file",this_itd["file"].tolist())
-	df_itd_grouped.set_value(i,"counts_each",[np.int(x) for x in this_itd["counts"]])
-
-# check that sum of "counts_each" (= read counts of each unique read) equals total counts in "counts"
-assert([sum(x) for x in df_itd_grouped["counts_each"]] == [int(x) for x in df_itd_grouped["counts"]])
-
+df_itd_grouped = collapse_inserts(df_itd, "tandem2_start", ref_wt)
 df_itd_grouped[['length', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv("flt3_itds.csv", index=False)
+    
+
+df_ins =  pd.DataFrame(w_ins)
+df_ins["counts"] = [all_readCounts[i] for i in df_ins["idx"]]
+df_ins_grouped = collapse_inserts(df_ins, "start", ref_wt)
+df_ins_grouped[['length', 'start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv("flt3_ins.csv", index=False)
 
 
 
@@ -314,82 +408,26 @@ df_itd_grouped[['length', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'cou
 # COLLAPSE ITDs #2 
 # --> align inserts of same length and tandem2_start, collapse if they are sufficiently similar
 
-
-df_itd_collapsed = pd.DataFrame(columns=['length', 'tandem2_start', 'insert', 'idx', 'file', 'counts', 'ref_coverage', 'vaf', 'counts_each'])
-df_itd_collapsed["idx"] = []
-df_itd_collapsed["file"] = []
-df_itd_collapsed["counts_each"] = []
-
-for length in set(df_itd_grouped["length"]):
-    this_df_length = df_itd_grouped.ix[df_itd_grouped["length"] == length]
-    #
-    for tandem2_start in set(this_df_length["tandem2_start"]):
-        this_df = this_df_length.ix[this_df_length["tandem2_start"] == tandem2_start]
-        #
-        max_score = length * 5
-        min_score = max_score * 0.5
-        #
-        for i in range(this_df.shape[0]):
-            i_idx = this_df.index[i]
-            this_ins = this_df["insert"][i_idx]
-            collapsed = False
-            #
-            for ii,iirow in df_itd_collapsed[::-1].iterrows(): #[::-1] to reverse df and speed up pos alignment
-                other_ins = iirow["insert"]
-                #
-                alignment = bio.align.globalcs(this_ins, other_ins, get_alignment_score, -20, -0.05)[0]
-                alignment_score = alignment[2]
-                #
-                if alignment_score >= min_score:
-                    collapsed = True
-                    # collapse
-                    # add together some statistics
-                    df_itd_collapsed.at[ii,"counts"] = df_itd_collapsed["counts"][ii] + this_df["counts"][i_idx]
-                    df_itd_collapsed.at[ii, "vaf"] = df_itd_collapsed["vaf"][ii] + this_df["vaf"][i_idx]
-                    #
-                    # pick one or the other for the others OR keep both but in specific order (first list for picked insert) -> go for the most abundant one (or the one closest to reference?!)
-                    if this_df["counts"][i_idx] > df_itd_collapsed["counts"][ii]:
-                        df_itd_collapsed.at[ii, "insert"] = this_df["insert"][i_idx]
-                        df_itd_collapsed.at[ii, "ref_coverage"] = this_df["ref_coverage"][i_idx]
-                        #
-                        df_itd_collapsed.at[ii, "idx"] = this_df["idx"][i_idx] + df_itd_collapsed["idx"][ii]
-                        df_itd_collapsed.at[ii, "file"] = this_df["file"][i_idx] + df_itd_collapsed["file"][ii]
-                        df_itd_collapsed.at[ii, "counts_each"] = this_df["counts_each"][i_idx] + df_itd_collapsed["counts_each"][ii]
-                    else:
-                        df_itd_collapsed.at[ii, "idx"] = df_itd_collapsed["idx"][ii] + this_df["idx"][i_idx]
-                        df_itd_collapsed.at[ii, "file"] = df_itd_collapsed["file"][ii] + this_df["file"][i_idx]
-                        df_itd_collapsed.at[ii, "counts_each"] = df_itd_collapsed["counts_each"][ii] + this_df["counts_each"][i_idx]
-                    break
-            #
-            if not collapsed:
-                df_itd_collapsed = df_itd_collapsed.append(this_df.ix[i_idx], ignore_index=True)
-
-
-# check that sum of "counts_each" (= read counts of each unique read) equals total counts in "counts"
-assert([sum(x) for x in df_itd_collapsed["counts_each"]] == [int(x) for x in df_itd_collapsed["counts"]])
-
+# collapse, save, filter and save filtered ITDs
+df_itd_collapsed = collapse_similar_inserts(df_itd_grouped, "tandem2_start")
 df_itd_collapsed[['length', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv("flt3_itds_collapsed.csv", index=False)
+df_itd_collapsed = filter_inserts(df_itd_collapsed)
+df_itd_collapsed[['length', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv("flt3_itds_collapsed_filtered.csv", index=False)
+
+
+df_ins_collapsed = collapse_similar_inserts(df_ins_grouped, "start")
+df_ins_collapsed[['length', 'start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv("flt3_ins_collapsed.csv", index=False)
+df_ins_collapsed = filter_inserts(df_ins_collapsed)
+df_ins_collapsed[['length', 'start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv("flt3_ins_collapsed_filtered.csv", index=False)
 
 
 
 ########################################
 # COLLAPSE ITDs #3
-# --> align inserts of same length with masked flanking sequence, collapse if they are sufficiently similar
+# --> align inserts of same length with masked flanking sequence, collapse if they are sufficiently similar?
 
 
 
-########################################
-# APPLY SOME MORE FILTERS
-
-# filter low support ITDs
-#print(df_itd_collapsed)
-#df_itd_collapsed = df_itd_collapsed.ix[df_itd_collapsed["counts"] > 10]
-
-# filter duplications that change codons instead of simply duplicating them (check with other samples, if this is always a valid filter & ask the others)
-#print(df_itd_collapsed)
-df_itd_collapsed_noShift = df_itd_collapsed.ix[(df_itd_collapsed["tandem2_start"] +1 ) % 3 == 0]
-
-df_itd_collapsed_noShift[['length', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv("flt3_itds_collapsed_noShift.csv", index=False)
 
 
 ########################################
