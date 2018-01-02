@@ -315,46 +315,42 @@ def filter_number_total_reads(df, min_total_reads):
 def filter_vaf(df, min_vaf):
     return df.loc[[x > min_vaf for x in df["vaf"]]]
 
-
-#def filter_offset(df):   
-#   df = df.iloc[[i for i in range(df.shape[0]) if df["trailing"][i] == True or df["offset"][i] == df["length"][i]]][['sample','file', 'idx', 'insert', 'length', start_col, 'counts','trailing','offset']]
-
-
-def norm_start_coord(start, ref_wt):
-    return min(max(0,start), len(ref_wt)-1)
+# filter non-trailing inserts from df whose offset (= insert-tandem distance) does not equal their length --> means insert and tandem are not adjacent
+def filter_offset(df):   
+    return df.iloc[[i for i in range(df.shape[0]) if df["trailing"][i] == True or df["offset"][i] == df["length"][i]]]  
 
 
-# collapse inserts that have the same length, insert sequence and reference-based start coordinate
-def collapse_same_inserts(df, start_col, ref_wt):
-    # require that insert offset == insert length --> means they are adjacent   -> test this much earlier already, when saving inserts above! (left shift + extend first)
-    if "offset" in df:
-        df = df.iloc[[i for i in range(df.shape[0]) if df["trailing"][i] == True or df["offset"][i] == df["length"][i]]][['sample','file', 'idx', 'insert', 'length', start_col, 'counts','trailing','offset']]
-        #df = df.ix[df["offset"] == df["length"]][['sample','file', 'idx', 'insert', 'length', start_col, 'counts']]
-    df_grouped = df.groupby(by=['sample',"length",start_col,"insert"], as_index=False).sum()
-    df_grouped["trailing"] = df.groupby(by=['sample',"length",start_col,"insert"], as_index=False).max()["trailing"]
-    if 'offset' in df:    
-        df_grouped["offset"] = df.groupby(by=['sample',"length",start_col,"insert"], as_index=False).max()["offset"]
-    # 
-    if start_col == "start":
-        df_grouped["norm_start"] = [norm_start_coord(x, ref_wt) for x in df_grouped["start"]]
-        df["norm_start"] = [norm_start_coord(x, ref_wt) for x in df["start"]]
-        start_col = "norm_start"
-    df_grouped["ref_coverage"] = [ref_coverage[pos] for pos in df_grouped[start_col]]
-    df_grouped["vaf"] = df_grouped["counts"]/df_grouped["ref_coverage"] * 100
-    df_grouped["file"] = np.zeros(len(df_grouped)) 
-    df_grouped["counts_each"] = np.zeros(len(df_grouped)) 
-    df_grouped[["idx","file","counts_each"]] = df_grouped[["idx","file","counts_each"]].astype("object")
-    #
-    for i in range(len(df_grouped)):
-        this_df = df[np.array(df["length"] == df_grouped.ix[i,"length"]) * np.array(df[start_col] == df_grouped.ix[i,start_col]) * np.array(df["insert"] == df_grouped.ix[i,"insert"])]
-        #this_df = df[np.array(df["length"] == df_grouped.ix[i,"length"]) * np.array(df[start_col] == df_grouped.ix[i,start_col]) * np.array(df["insert"] == df_grouped.ix[i,"insert"]) * np.array(df["trailing"] == df_grouped.ix[i,"trailing"])]
-        df_grouped.set_value(i,"idx",this_df["idx"].tolist())
-        df_grouped.set_value(i,"file",this_df["file"].tolist())
-        df_grouped.set_value(i,"counts_each",[np.int(x) for x in this_df["counts"]])
-    #
-    # check that sum of "counts_each" (= read counts of each unique read) equals total counts in "counts"
-    assert [sum(x) for x in df_grouped["counts_each"]] == [int(x) for x in df_grouped["counts"]]
-    return df_grouped
+def norm_start_col(df, start_col, ref_wt):
+    return [min(max(0,x), len(ref_wt)-1) for x in df["start"]]
+
+
+# collapse df  --> can I use this to simply the other collapsing methods?
+# -> keep: columns containing the same value in all rows -> pick any 
+# -> add: columns to sum up (such as total ITD VAF or counts)
+# -> max_: columns to keep max of (such as offset or trailing)
+# -> append: columns for which all rows should be collapsed to one entry with a single list
+def collapse_all(df,add=[],max_=[],append=[],keep=[]):
+    df_collapsed = df[keep].drop_duplicates().reset_index(drop=True)
+    df_collapsed[add] = df.groupby(by=keep, as_index=False).sum()[add]
+    df_collapsed[max_] = df.groupby(by=keep, as_index=False).max()[max_]
+    for col in append:
+        #df_collapsed[col] = [df[col].values.tolist()]
+        df_collapsed[col] = df.groupby(by=keep, as_index=False)[col].apply(list).reset_index()[0]  #[0] extracts aggregated column / removes df[keep]
+    # keep track of which ITD contributed which counts/vaf to the "add" columns
+    for col in add:
+        #df_collapsed[col + '_each'] = [df[col].values.tolist()]
+        df_collapsed[col + '_each'] = df.groupby(by=keep, as_index=False)[col].apply(list).reset_index()[0] # same command as for col in append
+        assert [sum(x) for x in df_collapsed[col + '_each']] == [int(x) for x in df_collapsed[col]]
+    assert not df_collapsed.empty
+    return df_collapsed
+
+
+def get_coverage(df, start_col, ref_coverage):
+    return [ref_coverage[pos] for pos in df[start_col]]
+
+# move asserts to where I first set counts and coverage -> both must be defined ints >= 0
+def get_vaf(df): 
+    return df["counts"]/df["ref_coverage"] * 100
 
 
 def empty_df(start_col):
@@ -498,23 +494,6 @@ def collapse_close_inserts(df, start_col):
     return df_collapsed
 
 
-
-# collapse df  --> can I use this to simply the other collapsing methods?
-# -> keep: columns containing the same value in all rows -> pick any 
-# -> add: columns to sum up (such as total ITD VAF or counts)
-# -> append: columns for which all rows should be collapsed to one entry with a single list
-def collapse_all(df,add,append,keep):
-    # keep -> columns with same value in all rows, just pick one and keep that
-    assert df[keep].drop_duplicates().shape[0] == 1
-    df_collapsed = pd.DataFrame()
-    df_collapsed[keep] = pd.DataFrame(df.iloc[0][keep].values.tolist(), columns=keep)
-    df_collapsed[add] = df.groupby(by=keep, as_index=False).sum()[add]
-    for col in append:
-        df_collapsed[col] = [df[col].values.tolist()]
-    # keep track of which ITD contributed which counts/vaf to the "add" columns
-    for col in add:
-        df_collapsed[col + '_each'] = [df[col].values.tolist()]
-    return df_collapsed
 
 
 
@@ -790,17 +769,26 @@ if __name__ == '__main__':
     # COLLECT AND COLLAPSE ITDs
     #
     df_itd =  pd.concat([pd.DataFrame(w_itd_exact), pd.DataFrame(w_itd_nonexact)], ignore_index=True)
-    df_itd["sample"] = [SAMPLE for i in range(df_itd.shape[0])]
     df_itd[["idx","length","offset","start","tandem2_start"]] = df_itd[["idx","length","offset","start","tandem2_start"]].astype("int64")
+    df_itd = filter_offset(df_itd)
+    df_itd["sample"] = [SAMPLE for i in range(df_itd.shape[0])]
     df_itd["counts"] = [all_readCounts[i] for i in df_itd["idx"]]
-    df_itd_grouped = collapse_same_inserts(df_itd, "tandem2_start", ref_wt)
+    # collapse same inserts (same length, insert sequence and reference-based start coordinate)
+    # -> careful: losing "start" column here (only keeping tandem2_start) -> do I need it?
+    df_itd_grouped = collapse_all(df_itd,keep=["sample","length","tandem2_start","insert"],add=["counts"],max_=["trailing","offset"],append=["idx","file"])
+    df_itd_grouped["ref_coverage"] = get_coverage(df_itd_grouped, "tandem2_start", ref_coverage)
+    df_itd_grouped["vaf"] = get_vaf(df_itd_grouped)
     df_itd_grouped[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv(os.path.join(OUT_DIR,"flt3_itds.tsv"), index=False, float_format='%.2e', sep='\t')
     #   
     #
     df_ins =  pd.DataFrame(w_ins)
     df_ins["sample"] = [SAMPLE for i in range(df_ins.shape[0])]
     df_ins["counts"] = [all_readCounts[i] for i in df_ins["idx"]]
-    df_ins_grouped = collapse_same_inserts(df_ins, "start", ref_wt)
+    # collapse same inserts (same length, insert sequence and reference-based start coordinate)
+    df_ins_grouped = collapse_all(df_ins,keep=["sample","length","start","insert"],add=["counts"],max_=["trailing"],append=["idx","file"])
+    df_ins_grouped["norm_start"] = norm_start_col(df_ins_grouped, "start", ref_wt)
+    df_ins_grouped["ref_coverage"] = get_coverage(df_ins_grouped, "norm_start", ref_coverage) # should I be using norm_start at some other place as well?? Or is it just for coverage calculation?!
+    df_ins_grouped["vaf"] = get_vaf(df_ins_grouped)
     df_ins_grouped[['sample','length', 'trailing', 'start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv(os.path.join(OUT_DIR,"flt3_ins.tsv"), index=False, float_format='%.2e', sep='\t')
     #
     #
