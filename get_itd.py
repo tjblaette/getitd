@@ -329,30 +329,30 @@ def norm_start_col(df, start_col, ref_wt):
 # -> add: columns to sum up (such as total ITD VAF or counts)
 # -> max_: columns to keep max of (such as offset or trailing)
 # -> append: columns for which all rows should be collapsed to one entry with a single list
-def collapse_all(df,add=[],max_=[],append=[],keep=[]):
+def collapse(df,add=[],max_=[],append=[],keep=[]):
     df_collapsed = df[keep].drop_duplicates().reset_index(drop=True)
     df_collapsed[add] = df.groupby(by=keep, as_index=False).sum()[add]
     df_collapsed[max_] = df.groupby(by=keep, as_index=False).max()[max_]
     for col in append:
-        #df_collapsed[col] = [df[col].values.tolist()]
         df_collapsed[col] = df.groupby(by=keep, as_index=False)[col].apply(list).reset_index()[0]  #[0] extracts aggregated column / removes df[keep]
-    # keep track of which ITD contributed which counts/vaf to the "add" columns
+    # keep track of which ITD contributed each value of the "add" columns -> create "append" columns for these as well
     for col in add:
-        #df_collapsed[col + '_each'] = [df[col].values.tolist()]
         df_collapsed[col + '_each'] = df.groupby(by=keep, as_index=False)[col].apply(list).reset_index()[0] # same command as for col in append
         assert [sum(x) for x in df_collapsed[col + '_each']] == [int(x) for x in df_collapsed[col]]
     assert not df_collapsed.empty
     return df_collapsed
 
-
+# collect coverage 
 def get_coverage(df, start_col, ref_coverage):
     return [ref_coverage[pos] for pos in df[start_col]]
 
+# calculate VAF from insert-containing read counts and total coverage of each mutation
 # move asserts to where I first set counts and coverage -> both must be defined ints >= 0
 def get_vaf(df): 
     return df["counts"]/df["ref_coverage"] * 100
 
 
+# create and return an empty dataframe
 def empty_df(start_col):
     empty_df = pd.DataFrame(columns=['length', 'trailing', start_col, 'insert', 'idx', 'file', 'counts', 'ref_coverage', 'vaf', 'counts_each','offset'])
     empty_df[["length",start_col,"counts","ref_coverage"]] = empty_df[["length",start_col,"counts","ref_coverage"]].astype("int64")
@@ -775,7 +775,7 @@ if __name__ == '__main__':
     df_itd["counts"] = [all_readCounts[i] for i in df_itd["idx"]]
     # collapse same inserts (same length, insert sequence and reference-based start coordinate)
     # -> careful: losing "start" column here (only keeping tandem2_start) -> do I need it?
-    df_itd_grouped = collapse_all(df_itd,keep=["sample","length","tandem2_start","insert"],add=["counts"],max_=["trailing","offset"],append=["idx","file"])
+    df_itd_grouped = collapse(df_itd,keep=["sample","length","tandem2_start","insert"],add=["counts"],max_=["trailing","offset"],append=["idx","file"])
     df_itd_grouped["ref_coverage"] = get_coverage(df_itd_grouped, "tandem2_start", ref_coverage)
     df_itd_grouped["vaf"] = get_vaf(df_itd_grouped)
     df_itd_grouped[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv(os.path.join(OUT_DIR,"flt3_itds.tsv"), index=False, float_format='%.2e', sep='\t')
@@ -785,7 +785,7 @@ if __name__ == '__main__':
     df_ins["sample"] = [SAMPLE for i in range(df_ins.shape[0])]
     df_ins["counts"] = [all_readCounts[i] for i in df_ins["idx"]]
     # collapse same inserts (same length, insert sequence and reference-based start coordinate)
-    df_ins_grouped = collapse_all(df_ins,keep=["sample","length","start","insert"],add=["counts"],max_=["trailing"],append=["idx","file"])
+    df_ins_grouped = collapse(df_ins,keep=["sample","length","start","insert"],add=["counts"],max_=["trailing"],append=["idx","file"])
     df_ins_grouped["norm_start"] = norm_start_col(df_ins_grouped, "start", ref_wt)
     df_ins_grouped["ref_coverage"] = get_coverage(df_ins_grouped, "norm_start", ref_coverage) # should I be using norm_start at some other place as well?? Or is it just for coverage calculation?!
     df_ins_grouped["vaf"] = get_vaf(df_ins_grouped)
@@ -859,10 +859,10 @@ if __name__ == '__main__':
             assert known_vaf <= 100 and known_vaf >= 0
         #
         # does this make sense with multiple inserts per read? counts/vaf would be messed up because counted twice, right? --> more accurate maybe: collect all supporting reads and count unique 
-        df_itd_known_collapsed = collapse_all(df_itd_known,keep=["sample"],add=["counts","vaf"],append=["length","tandem2_start","ref_coverage"])
+        df_itd_known_collapsed = collapse(df_itd_known,keep=["sample"],add=["counts","vaf"],append=["length","tandem2_start","ref_coverage"])
         df_itd_known_collapsed["vaf_genescan"] = known_vaf
         # 
-        df_ins_known_collapsed = collapse_all(df_ins_known,keep=["sample"],add=["counts","vaf"],append=["length","start","ref_coverage"])
+        df_ins_known_collapsed = collapse(df_ins_known,keep=["sample"],add=["counts","vaf"],append=["length","start","ref_coverage"])
         df_ins_known_collapsed["vaf_genescan"] = known_vaf
         #
         # print collapsed tables with known ITDs only -> useful to check concordance with GeneScan VAF
