@@ -9,6 +9,8 @@ import collections
 import os
 import multiprocessing
 import argparse
+from decimal import Decimal # required for accuracy of VAF (otherwise asserts fail for sum(counts_each) = counts due to floating point inaccuracies)
+getcontext().prec = 5 # number of digits to round decimals to
 
 
 #######################################
@@ -54,7 +56,7 @@ else:
     R1 = "1610-264-16KM1946-dx-a_S13_L001_R1_001.fastq"
     R2 = "1610-264-16KM1946-dx-a_S13_L001_R1_001.fastq"
     SAMPLE="264"
-    MIN_BQS=35
+    MIN_BQS=30
     REF="/NGS/known_sites/hg19/flt3-itd_anno/amplicon.txt"
     NKERN=14
     KNOWN_LENGTH_FILE="264_known_length.txt"
@@ -64,7 +66,7 @@ else:
     COST_MISMATCH = -10
     COST_GAPOPEN = -20
     COST_GAPEXTEND = -0.5
-    MIN_SCORE=0.6
+    MIN_SCORE=0.5
 
 
 
@@ -324,21 +326,31 @@ def norm_start_col(df, start_col, ref_wt):
     return [min(max(0,x), len(ref_wt)-1) for x in df["start"]]
 
 
-# collapse df  --> can I use this to simply the other collapsing methods?
+# collapse df  
 # -> keep: columns containing the same value in all rows -> pick any 
 # -> add: columns to sum up (such as total ITD VAF or counts)
 # -> max_: columns to keep max of (such as offset or trailing)
 # -> append: columns for which all rows should be collapsed to one entry with a single list
+# ---> make this nicer, I don't like all of these exceptions for VAF column...
 def collapse(df,add=[],max_=[],append=[],keep=[]):
     df_collapsed = df[keep].drop_duplicates().sort_values(by=keep).reset_index(drop=True)
-    df_collapsed[add] = df.groupby(by=keep, as_index=False).sum()[add]
+    # vaf is of type Decimal and will be omitted by sum() -> calculate sum separately for vaf column where required
+    if "vaf" in add:
+        df_collapsed["vaf"] = [sum(x[1]['vaf']) for x in df.groupby(by=keep, as_index=False)]
+        add_other = [x for x in add if x != "vaf"]
+        df_collapsed[add_other] = df.groupby(by=keep, as_index=False).sum()[add_other]
+    else:
+        df_collapsed[add] = df.groupby(by=keep, as_index=False).sum()[add]
     df_collapsed[max_] = df.groupby(by=keep, as_index=False).max()[max_]
     for col in append:
         df_collapsed[col] = df.groupby(by=keep, as_index=False)[col].apply(list).reset_index()[0]  #[0] extracts aggregated column / removes df[keep]
     # keep track of which ITD contributed each value of the "add" columns -> create "append" columns for these as well
     for col in add:
         df_collapsed[col + '_each'] = df.groupby(by=keep, as_index=False)[col].apply(list).reset_index()[0] # same command as for col in append
-        assert [sum(x) for x in df_collapsed[col + '_each']] == [int(x) for x in df_collapsed[col]]
+        if col == "vaf":
+            assert [sum(x) for x in df_collapsed[col + '_each']] == [Decimal(x) for x in df_collapsed[col]]
+        else:
+            assert [sum(x) for x in df_collapsed[col + '_each']] == [int(x) for x in df_collapsed[col]]
     assert not df_collapsed.empty
     return df_collapsed
 
@@ -350,17 +362,33 @@ def get_coverage(df, start_col, ref_coverage):
 # calculate VAF from insert-containing read counts and total coverage of each mutation
 # move asserts to where I first set counts and coverage -> both must be defined ints >= 0
 def get_vaf(df): 
-    return df["counts"]/df["ref_coverage"] * 100
+    return [Decimal(df.loc[i,"counts"].item()) / Decimal(df.loc[i,"ref_coverage"].item()) * Decimal(100) for i in range(df.shape[0])]
 
 
 # create and return an empty dataframe
 def empty_df(start_col):
-    empty_df = pd.DataFrame(columns=['length', 'trailing', start_col, 'insert', 'idx', 'file', 'counts', 'ref_coverage', 'vaf', 'counts_each','offset'])
-    empty_df[["length",start_col,"counts","ref_coverage"]] = empty_df[["length",start_col,"counts","ref_coverage"]].astype("int64")
+    empty_df = pd.DataFrame(columns=['length', 'trailing', start_col, 'insert', 'idx', 'file', 'counts', 'ref_coverage', 'vaf', 'counts_each'])
+    if start_col == "tandem2_start":
+        empty_df["offset"] = np.nan
+        empty_df["offset"] = empty_df["offset"].astype(int)
+    empty_df[["length",start_col,"counts","ref_coverage"]] = empty_df[["length",start_col,"counts","ref_coverage"]].astype(int)
     empty_df["idx"] = []
     empty_df["file"] = []
     empty_df["counts_each"] = []
     return empty_df
+
+
+def fix_dtypes(df):
+    for col in ["length","start","tandem2_start","counts","ref_coverage","offset"]:
+        if col in df:
+            df[col] = df[col].astype(int)
+    for col in ["trailing"]:
+        if col in df:
+            df[col] = df[col].astype(bool)
+    for col in ["vaf"]:
+        if col in df:
+            df[col] = df[col].astype(Decimal)
+    return df
 
 
 def collapse_complex(ii_row, i_row):
@@ -417,12 +445,10 @@ def collapse_similar_inserts(df, start_col):
         df_collapsed = df_collapsed.append(this_df_collapsed, ignore_index=True)
     #
     # check that sum of "counts_each" (= read counts of each unique read) equals total counts in "counts"
-    df_collapsed[["length",start_col,"counts","ref_coverage"]] = df_collapsed[["length",start_col,"counts","ref_coverage"]].astype("int64")
-    if "offset" in df:
-        df_collapsed["offset"] = df_collapsed["offset"].astype("int64")
-    df_collapsed["trailing"] = df_collapsed["trailing"].astype("bool")
+    df_collapsed = fix_dtypes(df_collapsed)
     assert([sum(x) for x in df_collapsed["counts_each"]] == [int(x) for x in df_collapsed["counts"]])
     return df_collapsed
+
 
 
 def index_of_max(lst):
@@ -460,30 +486,10 @@ def collapse_close_inserts(df, start_col):
                     alignment_score = alignments[0][2]
                 #
                 if alignment_score >= min_score:
-                    collapsed = True
                     # collapse
-                    # add together some statistics
-                    this_df_collapsed.at[ii,"counts"] = this_df_collapsed["counts"][ii] + this_df["counts"][i_idx]
-                    this_df_collapsed.at[ii, "vaf"] = this_df_collapsed["vaf"][ii] + this_df["vaf"][i_idx]
-                    this_df_collapsed.at[ii,"trailing"] = max(max(this_df["trailing"]), max(this_df_collapsed["trailing"]))
-                    if 'offset' in df:
-                        this_df_collapsed.at[ii,"offset"] = max(max(this_df["offset"]), max(this_df_collapsed["offset"]))
-                    #
-                    # pick one or the other for the others OR keep both but in specific order (first list for picked insert) -> go for the most abundant one (or the one closest to reference?!)
-                    if this_df["counts"][i_idx] > ii_row["counts"]:
-                        this_df_collapsed.at[ii, "insert"] = this_df["insert"][i_idx]
-                        this_df_collapsed.at[ii, "ref_coverage"] = this_df["ref_coverage"][i_idx]
-                        this_df_collapsed.at[ii, start_col] = this_df[start_col][i_idx]
-                        #this_df_collapsed.at[ii, "offset"] = this_df["offset"][i_idx]
-                        #
-                        this_df_collapsed.at[ii, "idx"] = this_df["idx"][i_idx] + ii_row["idx"]
-                        this_df_collapsed.at[ii, "file"] = this_df["file"][i_idx] + ii_row["file"]
-                        this_df_collapsed.at[ii, "counts_each"] = this_df["counts_each"][i_idx] + ii_row["counts_each"]
-                    else:
-                        this_df_collapsed.at[ii, "idx"] = ii_row["idx"] + this_df["idx"][i_idx]
-                        this_df_collapsed.at[ii, "file"] = ii_row["file"] + this_df["file"][i_idx]
-                        this_df_collapsed.at[ii, "counts_each"] = ii_row["counts_each"] + this_df["counts_each"][i_idx]
-                    break
+                    collapsed = True
+                    this_df_collapsed.loc[ii, ['counts','vaf','trailing','idx','file','counts_each','insert','ref_coverage']] = collapse_complex(ii_row, this_df.ix[i_idx])
+                    break # once collapsed, need not look further for this insert -> move on to the next one
             #
             if not collapsed:
                 this_df_collapsed = this_df_collapsed.append(this_df.ix[i_idx], ignore_index=True)
@@ -491,6 +497,7 @@ def collapse_close_inserts(df, start_col):
         df_collapsed = df_collapsed.append(this_df_collapsed, ignore_index=True)
     #
     # check that sum of "counts_each" (= read counts of each unique read) equals total counts in "counts"
+    df_collapsed = fix_dtypes(df_collapsed)
     assert([sum(x) for x in df_collapsed["counts_each"]] == [int(x) for x in df_collapsed["counts"]])
     return df_collapsed
 
@@ -681,7 +688,7 @@ if __name__ == '__main__':
                 tandem2_after = ''.join(readn_maskedIns).find(''.join(ins), insert_start + insert_length,len(readn_maskedIns))
                 tandem2_before = ''.join(reversed(readn_maskedIns)).find(''.join(reversed(ins)), len(readn_maskedIns) -1 -insert_start +1, len(readn_maskedIns))
 # 
-                # take the one closest to the insert (should be relevant only for small ITDs that may be contained multiple time within a read
+                # take the one closest to the insert (should be relevant only for small ITDs that may be contained multiple times within a read
                 tandem2_start = None
                 if tandem2_after == -1 and tandem2_before == -1:
                     tandem2_start = -1 # not found --> no itd present
@@ -696,7 +703,11 @@ if __name__ == '__main__':
                 assert tandem2_start is not None  # should be assigned something!
 #                    
                 offset = abs(tandem2_start - insert_start)
-                if trailing and offset == 0:
+                if filename == "needle_1597.txt":
+                    print(offset)
+                    print(tandem2_start)
+                    print(insert_start)
+                if trailing and offset == 0: # should this be == insert_length??
                     trailing = False
                     print("UNTRAIL") 
                 # save if an exact second tandem of the insert was found
@@ -729,6 +740,11 @@ if __name__ == '__main__':
                         alignment_score, alignment_start, alignment_end = alignment[2:5]
 #			
                     if alignment_score >= min_score:
+                        offset = abs(alignment_start - insert_start)
+                        if filename == "needle_1597.txt":
+                            print(offset)
+                            print(alignment_start)
+                            print(insert_start)
                         w_itd_nonexact["idx"].append(i)
                         w_itd_nonexact["file"].append(filename)
                         w_itd_nonexact["length"].append(insert_length)
@@ -770,7 +786,7 @@ if __name__ == '__main__':
     # COLLECT AND COLLAPSE ITDs
     #
     df_itd =  pd.concat([pd.DataFrame(w_itd_exact), pd.DataFrame(w_itd_nonexact)], ignore_index=True)
-    df_itd[["idx","length","offset","start","tandem2_start"]] = df_itd[["idx","length","offset","start","tandem2_start"]].astype("int64")
+    df_itd[["idx","length","offset","start","tandem2_start"]] = df_itd[["idx","length","offset","start","tandem2_start"]].astype(int)
     df_itd = filter_offset(df_itd)
     df_itd["sample"] = [SAMPLE for i in range(df_itd.shape[0])]
     df_itd["counts"] = [all_readCounts[i] for i in df_itd["idx"]]
@@ -858,9 +874,9 @@ if __name__ == '__main__':
         # associate detected ITDs with expected VAF (if available)  -> useful to check correlation between VAF estimates of different experiments --> right now assuming there is only one VAF/AR for sum of all ITD clones!
         known_vaf = None
         if KNOWN_VAF_FILE is not None:
-            known_vaf = read_known(KNOWN_VAF_FILE,float)[0]
+            known_vaf = read_known(KNOWN_VAF_FILE,Decimal)[0]
         elif KNOWN_AR_FILE is not None:
-            known_vaf = ar_to_vaf(read_known(KNOWN_AR_FILE,float)[0])
+            known_vaf = ar_to_vaf(read_known(KNOWN_AR_FILE,Decimal)[0])
         #
         if known_vaf is not None:
             assert known_vaf <= 100 and known_vaf >= 0
