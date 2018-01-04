@@ -9,65 +9,48 @@ import collections
 import os
 import multiprocessing
 import argparse
-from decimal import Decimal # required for accuracy of VAF (otherwise asserts fail for sum(counts_each) = counts due to floating point inaccuracies)
-getcontext().prec = 5 # number of digits to round decimals to
+import decimal as dc # required for accuracy of VAF (otherwise asserts fail for sum(counts_each) = counts due to floating point inaccuracies)
+dc.getcontext().prec = 5 # number of digits to round decimals to
 
 
 #######################################
 ## INITIALIZE VARIABLES
 
 # prevent neg nkern/minBQS?
-if False: #True:
-    parser = argparse.ArgumentParser()
-    group = parser.add_mutually_exclusive_group()
-    parser.add_argument("fastq1", help="FASTQ file of forward reads")
-    parser.add_argument("fastq2", help="FASTQ file of reverse reads")
-    parser.add_argument("sampleID", help="sample ID used as output folder prefix")
-    parser.add_argument("minBQS", help="minimum average base quality score (BQS) required by each read (default: 30)", type=int, default=30, nargs='?')
-    parser.add_argument("reference", help="WT amplicon sequence as reference for read alignment (default: /NGS/known_sites/hg19/flt3-itd_anno/amplicon.txt)", default="/NGS/known_sites/hg19/flt3-itd_anno/amplicon.txt", nargs='?')
-    parser.add_argument('-nkern', help="number of cores to use for parallel tasks (default: 14)", default="4", type=int)
-    parser.add_argument('-gap_open', help="alignment cost of gap opening", default="-20", type=int)
-    parser.add_argument('-gap_extend', help="alignment cost of gap extension", default="-0.5", type=float)
-    parser.add_argument('-match', help="alignment cost of base match", default="5", type=int)
-    parser.add_argument('-mismatch', help="alignment cost of base mismatch", default="-4", type=int)
-    parser.add_argument('-minscore', help="fraction of max possible alignment score required for ITD detection and insert collapsing", default="0.6", type=float)
-    parser.add_argument('-known_length', help="file with expected ITD length, one on each line")
-    group.add_argument('-known_vaf', help="file with expected ITD VAF (sum of all clones)")
-    group.add_argument('-known_ar', help="file with expected ITD allele ratio (sum of all ITD clones vs WT)")
-    cmd_args = parser.parse_args()
-    
-    R1 = cmd_args.fastq1
-    R2 = cmd_args.fastq2
-    SAMPLE = cmd_args.sampleID
-    MIN_BQS = cmd_args.minBQS
-    REF = cmd_args.reference
-    NKERN = cmd_args.nkern
-    KNOWN_LENGTH_FILE = cmd_args.known_length
-    KNOWN_VAF_FILE = cmd_args.known_vaf
-    KNOWN_AR_FILE = cmd_args.known_ar
-    OUT_DIR = '_'.join([SAMPLE,'minBQS', str(MIN_BQS)])
-    
-    COST_MATCH = cmd_args.match
-    COST_MISMATCH = cmd_args.mismatch
-    COST_GAPOPEN = cmd_args.gap_open
-    COST_GAPEXTEND = cmd_args.gap_extend
-    MIN_SCORE = cmd_args.minscore
-else:
-    R1 = "1610-264-16KM1946-dx-a_S13_L001_R1_001.fastq"
-    R2 = "1610-264-16KM1946-dx-a_S13_L001_R1_001.fastq"
-    SAMPLE="264"
-    MIN_BQS=30
-    REF="/NGS/known_sites/hg19/flt3-itd_anno/amplicon.txt"
-    NKERN=14
-    KNOWN_LENGTH_FILE="264_known_length.txt"
-    KNOWN_VAF_FILE="264-dx_known_vaf.txt"
-    OUT_DIR = '_'.join([SAMPLE,'minBQS', str(MIN_BQS)])
-    COST_MATCH = 5
-    COST_MISMATCH = -10
-    COST_GAPOPEN = -20
-    COST_GAPEXTEND = -0.5
-    MIN_SCORE=0.5
+parser = argparse.ArgumentParser()
+group = parser.add_mutually_exclusive_group()
+parser.add_argument("fastq1", help="FASTQ file of forward reads")
+parser.add_argument("fastq2", help="FASTQ file of reverse reads")
+parser.add_argument("sampleID", help="sample ID used as output folder prefix")
+parser.add_argument("minBQS", help="minimum average base quality score (BQS) required by each read (default: 30)", type=int, default=30, nargs='?')
+parser.add_argument("reference", help="WT amplicon sequence as reference for read alignment (default: /NGS/known_sites/hg19/flt3-itd_anno/amplicon.txt)", default="/NGS/known_sites/hg19/flt3-itd_anno/amplicon.txt", nargs='?')
+parser.add_argument('-nkern', help="number of cores to use for parallel tasks (default: 14)", default="14", type=int)
+parser.add_argument('-gap_open', help="alignment cost of gap opening", default="-20", type=int)
+parser.add_argument('-gap_extend', help="alignment cost of gap extension", default="-0.5", type=float)
+parser.add_argument('-match', help="alignment cost of base match", default="5", type=int)
+parser.add_argument('-mismatch', help="alignment cost of base mismatch", default="-10", type=int)
+parser.add_argument('-minscore', help="fraction of max possible alignment score required for ITD detection and insert collapsing", default="0.5", type=float)
+parser.add_argument('-known_length', help="file with expected ITD length, one on each line")
+group.add_argument('-known_vaf', help="file with expected ITD VAF (sum of all clones)")
+group.add_argument('-known_ar', help="file with expected ITD allele ratio (sum of all ITD clones vs WT)")
+cmd_args = parser.parse_args()
 
+R1 = cmd_args.fastq1
+R2 = cmd_args.fastq2
+SAMPLE = cmd_args.sampleID
+MIN_BQS = cmd_args.minBQS
+REF = cmd_args.reference
+NKERN = cmd_args.nkern
+KNOWN_LENGTH_FILE = cmd_args.known_length
+KNOWN_VAF_FILE = cmd_args.known_vaf
+KNOWN_AR_FILE = cmd_args.known_ar
+OUT_DIR = '_'.join([SAMPLE,'minBQS', str(MIN_BQS)])
+
+COST_MATCH = cmd_args.match
+COST_MISMATCH = cmd_args.mismatch
+COST_GAPOPEN = cmd_args.gap_open
+COST_GAPEXTEND = cmd_args.gap_extend
+MIN_SCORE = cmd_args.minscore
 
 
 
@@ -182,9 +165,9 @@ def connect_alignment(alignment):
     return ''.join([connect_bases(char1,char2) for char1,char2 in zip(seq1,seq2)])
 
 
-# count number of digits to align all lines in pretty alignment printout (need to know how much spaces to insert)
+# count number of digits to align all lines in pretty alignment printout (need to know how many spaces to insert)
 def get_number_of_digits(number):
-    if number == 0: ## should never be 0!?
+    if number == 0: 
         return 1
     return int(np.log10(number)) +1
 
@@ -212,8 +195,6 @@ def print_alignment(alignment, i, out_dir, command='bio.align.globalcs', command
     seq, ref, score = alignment[0:3]
     al = connect_alignment(alignment)
     command_score_function = "get_alignment_score"
-    cost_match = COST_MATCH
-    cost_mismatch = COST_MISMATCH
     cost_gapopen = COST_GAPOPEN
     cost_gapextend = COST_GAPEXTEND
     width = 50
@@ -299,8 +280,8 @@ def integral_insert_realignment(insert_alignment, insert_length):
 def left_normalize(readn, refn, insert_start, insert_end, i):
     if insert_start > 0 and insert_end < len(readn)-1 and refn[insert_start -1].lower() == readn[insert_end].lower():
         print("LEFT NORMALIZE: {}".format(i))
-        print(readn)
-        print(refn)
+        print(''.join(readn))
+        print(''.join(refn))
         return True
     return False
 
@@ -332,6 +313,7 @@ def norm_start_col(df, start_col, ref_wt):
 # -> max_: columns to keep max of (such as offset or trailing)
 # -> append: columns for which all rows should be collapsed to one entry with a single list
 # ---> make this nicer, I don't like all of these exceptions for VAF column...
+# ---> protect against empty df (will fail for col in append: ... [0] !!
 def collapse(df,add=[],max_=[],append=[],keep=[]):
     df_collapsed = df[keep].drop_duplicates().sort_values(by=keep).reset_index(drop=True)
     # vaf is of type Decimal and will be omitted by sum() -> calculate sum separately for vaf column where required
@@ -348,7 +330,7 @@ def collapse(df,add=[],max_=[],append=[],keep=[]):
     for col in add:
         df_collapsed[col + '_each'] = df.groupby(by=keep, as_index=False)[col].apply(list).reset_index()[0] # same command as for col in append
         if col == "vaf":
-            assert [sum(x) for x in df_collapsed[col + '_each']] == [Decimal(x) for x in df_collapsed[col]]
+            assert [sum(x) for x in df_collapsed[col + '_each']] == [dc.Decimal(x) for x in df_collapsed[col]]
         else:
             assert [sum(x) for x in df_collapsed[col + '_each']] == [int(x) for x in df_collapsed[col]]
     assert not df_collapsed.empty
@@ -362,7 +344,7 @@ def get_coverage(df, start_col, ref_coverage):
 # calculate VAF from insert-containing read counts and total coverage of each mutation
 # move asserts to where I first set counts and coverage -> both must be defined ints >= 0
 def get_vaf(df): 
-    return [Decimal(df.loc[i,"counts"].item()) / Decimal(df.loc[i,"ref_coverage"].item()) * Decimal(100) for i in range(df.shape[0])]
+    return [dc.Decimal(df.loc[i,"counts"].item()) / dc.Decimal(df.loc[i,"ref_coverage"].item()) * dc.Decimal(100) for i in range(df.shape[0])]
 
 
 # create and return an empty dataframe
@@ -387,7 +369,7 @@ def fix_dtypes(df):
             df[col] = df[col].astype(bool)
     for col in ["vaf"]:
         if col in df:
-            df[col] = df[col].astype(Decimal)
+            df[col] = df[col].astype(dc.Decimal)
     return df
 
 
@@ -472,9 +454,11 @@ def collapse_close_inserts(df, start_col):
             collapsed = False
             #
             for ii,ii_row in this_df_collapsed[::-1].iterrows(): #[::-1] to reverse df and speed up pos alignment
+                other_ins_start = ii_row[start_col]
+                if abs(other_ins_start - this_ins_start) > length:
+                    continue
                 other_max_counts = index_of_max(ii_row["counts_each"])
                 other_read = all_reads[ii_row["idx"][other_max_counts]]
-                other_ins_start = ii_row[start_col]
                 min_start = min(this_ins_start, other_ins_start)
                 max_start = max(this_ins_start, other_ins_start)
                 #
@@ -514,6 +498,7 @@ def filter_inserts(df):
 
 
 # update length of trailing ITDs to offset instead (should be max potential ITD length)
+# -> update also insert sequence?
 def fix_trailing_length(df):
     df_fixed = df.copy()
     df_fixed.loc[df["trailing"],"length"] = df_fixed.ix[df["trailing"],"offset"]
@@ -559,6 +544,8 @@ if __name__ == '__main__':
     #
     # filter unique reads -> keep only reads that exist at least twice  -----> make this assignment nicer, it's like the same loop twice!!?
     unique_reads, unique_reads_counts = [read  for read,count in zip(unique_reads, unique_reads_counts) if count >= 2], [count for read,count in zip(unique_reads, unique_reads_counts) if count >= 2]
+    #print("---------------------------------------------------------->>>>>  turned OFF >1 unique reads filter!")
+    #unique_reads, unique_reads_counts = [read  for read,count in zip(unique_reads, unique_reads_counts) if count >= 1], [count for read,count in zip(unique_reads, unique_reads_counts) if count >= 1]
     assert len(unique_reads) == len(unique_reads_counts)
     print("Number of unique reads present at least twice: {}".format(len(unique_reads)))
     print("--> Number of total reads passing both filters: {}".format(sum(unique_reads_counts)))
@@ -607,6 +594,11 @@ if __name__ == '__main__':
     assert(len(all_reads) == len(all_files))
     #
     #
+    if len(all_reads) == 0:
+        print("\nNO READS TO PROCESS!")
+        quit()
+    #
+    #
     #######################################
     # EXTRACT INSERT SEQUENCE FROM READ
     #
@@ -629,10 +621,10 @@ if __name__ == '__main__':
         refn = np.array(list(ref))
         assert(len(readn) == len(refn))
 #
-        readn_onRef = readn[refn != '-'] ## compare readn_nonIns below
-        readn_onRef_covered = np.where(readn_onRef != '-')
-        readn_onRef_covered_range = np.arange(np.min(readn_onRef_covered), np.max(readn_onRef_covered)) # do not count last index -> read ending here holds no information on whether or not an ITD starts here --> but what about a read that covers the first 5 bases of an ITD > 5bp, I still wouldn't know...
-        ref_coverage[readn_onRef_covered_range] = ref_coverage[readn_onRef_covered_range] + counts
+        # calculate ref_coverage
+        readn_covered = np.where(readn[refn != '-'] != '-')
+        readn_covered_range = np.arange(np.min(readn_covered), np.max(readn_covered)) # do not count last index -> read ending here holds no information on whether or not an ITD starts here
+        ref_coverage[readn_covered_range] = ref_coverage[readn_covered_range] + counts
 #	
         # get indeces of inserts in read (positions where reference has a gap and read does not)
         insert_idxs_all = np.arange(len(readn))[refn == '-']
@@ -656,14 +648,15 @@ if __name__ == '__main__':
 #
         for insert_idxs in insert_idxs_each:
             insert_length = len(insert_idxs)	
-            if insert_length < 6 or "N" in readn[insert_idxs]: # tested again below...
+            if insert_length < 6 or "N" in readn[insert_idxs]: 
                 continue
             ins = readn[insert_idxs]
             insert_start = insert_idxs[0]
             insert_end = insert_idxs[-1]
             trailing = insert_start == 0 or insert_end == sum(readn != '-')-1
-            # if there is an insert  --> require min 6 bp length, in-frame insert and no "N"s within insert
-            if(insert_length >= 6 and "N" not in readn[insert_idxs] and (trailing or insert_length % 3 == 0)):
+            # if there is an insert  --> require min 6 bp length, in-frame insert (except for trailing muts) and no "N"s within insert
+            #if(insert_length >= 6 and "N" not in readn[insert_idxs] and (trailing or insert_length % 3 == 0)):
+            if(trailing or insert_length % 3 == 0):
                 if insert_start > 0:
                     should_left_normalize = should_left_normalize + left_normalize(readn, refn, insert_start, insert_end, i)
 #
@@ -738,6 +731,10 @@ if __name__ == '__main__':
                     else:
                         alignment = alignments[0]
                         alignment_score, alignment_start, alignment_end = alignment[2:5]
+                        if i == 29753:
+                            print(bio.format_alignment(*alignment))
+                            print(alignment_score)
+                            print(min_score)
 #			
                     if alignment_score >= min_score:
                         offset = abs(alignment_start - insert_start)
@@ -788,58 +785,68 @@ if __name__ == '__main__':
     df_itd =  pd.concat([pd.DataFrame(w_itd_exact), pd.DataFrame(w_itd_nonexact)], ignore_index=True)
     df_itd[["idx","length","offset","start","tandem2_start"]] = df_itd[["idx","length","offset","start","tandem2_start"]].astype(int)
     df_itd = filter_offset(df_itd)
-    df_itd["sample"] = [SAMPLE for i in range(df_itd.shape[0])]
-    df_itd["counts"] = [all_readCounts[i] for i in df_itd["idx"]]
-    # collapse same inserts (same length, insert sequence and reference-based start coordinate)
-    # -> careful: losing "start" column here (only keeping tandem2_start) -> do I need it?
-    df_itd_grouped = collapse(df_itd,keep=["sample","length","tandem2_start","insert"],add=["counts"],max_=["trailing","offset"],append=["idx","file"])
-    assert sum(df_itd["counts"]) == sum(df_itd_grouped["counts"])
-    df_itd_grouped["ref_coverage"] = get_coverage(df_itd_grouped, "tandem2_start", ref_coverage)
-    df_itd_grouped["vaf"] = get_vaf(df_itd_grouped)
-    df_itd_grouped[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv(os.path.join(OUT_DIR,"flt3_itds.tsv"), index=False, float_format='%.2e', sep='\t')
+    if not df_itd.empty:
+        df_itd["sample"] = [SAMPLE for i in range(df_itd.shape[0])]
+        df_itd["counts"] = [all_readCounts[i] for i in df_itd["idx"]]
+        #
+        # collapse same inserts (same length, insert sequence and reference-based start coordinate)
+        # -> careful: losing "start" column here (only keeping tandem2_start) -> do I need it?
+        df_itd_grouped = collapse(df_itd,keep=["sample","length","tandem2_start","insert"],add=["counts"],max_=["trailing","offset"],append=["idx","file"])
+        assert sum(df_itd["counts"]) == sum(df_itd_grouped["counts"])
+        df_itd_grouped["ref_coverage"] = get_coverage(df_itd_grouped, "tandem2_start", ref_coverage)
+        df_itd_grouped["vaf"] = get_vaf(df_itd_grouped)
+        #
+        # COLLAPSE #2
+        # --> align inserts of same length and tandem2_start, collapse if they are sufficiently similar
+        df_itd_collapsed = collapse_similar_inserts(df_itd_grouped, "tandem2_start").sort_values(['length','tandem2_start'])
+        assert sum(df_itd["counts"]) == sum(df_itd_collapsed["counts"])
+        fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed.tsv"), index=False, float_format='%.2e', sep='\t')
+        #
+        # COLLAPSE #3
+        # --> align inserts of same length,  collapse if they are sufficiently similar (and within one insert length of each other)
+        df_itd_collapsed = collapse_close_inserts(df_itd_collapsed, "tandem2_start").sort_values(['length','tandem2_start'])
+        assert sum(df_itd["counts"]) == sum(df_itd_collapsed["counts"])
+        fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full.tsv"), index=False, float_format='%.2e', sep='\t')
+        #
+        # FILTER
+        # --> filter inserts based on number of unique and total supporting reads
+        if 'cr' not in SAMPLE: # change this to some binary flag
+            df_itd_collapsed = filter_inserts(df_itd_collapsed).sort_values(['length','tandem2_start'])
+            fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_filtered.tsv"), index=False, float_format='%.2e', sep='\t')
+            df_itd_grouped[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv(os.path.join(OUT_DIR,"flt3_itds.tsv"), index=False, float_format='%.2e', sep='\t')
     #   
     #
+    #
     df_ins =  pd.DataFrame(w_ins)
-    df_ins["sample"] = [SAMPLE for i in range(df_ins.shape[0])]
-    df_ins["counts"] = [all_readCounts[i] for i in df_ins["idx"]]
-    # collapse same inserts (same length, insert sequence and reference-based start coordinate)
-    df_ins_grouped = collapse(df_ins,keep=["sample","length","start","insert"],add=["counts"],max_=["trailing"],append=["idx","file"])
-    assert sum(df_ins["counts"]) == sum(df_ins_grouped["counts"])
-    df_ins_grouped["norm_start"] = norm_start_col(df_ins_grouped, "start", ref_wt)
-    df_ins_grouped["ref_coverage"] = get_coverage(df_ins_grouped, "norm_start", ref_coverage) # should I be using norm_start at some other place as well?? Or is it just for coverage calculation?!
-    df_ins_grouped["vaf"] = get_vaf(df_ins_grouped)
-    df_ins_grouped[['sample','length', 'trailing', 'start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv(os.path.join(OUT_DIR,"flt3_ins.tsv"), index=False, float_format='%.2e', sep='\t')
-    #
-    #
-    #
-    ########################################
-    # COLLAPSE ITDs
-    # --> align inserts of same length and tandem2_start, collapse if they are sufficiently similar
-    # --> align inserts of same length,  collapse if they are sufficiently similar
-    # --> filter inserts based on number of unique and total supporting reads
-    #
-    # collapse, save, filter and save filtered ITDs
-    # --> instead of indexing all the same, can I index once and discard all other columns?
-    df_itd_collapsed = collapse_similar_inserts(df_itd_grouped, "tandem2_start").sort_values(['length','tandem2_start'])
-    assert sum(df_itd["counts"]) == sum(df_itd_collapsed["counts"])
-    fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed.tsv"), index=False, float_format='%.2e', sep='\t')
-    df_itd_collapsed = collapse_close_inserts(df_itd_collapsed, "tandem2_start").sort_values(['length','tandem2_start'])
-    assert sum(df_itd["counts"]) == sum(df_itd_collapsed["counts"])
-    fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full.tsv"), index=False, float_format='%.2e', sep='\t')
-    if 'cr' not in SAMPLE: # change this to some binary flag
-        df_itd_collapsed = filter_inserts(df_itd_collapsed).sort_values(['length','tandem2_start'])
-        fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_filtered.tsv"), index=False, float_format='%.2e', sep='\t')
-    #
-    df_ins_collapsed = collapse_similar_inserts(df_ins_grouped, "start").sort_values(['length','start'])
-    assert sum(df_ins["counts"]) == sum(df_ins_collapsed["counts"])
-    df_ins_collapsed[['sample','length', 'start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed.tsv"), index=False, float_format='%.2e', sep='\t')
-    df_ins_collapsed = collapse_close_inserts(df_ins_collapsed, "start").sort_values(['length','start'])
-    assert sum(df_ins["counts"]) == sum(df_ins_collapsed["counts"])
-    df_ins_collapsed[['sample','length', 'start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full.tsv"), index=False, float_format='%.2e', sep='\t')
-    if 'cr' not in SAMPLE: # change this to some binary flag
-        df_ins_collapsed = filter_inserts(df_ins_collapsed).sort_values(['length','start'])
-        df_ins_collapsed[['sample','length', 'start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full_filtered.tsv"), index=False, float_format='%.2e', sep='\t')
-    #
+    if not df_ins.empty:
+        df_ins["sample"] = [SAMPLE for i in range(df_ins.shape[0])]
+        df_ins["counts"] = [all_readCounts[i] for i in df_ins["idx"]]
+        #
+        # collapse same inserts (same length, insert sequence and reference-based start coordinate)
+        df_ins_grouped = collapse(df_ins,keep=["sample","length","start","insert"],add=["counts"],max_=["trailing"],append=["idx","file"])
+        assert sum(df_ins["counts"]) == sum(df_ins_grouped["counts"])
+        df_ins_grouped["norm_start"] = norm_start_col(df_ins_grouped, "start", ref_wt)
+        df_ins_grouped["ref_coverage"] = get_coverage(df_ins_grouped, "norm_start", ref_coverage) # should I be using norm_start at some other place as well?? Or is it just for coverage calculation?!
+        df_ins_grouped["vaf"] = get_vaf(df_ins_grouped)
+        #
+        # COLLAPSE #2
+        # --> align inserts of same length and tandem2_start, collapse if they are sufficiently similar
+        df_ins_collapsed = collapse_similar_inserts(df_ins_grouped, "start").sort_values(['length','start'])
+        assert sum(df_ins["counts"]) == sum(df_ins_collapsed["counts"])
+        df_ins_collapsed[['sample','length', 'start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed.tsv"), index=False, float_format='%.2e', sep='\t')
+        #
+        # COLLAPSE #3
+        # --> align inserts of same length,  collapse if they are sufficiently similar (and within one insert length of each other)
+        df_ins_collapsed = collapse_close_inserts(df_ins_collapsed, "start").sort_values(['length','start'])
+        assert sum(df_ins["counts"]) == sum(df_ins_collapsed["counts"])
+        df_ins_collapsed[['sample','length', 'start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full.tsv"), index=False, float_format='%.2e', sep='\t')
+        # 
+        # FILTER
+        # --> filter inserts based on number of unique and total supporting reads
+        if 'cr' not in SAMPLE: # change this to some binary flag
+            df_ins_collapsed = filter_inserts(df_ins_collapsed).sort_values(['length','start'])
+            df_ins_collapsed[['sample','length', 'start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full_filtered.tsv"), index=False, float_format='%.2e', sep='\t')
+            df_ins_grouped[['sample','length', 'trailing', 'start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv(os.path.join(OUT_DIR,"flt3_ins.tsv"), index=False, float_format='%.2e', sep='\t')
     #
     #
     ########################################
@@ -861,22 +868,21 @@ if __name__ == '__main__':
     #
     if KNOWN_LENGTH_FILE is not None:
         known_length = read_known(KNOWN_LENGTH_FILE,int)
-        df_itd_known=None
-        df_ins_known=None
-        # define output file names here also! -> keep names consistent for cr samples
+       # df_itd_known=None
+       # df_ins_known=None
         df_itd_known = get_known(fix_trailing_length(df_itd_collapsed), known_length)
-        df_ins_known = get_known(df_ins_collapsed, known_length)
-        #
-        # print tables with known ITDs only -> useful to check concordance of different experiments
         df_itd_known[['sample','length','vaf','ref_coverage','counts','tandem2_start','insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_filtered_known.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
+        #
+        df_ins_known = get_known(df_ins_collapsed, known_length)
         df_ins_known[['sample','length','vaf','ref_coverage','counts','start','insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full_filtered_known.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
+        #
         #
         # associate detected ITDs with expected VAF (if available)  -> useful to check correlation between VAF estimates of different experiments --> right now assuming there is only one VAF/AR for sum of all ITD clones!
         known_vaf = None
         if KNOWN_VAF_FILE is not None:
-            known_vaf = read_known(KNOWN_VAF_FILE,Decimal)[0]
+            known_vaf = read_known(KNOWN_VAF_FILE,dc.Decimal)[0]
         elif KNOWN_AR_FILE is not None:
-            known_vaf = ar_to_vaf(read_known(KNOWN_AR_FILE,Decimal)[0])
+            known_vaf = ar_to_vaf(read_known(KNOWN_AR_FILE,dc.Decimal)[0])
         #
         if known_vaf is not None:
             assert known_vaf <= 100 and known_vaf >= 0
@@ -884,16 +890,12 @@ if __name__ == '__main__':
         # does this make sense with multiple inserts per read? counts/vaf would be messed up because counted twice, right? --> more accurate maybe: collect all supporting reads and count unique 
         df_itd_known_collapsed = collapse(df_itd_known,keep=["sample"],add=["counts","vaf"],append=["length","tandem2_start","ref_coverage"])
         df_itd_known_collapsed["vaf_genescan"] = known_vaf
+        df_itd_known_collapsed[['sample','length','vaf','vaf_genescan','vaf_each','tandem2_start','ref_coverage','counts_each']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_filtered_known_collapsed.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
         # 
+        #
         df_ins_known_collapsed = collapse(df_ins_known,keep=["sample"],add=["counts","vaf"],append=["length","start","ref_coverage"])
         df_ins_known_collapsed["vaf_genescan"] = known_vaf
-        #
-        # print collapsed tables with known ITDs only -> useful to check concordance with GeneScan VAF
-        df_itd_known_collapsed[['sample','length','vaf','vaf_genescan','vaf_each','tandem2_start','ref_coverage','counts_each']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_filtered_known_collapsed.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
         df_ins_known_collapsed[['sample','length','vaf','vaf_genescan','vaf_each','start','ref_coverage','counts_each']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full_filtered_known_collapsed.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
-        
-
-        
         
 
 
