@@ -540,9 +540,9 @@ if __name__ == '__main__':
     # collect reads that pass MIN_BQS filter -> reverse-complement R2 reads so that all reads can be aligned to the same reference
     reads_and_bqs = read_fastq(R1) + [(reverse_complement(r2_read),bqs) for r2_read,bqs in read_fastq(R2)]
     print("Number of total reads: {}".format(len(reads_and_bqs)))
-    args = [(read_and_bqs, MIN_BQS) for read_and_bqs in reads_and_bqs]
     #
     # filter based on BQS -> PASS returns read, FAIL returns None -> remove None from list!
+    args = [(read_and_bqs, MIN_BQS) for read_and_bqs in reads_and_bqs]
     reads = None
     if MIN_BQS > 0:
         reads = [x for x in parallelize(filter_bqs, args, NKERN) if x is not None]
@@ -577,15 +577,11 @@ if __name__ == '__main__':
     #
     #
     ## DO ALIGNMENTS & FILTER BASED ON ALIGNMENT SCORE
-    all_alignments = None
     args = [(unique_read, wt_ref_upper) for unique_read in unique_reads]
-    with multiprocessing.Pool(NKERN) as p:
-            all_alignments = p.map(align, args)
+    all_alignments = parallelize(align, args, NKERN) 
     assert len(unique_reads) == len(all_alignments)
     #
     print("\nFiltering {} / {} low quality alignments with a score < {}".format(all_alignments.count([]),len(all_alignments),  "50 % of max"))
-    #
-    #
     all_readCounts  = [unique_reads_counts[i] for i in range(len(all_alignments)) if all_alignments[i] != []]
     all_alignments  = [x for x in all_alignments if x != []]
     all_reads       = [x[0] for x in all_alignments]
@@ -595,7 +591,6 @@ if __name__ == '__main__':
     #
     #
     ## PRINT ALIGNMENTS
-    # create output file directory for alignments print-outs
     needle_dir = os.path.join(OUT_DIR,'out_needle')
     if not os.path.exists(needle_dir):
         os.makedirs(needle_dir)
