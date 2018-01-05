@@ -296,19 +296,28 @@ def left_normalize(readn, refn, insert_start, insert_end, i):
 
 # filter inserts from a df supported by less than n unique_reads 
 def filter_number_unique_reads(df, min_unique_reads):
-    return df.loc[[len(x) > min_unique_reads for x in df["idx"]]]
+    fail = [len(x) < min_unique_reads for x in df["idx"]]
+    print("{} / {} inserts were supported by < {} distinct reads and filtered".format(sum(fail),df.shape[0],min_unique_reads))
+    return df.loc[[not x for x in fail]]
 
 # filter inserts from a df supported by less than n total reads
 def filter_number_total_reads(df, min_total_reads):
-    return df.loc[[x > min_total_reads for x in df["counts"]]]
+    fail = [x < min_total_reads for x in df["counts"]]
+    print("{} / {} inserts were supported by < {} total reads and filtered".format(sum(fail),df.shape[0],min_total_reads))
+    return df.loc[[not x for x in fail]]
 
 # filter inserts from df that do not pass min_vaf
 def filter_vaf(df, min_vaf):
-    return df.loc[[x > min_vaf for x in df["vaf"]]]
+    fail = [x < min_vaf for x in df["vaf"]]
+    print("{} / {} inserts had a VAF < {} % and were filtered".format(sum(fail),df.shape[0],min_vaf))
+    return df.loc[[not x for x in fail]]
 
 # filter non-trailing inserts from df whose offset (= insert-tandem distance) does not equal their length --> means insert and tandem are not adjacent
 def filter_offset(df):   
-    return df.iloc[[i for i in range(df.shape[0]) if df["trailing"][i] == True or df["offset"][i] == df["length"][i]]]  
+    fail = [df["trailing"][i] == False and df["offset"][i] != df["length"][i] for i in range(df.shape[0])]
+    print("{} / {} ITDs were neither trailing nor adjacent to their second tandem and filtered\n".format(sum(fail),df.shape[0]))
+    return df.loc[[not x for x in fail]]  
+    #return df.iloc[[i for i in range(df.shape[0]) if df["trailing"][i] == True or df["offset"][i] == df["length"][i]]]  
 
 # filter ITDs
 def filter_inserts(df):
@@ -705,10 +714,6 @@ if __name__ == '__main__':
                 assert tandem2_start is not None  # should be assigned something!
 #                    
                 offset = abs(tandem2_start - insert_start)
-                if filename == "needle_1597.txt":
-                    print(offset)
-                    print(tandem2_start)
-                    print(insert_start)
                 if trailing and offset == 0: # should this be == insert_length??
                     trailing = False
                     print("UNTRAIL") 
@@ -740,10 +745,6 @@ if __name__ == '__main__':
                     else:
                         alignment = alignments[0]
                         alignment_score, alignment_start, alignment_end = alignment[2:5]
-                        if i == 29753:
-                            print(bio.format_alignment(*alignment))
-                            print(alignment_score)
-                            print(min_score)
 #			
                     if alignment_score >= min_score:
                         offset = abs(alignment_start - insert_start)
@@ -781,6 +782,7 @@ if __name__ == '__main__':
     print("There were {} trailing exact ITDs.".format(sum(w_itd_exact["trailing"])))
     print("There were {} trailing nonexact ITDs.".format(sum(w_itd_nonexact["trailing"])))
     print("There were {} trailing nonexact ITDs failed.".format(sum(w_itd_nonexact_fail["trailing"])))
+    print()
     #
     #
     # fix ref_coverage -> coverage of last index is 0 since I am counting reads covering a position AND its successor -> for the final index, there is no successor but also this restraint is unnecessary (any trailing mut will be covered by any read covering the first/last base!)
@@ -820,9 +822,11 @@ if __name__ == '__main__':
         # FILTER
         # --> filter inserts based on number of unique and total supporting reads
         if 'cr' not in SAMPLE: # change this to some binary flag
+            print("Filtering ITDs:")
             df_itd_collapsed = filter_inserts(df_itd_collapsed).sort_values(['length','tandem2_start'])
             fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_hc.tsv"), index=False, float_format='%.2e', sep='\t')
             df_itd_grouped[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv(os.path.join(OUT_DIR,"flt3_itds.tsv"), index=False, float_format='%.2e', sep='\t')
+            print()
     #   
     #
     #
@@ -853,6 +857,7 @@ if __name__ == '__main__':
         # FILTER
         # --> filter inserts based on number of unique and total supporting reads
         if 'cr' not in SAMPLE: # change this to some binary flag
+            print("Filtering insertions:")
             df_ins_collapsed = filter_inserts(df_ins_collapsed).sort_values(['length','start'])
             df_ins_collapsed[['sample','length', 'start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full_hc.tsv"), index=False, float_format='%.2e', sep='\t')
             df_ins_grouped[['sample','length', 'trailing', 'start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv(os.path.join(OUT_DIR,"flt3_ins.tsv"), index=False, float_format='%.2e', sep='\t')
