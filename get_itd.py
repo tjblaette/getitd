@@ -33,6 +33,10 @@ parser.add_argument('-minscore', help="fraction of max possible alignment score 
 parser.add_argument('-known_length', help="file with expected ITD length, one on each line")
 group.add_argument('-known_vaf', help="file with expected ITD VAF (sum of all clones)")
 group.add_argument('-known_ar', help="file with expected ITD allele ratio (sum of all ITD clones vs WT)")
+parser.add_argument('-filter_reads', help="minimum number of copies of each read required for processing (1 to turn filter off, 2 (default) to discard unique reads)", default="2", type=int)
+parser.add_argument('-filter_ins_unique_reads', help="minimum number of unique reads required to support an insertion for it to be considered 'high confidence' (default 2)", default="2", type=int)
+parser.add_argument('-filter_ins_total_reads', help="minimum number of total reads required to support an insertion for it to be considered 'high confidence' (default 10)", default="10", type=int)
+parser.add_argument('-filter_ins_vaf', help="minimum variant allele frequency (VAF) required for an insertion to be considered 'high confidence' (default 0.001)", default="0.001", type=float)
 cmd_args = parser.parse_args()
 
 R1 = cmd_args.fastq1
@@ -52,6 +56,10 @@ COST_GAPOPEN = cmd_args.gap_open
 COST_GAPEXTEND = cmd_args.gap_extend
 MIN_SCORE = cmd_args.minscore
 
+MIN_READ_COPIES = cmd_args.filter_reads
+MIN_TOTAL_READS = cmd_args.filter_ins_total_reads
+MIN_UNIQUE_READS = cmd_args.filter_ins_unique_reads
+MIN_VAF = cmd_args.filter_ins_vaf
 
 
 #######################################
@@ -302,6 +310,14 @@ def filter_vaf(df, min_vaf):
 def filter_offset(df):   
     return df.iloc[[i for i in range(df.shape[0]) if df["trailing"][i] == True or df["offset"][i] == df["length"][i]]]  
 
+# filter ITDs
+def filter_inserts(df):
+    df = filter_number_unique_reads(df, MIN_UNIQUE_READS)
+    df = filter_number_total_reads(df, MIN_TOTAL_READS)
+    df = filter_vaf(df, MIN_VAF)
+    return df
+
+
 
 def norm_start_col(df, start_col, ref_wt):
     return [min(max(0,x), len(ref_wt)-1) for x in df["start"]]
@@ -489,14 +505,6 @@ def collapse_close_inserts(df, start_col):
 
 
 
-# filter ITDs
-def filter_inserts(df):
-    df = filter_number_unique_reads(df, 2)
-    df = filter_number_total_reads(df, 30)
-    df = filter_vaf(df, 0.001)
-    return df
-
-
 # update length of trailing ITDs to offset instead (should be max potential ITD length)
 # -> update also insert sequence?
 def fix_trailing_length(df):
@@ -543,12 +551,13 @@ if __name__ == '__main__':
     #
     #
     # filter unique reads -> keep only reads that exist at least twice  -----> make this assignment nicer, it's like the same loop twice!!?
-    unique_reads, unique_reads_counts = [read  for read,count in zip(unique_reads, unique_reads_counts) if count >= 2], [count for read,count in zip(unique_reads, unique_reads_counts) if count >= 2]
-    #print("---------------------------------------------------------->>>>>  turned OFF >1 unique reads filter!")
-    #unique_reads, unique_reads_counts = [read  for read,count in zip(unique_reads, unique_reads_counts) if count >= 1], [count for read,count in zip(unique_reads, unique_reads_counts) if count >= 1]
+    if MIN_READ_COPIES == 1:
+        print("Turned OFF unique reads filter!")
+    else:
+        unique_reads, unique_reads_counts = [read  for read,count in zip(unique_reads, unique_reads_counts) if count >= MIN_READ_COPIES], [count for read,count in zip(unique_reads, unique_reads_counts) if count >= MIN_READ_COPIES]
+        print("Number of unique reads with at least {} copies: {}".format(MIN_READ_COPIES,len(unique_reads)))
     assert len(unique_reads) == len(unique_reads_counts)
-    print("Number of unique reads present at least twice: {}".format(len(unique_reads)))
-    print("--> Number of total reads passing both filters: {}".format(sum(unique_reads_counts)))
+    print("--> Number of total reads passing filters: {}".format(sum(unique_reads_counts)))
     #
     #
     ## GET REFERENCE
@@ -812,7 +821,7 @@ if __name__ == '__main__':
         # --> filter inserts based on number of unique and total supporting reads
         if 'cr' not in SAMPLE: # change this to some binary flag
             df_itd_collapsed = filter_inserts(df_itd_collapsed).sort_values(['length','tandem2_start'])
-            fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_filtered.tsv"), index=False, float_format='%.2e', sep='\t')
+            fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_hc.tsv"), index=False, float_format='%.2e', sep='\t')
             df_itd_grouped[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv(os.path.join(OUT_DIR,"flt3_itds.tsv"), index=False, float_format='%.2e', sep='\t')
     #   
     #
@@ -845,7 +854,7 @@ if __name__ == '__main__':
         # --> filter inserts based on number of unique and total supporting reads
         if 'cr' not in SAMPLE: # change this to some binary flag
             df_ins_collapsed = filter_inserts(df_ins_collapsed).sort_values(['length','start'])
-            df_ins_collapsed[['sample','length', 'start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full_filtered.tsv"), index=False, float_format='%.2e', sep='\t')
+            df_ins_collapsed[['sample','length', 'start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full_hc.tsv"), index=False, float_format='%.2e', sep='\t')
             df_ins_grouped[['sample','length', 'trailing', 'start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv(os.path.join(OUT_DIR,"flt3_ins.tsv"), index=False, float_format='%.2e', sep='\t')
     #
     #
@@ -871,10 +880,10 @@ if __name__ == '__main__':
        # df_itd_known=None
        # df_ins_known=None
         df_itd_known = get_known(fix_trailing_length(df_itd_collapsed), known_length)
-        df_itd_known[['sample','length','vaf','ref_coverage','counts','tandem2_start','insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_filtered_known.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
+        df_itd_known[['sample','length','vaf','ref_coverage','counts','tandem2_start','insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_hc_known.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
         #
         df_ins_known = get_known(df_ins_collapsed, known_length)
-        df_ins_known[['sample','length','vaf','ref_coverage','counts','start','insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full_filtered_known.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
+        df_ins_known[['sample','length','vaf','ref_coverage','counts','start','insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full_hc_known.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
         #
         #
         # associate detected ITDs with expected VAF (if available)  -> useful to check correlation between VAF estimates of different experiments --> right now assuming there is only one VAF/AR for sum of all ITD clones!
@@ -890,12 +899,12 @@ if __name__ == '__main__':
         # does this make sense with multiple inserts per read? counts/vaf would be messed up because counted twice, right? --> more accurate maybe: collect all supporting reads and count unique 
         df_itd_known_collapsed = collapse(df_itd_known,keep=["sample"],add=["counts","vaf"],append=["length","tandem2_start","ref_coverage"])
         df_itd_known_collapsed["vaf_genescan"] = known_vaf
-        df_itd_known_collapsed[['sample','length','vaf','vaf_genescan','vaf_each','tandem2_start','ref_coverage','counts_each']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_filtered_known_collapsed.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
+        df_itd_known_collapsed[['sample','length','vaf','vaf_genescan','vaf_each','tandem2_start','ref_coverage','counts_each']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_hc_known_collapsed.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
         # 
         #
         df_ins_known_collapsed = collapse(df_ins_known,keep=["sample"],add=["counts","vaf"],append=["length","start","ref_coverage"])
         df_ins_known_collapsed["vaf_genescan"] = known_vaf
-        df_ins_known_collapsed[['sample','length','vaf','vaf_genescan','vaf_each','start','ref_coverage','counts_each']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full_filtered_known_collapsed.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
+        df_ins_known_collapsed[['sample','length','vaf','vaf_genescan','vaf_each','start','ref_coverage','counts_each']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full_hc_known_collapsed.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
         
 
 
