@@ -19,23 +19,23 @@ dc.getcontext().prec = 5 # number of digits to round decimals to
 # prevent neg nkern/minBQS?
 parser = argparse.ArgumentParser()
 group = parser.add_mutually_exclusive_group()
-parser.add_argument("fastq1", help="FASTQ file of forward reads")
-parser.add_argument("fastq2", help="FASTQ file of reverse reads")
-parser.add_argument("sampleID", help="sample ID used as output folder prefix")
-parser.add_argument("minBQS", help="minimum average base quality score (BQS) required by each read (default: 30)", type=int, default=30, nargs='?')
-parser.add_argument("reference", help="WT amplicon sequence as reference for read alignment (default: /NGS/known_sites/hg19/flt3-itd_anno/amplicon.txt)", default="/NGS/known_sites/hg19/flt3-itd_anno/amplicon.txt", nargs='?')
-parser.add_argument('-nkern', help="number of cores to use for parallel tasks (default: 14)", default="14", type=int)
-parser.add_argument('-gap_open', help="alignment cost of gap opening", default="-20", type=int)
-parser.add_argument('-gap_extend', help="alignment cost of gap extension", default="-0.5", type=float)
-parser.add_argument('-match', help="alignment cost of base match", default="5", type=int)
-parser.add_argument('-mismatch', help="alignment cost of base mismatch", default="-10", type=int)
-parser.add_argument('-minscore', help="fraction of max possible alignment score required for ITD detection and insert collapsing", default="0.5", type=float)
-parser.add_argument('-known_length', help="file with expected ITD length, one on each line")
-group.add_argument('-known_vaf', help="file with expected ITD VAF (sum of all clones)")
-group.add_argument('-known_ar', help="file with expected ITD allele ratio (sum of all ITD clones vs WT)")
+parser.add_argument("fastq1", help="FASTQ file of forward reads (REQUIRED)")
+parser.add_argument("fastq2", help="FASTQ file of reverse reads (REQUIRED)")
+parser.add_argument("sampleID", help="sample ID used as output folder prefix (REQUIRED)")
+parser.add_argument("minBQS", help="minimum average base quality score (BQS) required by each read (default 30)", type=int, default=30, nargs='?')
+parser.add_argument("reference", help="WT amplicon sequence as reference for read alignment (default /NGS/known_sites/hg19/flt3-itd_anno/amplicon.txt)", default="/NGS/known_sites/hg19/flt3-itd_anno/amplicon.txt", nargs='?')
+parser.add_argument('-nkern', help="number of cores to use for parallel tasks (default 14)", default="14", type=int)
+parser.add_argument('-gap_open', help="alignment cost of gap opening (default -20)", default="-20", type=int)
+parser.add_argument('-gap_extend', help="alignment cost of gap extension (default -0.5)", default="-0.5", type=float)
+parser.add_argument('-match', help="alignment cost of base match (default 5)", default="5", type=int)
+parser.add_argument('-mismatch', help="alignment cost of base mismatch (default -10)", default="-10", type=int)
+parser.add_argument('-minscore', help="fraction of max possible alignment score required for ITD detection and insert collapsing (default 0.5)", default="0.5", type=float)
+parser.add_argument('-known_length', help="file with expected ITD length, one on each line (optional)")
+group.add_argument('-known_vaf', help="file with total expected ITD VAF of all clones (optional)")
+group.add_argument('-known_ar', help="file with total expected ITD allele ratio of all clones vs WT (optional)")
 parser.add_argument('-filter_reads', help="minimum number of copies of each read required for processing (1 to turn filter off, 2 (default) to discard unique reads)", default="2", type=int)
 parser.add_argument('-filter_ins_unique_reads', help="minimum number of unique reads required to support an insertion for it to be considered 'high confidence' (default 2)", default="2", type=int)
-parser.add_argument('-filter_ins_total_reads', help="minimum number of total reads required to support an insertion for it to be considered 'high confidence' (default 10)", default="10", type=int)
+parser.add_argument('-filter_ins_total_reads', help="minimum number of total reads required to support an insertion for it to be considered 'high confidence' (default 1)", default="1", type=int)
 parser.add_argument('-filter_ins_vaf', help="minimum variant allele frequency (VAF) required for an insertion to be considered 'high confidence' (default 0.001)", default="0.001", type=float)
 cmd_args = parser.parse_args()
 
@@ -287,9 +287,9 @@ def integral_insert_realignment(insert_alignment, insert_length):
 # check whether insert requires left normalization, i.e. has an ambiguous alignment and is not fully shifted to the left 
 def left_normalize(readn, refn, insert_start, insert_end, i):
     if insert_start > 0 and insert_end < len(readn)-1 and refn[insert_start -1].lower() == readn[insert_end].lower():
-        print("LEFT NORMALIZE: {}".format(i))
-        print(''.join(readn))
-        print(''.join(refn))
+        #print("LEFT NORMALIZE: {}".format(i))
+        #print(''.join(readn))
+        #print(''.join(refn))
         return True
     return False
 
@@ -297,33 +297,39 @@ def left_normalize(readn, refn, insert_start, insert_end, i):
 # filter inserts from a df supported by less than n unique_reads 
 def filter_number_unique_reads(df, min_unique_reads):
     fail = [len(x) < min_unique_reads for x in df["idx"]]
-    print("{} / {} inserts were supported by < {} distinct reads and filtered".format(sum(fail),df.shape[0],min_unique_reads))
+    print("Filtered {} / {} inserts supported by < {} distinct reads".format(sum(fail),df.shape[0],min_unique_reads))
     return df.loc[[not x for x in fail]]
 
 # filter inserts from a df supported by less than n total reads
 def filter_number_total_reads(df, min_total_reads):
     fail = [x < min_total_reads for x in df["counts"]]
-    print("{} / {} inserts were supported by < {} total reads and filtered".format(sum(fail),df.shape[0],min_total_reads))
+    print("Filtered {} / {} inserts supported by < {} total reads".format(sum(fail),df.shape[0],min_total_reads))
     return df.loc[[not x for x in fail]]
 
 # filter inserts from df that do not pass min_vaf
 def filter_vaf(df, min_vaf):
     fail = [x < min_vaf for x in df["vaf"]]
-    print("{} / {} inserts had a VAF < {} % and were filtered".format(sum(fail),df.shape[0],min_vaf))
+    print("Filtered {} / {} inserts with VAF < {} %".format(sum(fail),df.shape[0],min_vaf))
     return df.loc[[not x for x in fail]]
 
 # filter non-trailing inserts from df whose offset (= insert-tandem distance) does not equal their length --> means insert and tandem are not adjacent
 def filter_offset(df):   
     fail = [df["trailing"][i] == False and df["offset"][i] != df["length"][i] for i in range(df.shape[0])]
-    print("{} / {} ITDs were neither trailing nor adjacent to their second tandem and filtered\n".format(sum(fail),df.shape[0]))
+    #print("Filtering {} / {} ITDs that were not adjacent to their second tandem\n".format(sum(fail),df.shape[0]))
     return df.loc[[not x for x in fail]]  
-    #return df.iloc[[i for i in range(df.shape[0]) if df["trailing"][i] == True or df["offset"][i] == df["length"][i]]]  
 
 # filter ITDs
 def filter_inserts(df):
-    df = filter_number_unique_reads(df, MIN_UNIQUE_READS)
-    df = filter_number_total_reads(df, MIN_TOTAL_READS)
-    df = filter_vaf(df, MIN_VAF)
+    if MIN_UNIQUE_READS > 1:
+        df = filter_number_unique_reads(df, MIN_UNIQUE_READS)
+    else:
+        print("Not filtered based on number of unique supporting reads!")
+    if MIN_TOTAL_READS > 1:
+        df = filter_number_total_reads(df, MIN_TOTAL_READS)
+    if MIN_VAF > 0:
+        df = filter_vaf(df, MIN_VAF)
+    else:
+        print("Not filtered based on VAF!")
     return df
 
 
@@ -530,6 +536,7 @@ def fix_trailing_length(df):
 #######################################
 
 if __name__ == '__main__':
+    print("==== PROCESSING SAMPLE {} ====".format(SAMPLE))
     #
     ## CREATE OUTPUT FOLDER
     if not os.path.exists(OUT_DIR):
@@ -537,12 +544,13 @@ if __name__ == '__main__':
     #
     #
     ## GET READS FROM FASTQ 
+    print("-- Reading FASTQ files --")
     # collect reads that pass MIN_BQS filter -> reverse-complement R2 reads so that all reads can be aligned to the same reference
     reads_and_bqs = read_fastq(R1) + [(reverse_complement(r2_read),bqs) for r2_read,bqs in read_fastq(R2)]
     print("Number of total reads: {}".format(len(reads_and_bqs)))
+    args = [(read_and_bqs, MIN_BQS) for read_and_bqs in reads_and_bqs]
     #
     # filter based on BQS -> PASS returns read, FAIL returns None -> remove None from list!
-    args = [(read_and_bqs, MIN_BQS) for read_and_bqs in reads_and_bqs]
     reads = None
     if MIN_BQS > 0:
         reads = [x for x in parallelize(filter_bqs, args, NKERN) if x is not None]
@@ -577,11 +585,16 @@ if __name__ == '__main__':
     #
     #
     ## DO ALIGNMENTS & FILTER BASED ON ALIGNMENT SCORE
+    print("\n-- Aligning to Reference --")
+    all_alignments = None
     args = [(unique_read, wt_ref_upper) for unique_read in unique_reads]
-    all_alignments = parallelize(align, args, NKERN) 
+    with multiprocessing.Pool(NKERN) as p:
+            all_alignments = p.map(align, args)
     assert len(unique_reads) == len(all_alignments)
     #
-    print("\nFiltering {} / {} low quality alignments with a score < {}".format(all_alignments.count([]),len(all_alignments),  "50 % of max"))
+    print("Filtering {} / {} low quality alignments with a score < {}".format(all_alignments.count([]),len(all_alignments),  "50 % of max"))
+    #
+    #
     all_readCounts  = [unique_reads_counts[i] for i in range(len(all_alignments)) if all_alignments[i] != []]
     all_alignments  = [x for x in all_alignments if x != []]
     all_reads       = [x[0] for x in all_alignments]
@@ -591,6 +604,7 @@ if __name__ == '__main__':
     #
     #
     ## PRINT ALIGNMENTS
+    # create output file directory for alignments print-outs
     needle_dir = os.path.join(OUT_DIR,'out_needle')
     if not os.path.exists(needle_dir):
         os.makedirs(needle_dir)
@@ -614,6 +628,7 @@ if __name__ == '__main__':
     #
     #######################################
     # EXTRACT INSERT SEQUENCE FROM READ
+    print("\n-- Looking for insertions & ITDs --")
     #
     # check each alignment for insert/itd and save index in all_reads/all_refs/all_files to idx, insert/itd length to length and insert/itd start/stop position to start/end dicts based on insert/itd classification
     w_ins = {"idx": [], "file": [], "length": [], "start": [], "insert": [], "trailing": []}
@@ -666,9 +681,8 @@ if __name__ == '__main__':
             ins = readn[insert_idxs]
             insert_start = insert_idxs[0]
             insert_end = insert_idxs[-1]
-            trailing = insert_start == 0 or insert_end == sum(readn != '-')-1
+            trailing = insert_end == sum(readn != '-')-1 # or insert_start == 0 --> there are no 5' trailing ITDs! (if they are shorter than read remainder, they will be contained within it (thus not trailing), otherwise alignment will switch so that 5' part will be aligned and shorter 3' end will be the insert
             # if there is an insert  --> require min 6 bp length, in-frame insert (except for trailing muts) and no "N"s within insert
-            #if(insert_length >= 6 and "N" not in readn[insert_idxs] and (trailing or insert_length % 3 == 0)):
             if(trailing or insert_length % 3 == 0):
                 if insert_start > 0:
                     should_left_normalize = should_left_normalize + left_normalize(readn, refn, insert_start, insert_end, i)
@@ -709,9 +723,11 @@ if __name__ == '__main__':
                 assert tandem2_start is not None  # should be assigned something!
 #                    
                 offset = abs(tandem2_start - insert_start)
-                if trailing and offset == 0: # should this be == insert_length??
-                    trailing = False
-                    print("UNTRAIL") 
+                if trailing and offset == insert_length:  # should test whether untrailed mut is in-frame at this point! (can I undo saving as insert if it is not?? Otherwise get rid of w_ins and create df_ins from df_itd_exact/nonexact/nonexactfail)
+                    trailing = False ## should fix this in w_ins as well!!!
+                    print("UNTRAILED") 
+                    if insert_length % 3 != 0:
+                        print("BUT NOT IN FRAME!!!")
                 # save if an exact second tandem of the insert was found
                 if tandem2_start != -1:   # ---> also check that index of second match is sufficiently close to insert! (for exact match and alignment approach!)
                     w_itd_exact["idx"].append(i)
@@ -741,12 +757,10 @@ if __name__ == '__main__':
                         alignment = alignments[0]
                         alignment_score, alignment_start, alignment_end = alignment[2:5]
 #			
-                    if alignment_score >= min_score:
+                    if alignment_start > max(np.where(refn != '-')[0]):
+                        print("ERROR: ALIGNMENT TOO FAR OUT: {}".format(filename))
+                    if alignment_score >= min_score and alignment_start < max(np.where(refn != '-')[0]):
                         offset = abs(alignment_start - insert_start)
-                        if filename == "needle_1597.txt":
-                            print(offset)
-                            print(alignment_start)
-                            print(insert_start)
                         w_itd_nonexact["idx"].append(i)
                         w_itd_nonexact["file"].append(filename)
                         w_itd_nonexact["length"].append(insert_length)
@@ -755,8 +769,6 @@ if __name__ == '__main__':
                         w_itd_nonexact["offset"].append(offset)
                         w_itd_nonexact["insert"].append(''.join(ins))
                         w_itd_nonexact["trailing"].append(trailing)
-                        #if trailing:
-                        #    w_itd_nonexact["length"][-1] = w_itd_nonexact["offset"][-1]
                     else:
                         w_itd_nonexact_fail["idx"].append(i)
                         w_itd_nonexact_fail["file"].append(filename)
@@ -770,14 +782,14 @@ if __name__ == '__main__':
                         ambig_als.append(alignments)
     #
     # print number of ambiguous alignments (to see if this is sth I need to handle or not)
-    print("There were {} inserts that generated ambiguous alignments.".format(len(ambig_i)))
-    print("There were {} inserts whose alignment should have been left normalized.".format(should_left_normalize))
-    print()
-    print("There were {} trailing inserts.".format(sum(w_ins["trailing"])))
-    print("There were {} trailing exact ITDs.".format(sum(w_itd_exact["trailing"])))
-    print("There were {} trailing nonexact ITDs.".format(sum(w_itd_nonexact["trailing"])))
-    print("There were {} trailing nonexact ITDs failed.".format(sum(w_itd_nonexact_fail["trailing"])))
-    print()
+    #print("There were {} inserts that generated ambiguous alignments.".format(len(ambig_i)))
+    #print("There were {} inserts whose alignment should have been left normalized.".format(should_left_normalize))
+    #print()
+    #print("There were {} trailing inserts.".format(sum(w_ins["trailing"])))
+    #print("There were {} trailing exact ITDs.".format(sum(w_itd_exact["trailing"])))
+    #print("There were {} trailing nonexact ITDs.".format(sum(w_itd_nonexact["trailing"])))
+    #print("There were {} trailing nonexact ITDs failed.".format(sum(w_itd_nonexact_fail["trailing"])))
+    #print()
     #
     #
     # fix ref_coverage -> coverage of last index is 0 since I am counting reads covering a position AND its successor -> for the final index, there is no successor but also this restraint is unnecessary (any trailing mut will be covered by any read covering the first/last base!)
@@ -787,42 +799,7 @@ if __name__ == '__main__':
     #
     ########################################
     # COLLECT AND COLLAPSE ITDs
-    #
-    df_itd =  pd.concat([pd.DataFrame(w_itd_exact), pd.DataFrame(w_itd_nonexact)], ignore_index=True)
-    df_itd[["idx","length","offset","start","tandem2_start"]] = df_itd[["idx","length","offset","start","tandem2_start"]].astype(int)
-    df_itd = filter_offset(df_itd)
-    if not df_itd.empty:
-        df_itd["sample"] = [SAMPLE for i in range(df_itd.shape[0])]
-        df_itd["counts"] = [all_readCounts[i] for i in df_itd["idx"]]
-        #
-        # collapse same inserts (same length, insert sequence and reference-based start coordinate)
-        # -> careful: losing "start" column here (only keeping tandem2_start) -> do I need it?
-        df_itd_grouped = collapse(df_itd,keep=["sample","length","tandem2_start","insert"],add=["counts"],max_=["trailing","offset"],append=["idx","file"])
-        assert sum(df_itd["counts"]) == sum(df_itd_grouped["counts"])
-        df_itd_grouped["ref_coverage"] = get_coverage(df_itd_grouped, "tandem2_start", ref_coverage)
-        df_itd_grouped["vaf"] = get_vaf(df_itd_grouped)
-        #
-        # COLLAPSE #2
-        # --> align inserts of same length and tandem2_start, collapse if they are sufficiently similar
-        df_itd_collapsed = collapse_similar_inserts(df_itd_grouped, "tandem2_start").sort_values(['length','tandem2_start'])
-        assert sum(df_itd["counts"]) == sum(df_itd_collapsed["counts"])
-        fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed.tsv"), index=False, float_format='%.2e', sep='\t')
-        #
-        # COLLAPSE #3
-        # --> align inserts of same length,  collapse if they are sufficiently similar (and within one insert length of each other)
-        df_itd_collapsed = collapse_close_inserts(df_itd_collapsed, "tandem2_start").sort_values(['length','tandem2_start'])
-        assert sum(df_itd["counts"]) == sum(df_itd_collapsed["counts"])
-        fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full.tsv"), index=False, float_format='%.2e', sep='\t')
-        #
-        # FILTER
-        # --> filter inserts based on number of unique and total supporting reads
-        if 'cr' not in SAMPLE: # change this to some binary flag
-            print("Filtering ITDs:")
-            df_itd_collapsed = filter_inserts(df_itd_collapsed).sort_values(['length','tandem2_start'])
-            fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_hc.tsv"), index=False, float_format='%.2e', sep='\t')
-            df_itd_grouped[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv(os.path.join(OUT_DIR,"flt3_itds.tsv"), index=False, float_format='%.2e', sep='\t')
-            print()
-    #   
+    print("-- Collecting results --")
     #
     #
     df_ins =  pd.DataFrame(w_ins)
@@ -836,6 +813,7 @@ if __name__ == '__main__':
         df_ins_grouped["norm_start"] = norm_start_col(df_ins_grouped, "start", ref_wt)
         df_ins_grouped["ref_coverage"] = get_coverage(df_ins_grouped, "norm_start", ref_coverage) # should I be using norm_start at some other place as well?? Or is it just for coverage calculation?!
         df_ins_grouped["vaf"] = get_vaf(df_ins_grouped)
+        df_ins_grouped[['sample','length', 'trailing', 'start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv(os.path.join(OUT_DIR,"flt3_ins.tsv"), index=False, float_format='%.2e', sep='\t')
         #
         # COLLAPSE #2
         # --> align inserts of same length and tandem2_start, collapse if they are sufficiently similar
@@ -852,20 +830,59 @@ if __name__ == '__main__':
         # FILTER
         # --> filter inserts based on number of unique and total supporting reads
         if 'cr' not in SAMPLE: # change this to some binary flag
-            print("Filtering insertions:")
+            print("\n-- Filtering insertions --")
             df_ins_collapsed = filter_inserts(df_ins_collapsed).sort_values(['length','start'])
             df_ins_collapsed[['sample','length', 'start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full_hc.tsv"), index=False, float_format='%.2e', sep='\t')
-            df_ins_grouped[['sample','length', 'trailing', 'start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv(os.path.join(OUT_DIR,"flt3_ins.tsv"), index=False, float_format='%.2e', sep='\t')
+        print("Found {} insertions!\n".format(df_ins_collapsed.shape[0]))
+    #
+    #
+    #
+    df_itd =  pd.concat([pd.DataFrame(w_itd_exact), pd.DataFrame(w_itd_nonexact)], ignore_index=True)
+    df_itd[["idx","length","offset","start","tandem2_start"]] = df_itd[["idx","length","offset","start","tandem2_start"]].astype(int)
+    df_itd = filter_offset(df_itd)
+    if not df_itd.empty:
+        df_itd["sample"] = [SAMPLE for i in range(df_itd.shape[0])]
+        df_itd["counts"] = [all_readCounts[i] for i in df_itd["idx"]]
+        #
+        # collapse same inserts (same length, insert sequence and reference-based start coordinate)
+        # -> careful: losing "start" column here (only keeping tandem2_start) -> do I need it?
+        df_itd_grouped = collapse(df_itd,keep=["sample","length","tandem2_start","insert"],add=["counts"],max_=["trailing","offset"],append=["idx","file"])
+        assert sum(df_itd["counts"]) == sum(df_itd_grouped["counts"])
+        df_itd_grouped["ref_coverage"] = get_coverage(df_itd_grouped, "tandem2_start", ref_coverage)
+        df_itd_grouped["vaf"] = get_vaf(df_itd_grouped)
+        fix_trailing_length(df_itd_grouped)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv(os.path.join(OUT_DIR,"flt3_itds.tsv"), index=False, float_format='%.2e', sep='\t')
+        #
+        # COLLAPSE #2
+        # --> align inserts of same length and tandem2_start, collapse if they are sufficiently similar
+        df_itd_collapsed = collapse_similar_inserts(df_itd_grouped, "tandem2_start").sort_values(['length','tandem2_start'])
+        assert sum(df_itd["counts"]) == sum(df_itd_collapsed["counts"])
+        fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed.tsv"), index=False, float_format='%.2e', sep='\t')
+        #
+        # COLLAPSE #3
+        # --> align inserts of same length,  collapse if they are sufficiently similar (and within one insert length of each other)
+        df_itd_collapsed = collapse_close_inserts(df_itd_collapsed, "tandem2_start").sort_values(['length','tandem2_start'])
+        assert sum(df_itd["counts"]) == sum(df_itd_collapsed["counts"])
+        fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full.tsv"), index=False, float_format='%.2e', sep='\t')
+        #
+        # FILTER
+        # --> filter inserts based on number of unique and total supporting reads
+        if 'cr' not in SAMPLE: # change this to some binary flag
+            print("-- Filtering ITDs --")
+            df_itd_collapsed = filter_inserts(df_itd_collapsed).sort_values(['length','tandem2_start'])
+            fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_hc.tsv"), index=False, float_format='%.2e', sep='\t')
+        print("Found {} ITDs!".format(df_itd_collapsed.shape[0]))
+        print()
+    #   
     #
     #
     ########################################
     # PRINT SUMMARY STATISTICS on the number of reads in each category
     #
-    print("\nNumber of unique reads supporting each type of insert")
-    print("Insertions: {}".format(len(w_ins["idx"])))
-    print("Single exact ITD: {}".format(len(w_itd_exact["idx"])))
-    print("Single non-exact ITD: {}".format(len(w_itd_nonexact["idx"])))
-    print("Single insertion failed alignment: {}".format(len(w_itd_nonexact_fail["idx"])))
+    #print("\nNumber of unique reads supporting each type of insert")
+    #print("Insertions: {}".format(len(w_ins["idx"])))
+    #print("Single exact ITD: {}".format(len(w_itd_exact["idx"])))
+    #print("Single non-exact ITD: {}".format(len(w_itd_nonexact["idx"])))
+    #print("Single insertion failed alignment: {}".format(len(w_itd_nonexact_fail["idx"])))
     assert len(w_ins["idx"]) == len(w_itd_exact["idx"]) + len(w_itd_nonexact["idx"]) + len(w_itd_nonexact_fail["idx"])
     #
     #
