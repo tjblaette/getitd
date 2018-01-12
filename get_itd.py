@@ -411,6 +411,11 @@ def collapse_complex(ii_row, i_row):
     df_collapsed["vaf"] = ii_row["vaf"] + i_row["vaf"]
     # max some
     df_collapsed["trailing"] = max(i_row["trailing"], ii_row["trailing"])
+    if i_row["trailing"] > 0 + ii_row["trailing"] == 8: # R1 and R2 reads are being merged here!!
+        print("--> CAVE: trailing inserts from R1 and R2 reads are being merged here!")
+        print(i_row)
+        print(ii_row)
+    df_collapsed["trailing_end"] = max(i_row["trailing_end"], ii_row["trailing_end"])
     if 'offset' in i_row:
         df_collapsed["offset"] = max(i_row["offset"], ii_row["offset"])
     # append some
@@ -427,11 +432,12 @@ def collapse_complex(ii_row, i_row):
     return df_collapsed
 
 
-# collapse inserts that have the same length and start coordinate and a SIMILAR insert sequence
-def collapse_similar_inserts(df, start_col):
+# collapse inserts that have the same length and start coordinate and a SIMILAR insert sequence (group = ["length",start_col])
+# collapse trailing inserts that have similar length and sequence (group = ["trailing_end"], df should contain trailing mutations only!)
+def collapse_similar_inserts(df, start_col, group):
     df_collapsed = empty_df(start_col) # collect all collapsed inserts
     #
-    for this_df in [group[1] for group in df.groupby(by=["length",start_col], as_index=False)]: # loop over grouped dfs
+    for this_df in [group[1].sort_values(['length'])[::-1] for group in df.groupby(by=group, as_index=False)]: # loop over grouped dfs, sort by length (no effect when grouping by length... avoidable? For trailing muts it ensures that longer trailing sequences are considered first and shorter ones are collapsed onto these (prefers longer insert sequences over shorter ones, as the former are allowed to accumulate more (collapsed) counts over time
         this_df_collapsed = empty_df(start_col)  # collect inserts of the same length and start-coord in this tmp df
         min_score = get_min_score(this_df["insert"].iloc[0], this_df["insert"].iloc[0])
         #
@@ -443,9 +449,7 @@ def collapse_similar_inserts(df, start_col):
             for ii,ii_row in this_df_collapsed[::-1].iterrows(): #[::-1] to reverse df and speed up pos alignment
                 other_ins = ii_row["insert"]
                 #
-                alignment = bio.align.globalcs(this_ins, other_ins, get_alignment_score, COST_GAPOPEN, COST_GAPEXTEND, one_alignment_only=True, penalize_end_gaps=True)[0] # one alignment only at least until multiple ones are handled
-                alignment_score = alignment[2]
-                #
+                alignment_score = bio.align.globalcs(this_ins, other_ins, get_alignment_score, COST_GAPOPEN, COST_GAPEXTEND, one_alignment_only=True, penalize_end_gaps=(not (this_df.ix[i_idx]["trailing"] and ii_row["trailing"])), score_only=True)
                 if alignment_score >= min_score:
                     # collapse
                     collapsed = True
@@ -468,7 +472,7 @@ def index_of_max(lst):
     return lst.index(max(lst))
 
 
-# collapse inserts that have the same length and SIMILAR insert sequence but no restrain on start coord!
+# collapse inserts that have the same length and SIMILAR insert sequence and are within one insert_length of each other
 def collapse_close_inserts(df, start_col):
     df_collapsed = empty_df(start_col) # collect all collapsed inserts
     #
@@ -493,13 +497,7 @@ def collapse_close_inserts(df, start_col):
                 min_start = min(this_ins_start, other_ins_start)
                 max_start = max(this_ins_start, other_ins_start)
                 #
-                alignments = bio.align.globalcs(this_read[min_start:max_start+length], other_read[min_start:max_start+length], get_alignment_score, COST_GAPOPEN, COST_GAPEXTEND, one_alignment_only=True, penalize_end_gaps=True)
-                alignment_score = None
-                if alignments == []:
-                    alignment_score = -1
-                else:
-                    alignment_score = alignments[0][2]
-                #
+                alignment_score = bio.align.globalcs(this_read[min_start:max_start+length], other_read[min_start:max_start+length], get_alignment_score, COST_GAPOPEN, COST_GAPEXTEND, one_alignment_only=True, penalize_end_gaps=True, score_only=True)
                 if alignment_score >= min_score:
                     # collapse
                     collapsed = True
@@ -515,8 +513,6 @@ def collapse_close_inserts(df, start_col):
     df_collapsed = fix_dtypes(df_collapsed)
     assert([sum(x) for x in df_collapsed["counts_each"]] == [int(x) for x in df_collapsed["counts"]])
     return df_collapsed
-
-
 
 
 
@@ -631,10 +627,10 @@ if __name__ == '__main__':
     print("\n-- Looking for insertions & ITDs --")
     #
     # check each alignment for insert/itd and save index in all_reads/all_refs/all_files to idx, insert/itd length to length and insert/itd start/stop position to start/end dicts based on insert/itd classification
-    w_ins = {"idx": [], "file": [], "length": [], "start": [], "insert": [], "trailing": []}
-    w_itd_exact = {"idx": [], "file": [], "length": [], "start": [], "tandem2_start": [], "offset": [], "insert": [], "trailing": []}
-    w_itd_nonexact_fail = {"idx": [], "file": [], "length": [], "start": [], "insert": [], "trailing": []}
-    w_itd_nonexact = {"idx": [], "file": [], "length": [], "start": [], "tandem2_start": [], "offset": [], "insert": [], "trailing": []}
+    w_ins = {"idx": [], "file": [], "length": [], "start": [], "insert": [], "trailing": [], "trailing_end": []}
+    w_itd_exact = {"idx": [], "file": [], "length": [], "start": [], "tandem2_start": [], "offset": [], "insert": [], "trailing": [], "trailing_end": []}
+    w_itd_nonexact_fail = {"idx": [], "file": [], "length": [], "start": [], "insert": [], "trailing": [], "trailing_end": []}
+    w_itd_nonexact = {"idx": [], "file": [], "length": [], "start": [], "tandem2_start": [], "offset": [], "insert": [], "trailing": [], "trailing_end": []}
     #
     ref_wt = [base for base in all_refs[0] if base != '-'] 
     ref_coverage = np.zeros(len(ref_wt)) # count number of reads covering each bp AND its successor (therefore do not calc coverage for last bp)
@@ -681,7 +677,14 @@ if __name__ == '__main__':
             ins = readn[insert_idxs]
             insert_start = insert_idxs[0]
             insert_end = insert_idxs[-1]
-            trailing = insert_end == sum(readn != '-')-1 # or insert_start == 0 --> there are no 5' trailing ITDs! (if they are shorter than read remainder, they will be contained within it (thus not trailing), otherwise alignment will switch so that 5' part will be aligned and shorter 3' end will be the insert
+            #trailing = insert_end == sum(readn != '-')-1 # or insert_start == 0 --> there are no 5' trailing ITDs! (if they are shorter than read remainder, they will be contained within it (thus not trailing), otherwise alignment will switch so that 5' part will be aligned and shorter 3' end will be the insert
+            trailing_end = 0
+            if (readn[0:insert_start] == '-').all():
+                trailing_end = 5
+            if (readn[insert_end+1:] == '-').all():
+                assert trailing_end != 5 # read would consist of insert only if this were the case
+                trailing_end = 3
+            trailing = insert_start != 0 and insert_end != len(readn)-1 and (trailing_end == 5 or trailing_end == 3) #(readn[0:insert_start] == '-').all() or (readn[insert_end+1:] == '-').all())
             # if there is an insert  --> require min 6 bp length, in-frame insert (except for trailing muts) and no "N"s within insert
             if(trailing or insert_length % 3 == 0):
                 if insert_start > 0:
@@ -698,6 +701,7 @@ if __name__ == '__main__':
                 w_ins["start"].append(insert_start_ref)
                 w_ins["insert"].append(''.join(ins))
                 w_ins["trailing"].append(trailing)
+                w_ins["trailing_end"].append(trailing_end)
 #			
                 # check whether the insert is contained within non-insert read a second time -> that makes it an ITD!
                 readn_nonIns = np.delete(readn,insert_idxs)
@@ -738,6 +742,7 @@ if __name__ == '__main__':
                     w_itd_exact["offset"].append(offset)
                     w_itd_exact["insert"].append(''.join(ins))
                     w_itd_exact["trailing"].append(trailing)
+                    w_itd_exact["trailing_end"].append(trailing_end)
                     #if trailing:
                     #    w_itd_exact["length"][-1] = w_itd_exact["offset"][-1]
                 else:
@@ -756,9 +761,8 @@ if __name__ == '__main__':
                     else:
                         alignment = alignments[0]
                         alignment_score, alignment_start, alignment_end = alignment[2:5]
-#			
-                    if alignment_start > max(np.where(refn != '-')[0]):
-                        print("ERROR: ALIGNMENT TOO FAR OUT: {}".format(filename))
+                        if alignment_start > max(np.where(refn != '-')[0]):
+                            print("ERROR: ALIGNMENT TOO FAR OUT: {}".format(filename))
                     if alignment_score >= min_score and alignment_start < max(np.where(refn != '-')[0]):
                         offset = abs(alignment_start - insert_start)
                         w_itd_nonexact["idx"].append(i)
@@ -769,6 +773,7 @@ if __name__ == '__main__':
                         w_itd_nonexact["offset"].append(offset)
                         w_itd_nonexact["insert"].append(''.join(ins))
                         w_itd_nonexact["trailing"].append(trailing)
+                        w_itd_nonexact["trailing_end"].append(trailing_end)
                     else:
                         w_itd_nonexact_fail["idx"].append(i)
                         w_itd_nonexact_fail["file"].append(filename)
@@ -776,6 +781,7 @@ if __name__ == '__main__':
                         w_itd_nonexact_fail["start"].append(insert_start_ref)
                         w_itd_nonexact_fail["insert"].append(''.join(ins))
                         w_itd_nonexact_fail["trailing"].append(trailing)
+                        w_itd_nonexact_fail["trailing_end"].append(trailing_end)
                         #print(bio.format_alignment(*alignment))
                     if len(alignments) > 1:
                         ambig_i.append(i)
@@ -808,16 +814,17 @@ if __name__ == '__main__':
         df_ins["counts"] = [all_readCounts[i] for i in df_ins["idx"]]
         #
         # collapse same inserts (same length, insert sequence and reference-based start coordinate)
-        df_ins_grouped = collapse(df_ins,keep=["sample","length","start","insert"],add=["counts"],max_=["trailing"],append=["idx","file"])
+        #df_ins_grouped = collapse(df_ins,keep=["sample","length","start","insert"],add=["counts"],max_=["trailing"],append=["idx","file"])
+        df_ins_grouped = collapse(df_ins,keep=["sample","length","start","insert","trailing","trailing_end"],add=["counts"],max_=[],append=["idx","file"])
         assert sum(df_ins["counts"]) == sum(df_ins_grouped["counts"])
         df_ins_grouped["norm_start"] = norm_start_col(df_ins_grouped, "start", ref_wt)
         df_ins_grouped["ref_coverage"] = get_coverage(df_ins_grouped, "norm_start", ref_coverage) # should I be using norm_start at some other place as well?? Or is it just for coverage calculation?!
         df_ins_grouped["vaf"] = get_vaf(df_ins_grouped)
-        df_ins_grouped[['sample','length', 'trailing', 'start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv(os.path.join(OUT_DIR,"flt3_ins.tsv"), index=False, float_format='%.2e', sep='\t')
+        df_ins_grouped[['sample','length', 'start', 'vaf', 'ref_coverage', 'counts', 'insert', 'counts_each', 'file']].to_csv(os.path.join(OUT_DIR,"flt3_ins.tsv"), index=False, float_format='%.2e', sep='\t')
         #
         # COLLAPSE #2
         # --> align inserts of same length and tandem2_start, collapse if they are sufficiently similar
-        df_ins_collapsed = collapse_similar_inserts(df_ins_grouped, "start").sort_values(['length','start'])
+        df_ins_collapsed = collapse_similar_inserts(df_ins_grouped, "start",group=["length","start"]).sort_values(['length','start'])
         assert sum(df_ins["counts"]) == sum(df_ins_collapsed["counts"])
         df_ins_collapsed[['sample','length', 'start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed.tsv"), index=False, float_format='%.2e', sep='\t')
         #
@@ -827,13 +834,19 @@ if __name__ == '__main__':
         assert sum(df_ins["counts"]) == sum(df_ins_collapsed["counts"])
         df_ins_collapsed[['sample','length', 'start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full.tsv"), index=False, float_format='%.2e', sep='\t')
         # 
+        # COLLAPSE #4
+        # --> collapse trailing
+        df_ins_collapsed = pd.concat([df_ins_collapsed.ix[df_ins_collapsed["trailing"] == False], collapse_similar_inserts(df_ins_collapsed.ix[df_ins_collapsed["trailing"]==True], "start",group=["trailing_end"]).sort_values(['length','start'])])
+        assert sum(df_ins["counts"]) == sum(df_ins_collapsed["counts"])
+        df_ins_collapsed[['sample','length', 'start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full_wTrailing.tsv"), index=False, float_format='%.2e', sep='\t')
+        # 
         # FILTER
         # --> filter inserts based on number of unique and total supporting reads
-        if 'cr' not in SAMPLE: # change this to some binary flag
-            print("\n-- Filtering insertions --")
-            df_ins_collapsed = filter_inserts(df_ins_collapsed).sort_values(['length','start'])
-            df_ins_collapsed[['sample','length', 'start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full_hc.tsv"), index=False, float_format='%.2e', sep='\t')
-        print("Found {} insertions!\n".format(df_ins_collapsed.shape[0]))
+        #if 'cr' not in SAMPLE: # change this to some binary flag
+        print("\n-- Filtering insertions --")
+        df_ins_collapsed = filter_inserts(df_ins_collapsed).sort_values(['length','start'])
+        df_ins_collapsed[['sample','length', 'start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full_wTrailing_hc.tsv"), index=False, float_format='%.2e', sep='\t')
+    print("Found {} insertions!\n".format(df_ins_collapsed.shape[0]))
     #
     #
     #
@@ -846,15 +859,16 @@ if __name__ == '__main__':
         #
         # collapse same inserts (same length, insert sequence and reference-based start coordinate)
         # -> careful: losing "start" column here (only keeping tandem2_start) -> do I need it?
-        df_itd_grouped = collapse(df_itd,keep=["sample","length","tandem2_start","insert"],add=["counts"],max_=["trailing","offset"],append=["idx","file"])
+        #df_itd_grouped = collapse(df_itd,keep=["sample","length","tandem2_start","insert"],add=["counts"],max_=["trailing","offset"],append=["idx","file"])
+        df_itd_grouped = collapse(df_itd,keep=["sample","length","tandem2_start","insert","trailing","trailing_end"],add=["counts"],max_=["offset"],append=["idx","file"])
         assert sum(df_itd["counts"]) == sum(df_itd_grouped["counts"])
         df_itd_grouped["ref_coverage"] = get_coverage(df_itd_grouped, "tandem2_start", ref_coverage)
         df_itd_grouped["vaf"] = get_vaf(df_itd_grouped)
-        fix_trailing_length(df_itd_grouped)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'counts_each', 'file']].to_csv(os.path.join(OUT_DIR,"flt3_itds.tsv"), index=False, float_format='%.2e', sep='\t')
+        fix_trailing_length(df_itd_grouped)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert', 'counts_each', 'file']].to_csv(os.path.join(OUT_DIR,"flt3_itds.tsv"), index=False, float_format='%.2e', sep='\t')
         #
         # COLLAPSE #2
         # --> align inserts of same length and tandem2_start, collapse if they are sufficiently similar
-        df_itd_collapsed = collapse_similar_inserts(df_itd_grouped, "tandem2_start").sort_values(['length','tandem2_start'])
+        df_itd_collapsed = collapse_similar_inserts(df_itd_grouped, "tandem2_start",group=["length","tandem2_start"]).sort_values(['length','tandem2_start'])
         assert sum(df_itd["counts"]) == sum(df_itd_collapsed["counts"])
         fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed.tsv"), index=False, float_format='%.2e', sep='\t')
         #
@@ -864,14 +878,20 @@ if __name__ == '__main__':
         assert sum(df_itd["counts"]) == sum(df_itd_collapsed["counts"])
         fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full.tsv"), index=False, float_format='%.2e', sep='\t')
         #
+        # COLLAPSE #4
+        # --> collapse trailing
+        df_itd_collapsed = pd.concat([df_itd_collapsed.ix[df_itd_collapsed["trailing"] == False], collapse_similar_inserts(df_itd_collapsed.ix[df_itd_collapsed["trailing"]==True], "tandem2_start",group=["trailing_end"]).sort_values(['length','tandem2_start'])])
+        assert sum(df_itd["counts"]) == sum(df_itd_collapsed["counts"])
+        fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_wTrailing.tsv"), index=False, float_format='%.2e', sep='\t')
+        # 
         # FILTER
         # --> filter inserts based on number of unique and total supporting reads
-        if 'cr' not in SAMPLE: # change this to some binary flag
-            print("-- Filtering ITDs --")
-            df_itd_collapsed = filter_inserts(df_itd_collapsed).sort_values(['length','tandem2_start'])
-            fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_hc.tsv"), index=False, float_format='%.2e', sep='\t')
-        print("Found {} ITDs!".format(df_itd_collapsed.shape[0]))
-        print()
+        #if 'cr' not in SAMPLE: # change this to some binary flag
+        print("-- Filtering ITDs --")
+        df_itd_collapsed = filter_inserts(df_itd_collapsed).sort_values(['length','tandem2_start'])
+        fix_trailing_length(df_itd_collapsed)[['sample','length', 'trailing', 'tandem2_start', 'vaf', 'ref_coverage', 'counts', 'insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_wTrailing_hc.tsv"), index=False, float_format='%.2e', sep='\t')
+    print("Found {} ITDs!".format(df_itd_collapsed.shape[0]))
+    print()
     #   
     #
     #
@@ -897,10 +917,10 @@ if __name__ == '__main__':
        # df_itd_known=None
        # df_ins_known=None
         df_itd_known = get_known(fix_trailing_length(df_itd_collapsed), known_length)
-        df_itd_known[['sample','length','vaf','ref_coverage','counts','tandem2_start','insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_hc_known.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
+        df_itd_known[['sample','length','vaf','ref_coverage','counts','tandem2_start','insert']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_wTrailing_hc_known.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
         #
         df_ins_known = get_known(df_ins_collapsed, known_length)
-        df_ins_known[['sample','length','vaf','ref_coverage','counts','start','insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full_hc_known.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
+        df_ins_known[['sample','length','vaf','ref_coverage','counts','start','insert']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full_wTrailing_hc_known.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
         #
         #
         # associate detected ITDs with expected VAF (if available)  -> useful to check correlation between VAF estimates of different experiments --> right now assuming there is only one VAF/AR for sum of all ITD clones!
@@ -916,12 +936,12 @@ if __name__ == '__main__':
         # does this make sense with multiple inserts per read? counts/vaf would be messed up because counted twice, right? --> more accurate maybe: collect all supporting reads and count unique 
         df_itd_known_collapsed = collapse(df_itd_known,keep=["sample"],add=["counts","vaf"],append=["length","tandem2_start","ref_coverage"])
         df_itd_known_collapsed["vaf_genescan"] = known_vaf
-        df_itd_known_collapsed[['sample','length','vaf','vaf_genescan','vaf_each','tandem2_start','ref_coverage','counts_each']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_hc_known_collapsed.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
+        df_itd_known_collapsed[['sample','length','vaf','vaf_genescan','vaf_each','tandem2_start','ref_coverage','counts_each']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed_full_wTrailing_hc_known_collapsed.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
         # 
         #
         df_ins_known_collapsed = collapse(df_ins_known,keep=["sample"],add=["counts","vaf"],append=["length","start","ref_coverage"])
         df_ins_known_collapsed["vaf_genescan"] = known_vaf
-        df_ins_known_collapsed[['sample','length','vaf','vaf_genescan','vaf_each','start','ref_coverage','counts_each']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full_hc_known_collapsed.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
+        df_ins_known_collapsed[['sample','length','vaf','vaf_genescan','vaf_each','start','ref_coverage','counts_each']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed_full_wTrailing_hc_known_collapsed.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
         
 
 
