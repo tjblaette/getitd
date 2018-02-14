@@ -122,6 +122,19 @@ def reverse_complement(read):
     return read.translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1]
 
 
+# trim ambinguous N bases at reads' ends
+def trim_n(read_and_bqs):
+    read,bqs = read_and_bqs
+    base_is_n = [x == 'n' or x == 'N' for x in read]
+    n_start, n_end = 0,0
+    while base_is_n.pop():
+        n_end = n_end +1
+    base_is_n.reverse()
+    while base_is_n.pop():
+        n_start = n_start +1
+    return (read[n_start:len(read) - n_end], bqs[n_start:len(bqs) - n_end])
+
+
 # read in wt reference for alignment
 def get_reference(filename):
     ref = None
@@ -571,14 +584,16 @@ if __name__ == '__main__':
     # collect reads that pass MIN_BQS filter -> reverse-complement R2 reads so that all reads can be aligned to the same reference
     reads_and_bqs = read_fastq(R1) + [(reverse_complement(r2_read),bqs) for r2_read,bqs in read_fastq(R2)]
     print("Number of total reads: {}".format(len(reads_and_bqs)))
-    args = [(read_and_bqs, MIN_BQS) for read_and_bqs in reads_and_bqs]
+    # trim ambiguous 'N' bases
+    trimmed = parallelize(trim_n, reads_and_bqs, NKERN)
     #
     # filter based on BQS -> PASS returns read, FAIL returns None -> remove None from list!
     reads = None
+    args = [(read_and_bqs, MIN_BQS) for read_and_bqs in trimmed]
     if MIN_BQS > 0:
         reads = [x for x in parallelize(filter_bqs, args, NKERN) if x is not None]
     else:
-        reads = [x[0] for x in reads_and_bqs]
+        reads = [x[0] for x in trimmed]
     #
     #
     # get unique reads and counts thereof
