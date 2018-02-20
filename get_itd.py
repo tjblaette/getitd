@@ -24,13 +24,14 @@ parser.add_argument("fastq2", help="FASTQ file of reverse reads (REQUIRED)")
 parser.add_argument("sampleID", help="sample ID used as output folder prefix (REQUIRED)")
 parser.add_argument("minBQS", help="minimum average base quality score (BQS) required by each read (default 30)", type=int, default=30, nargs='?')
 parser.add_argument("-reference", help="WT amplicon sequence as reference for read alignment (default /NGS/known_sites/hg19/flt3-itd_anno/amplicon.txt)", default="/NGS/known_sites/hg19/flt3-itd_anno/amplicon.txt", type=str)
-parser.add_argument("-anno", help="WT amplicon sequence annotation (default /NGS/known_sites/hg19/flt3-itd_anno/amplicon.tsv)", default="/NGS/known_sites/hg19/flt3-itd_anno/amplicon.tsv", type=str)
+parser.add_argument("-anno", help="WT amplicon sequence annotation (default /NGS/known_sites/hg19/flt3-itd_anno/amplicon_kayser.tsv)", default="/NGS/known_sites/hg19/flt3-itd_anno/amplicon_kayser.tsv", type=str)
 parser.add_argument('-nkern', help="number of cores to use for parallel tasks (default 14)", default="14", type=int)
 parser.add_argument('-gap_open', help="alignment cost of gap opening (default -20)", default="-20", type=int)
 parser.add_argument('-gap_extend', help="alignment cost of gap extension (default -0.5)", default="-0.5", type=float)
 parser.add_argument('-match', help="alignment cost of base match (default 5)", default="5", type=int)
 parser.add_argument('-mismatch', help="alignment cost of base mismatch (default -10)", default="-10", type=int)
-parser.add_argument('-minscore', help="fraction of max possible alignment score required for ITD detection and insert collapsing (default 0.5)", default="0.5", type=float)
+parser.add_argument('-minscore_inserts', help="fraction of max possible alignment score required for ITD detection and insert collapsing (default 0.5)", default="0.5", type=float)
+parser.add_argument('-minscore_alignments', help="fraction of max possible alignment score required for a read to pass when aligning reads to amplicon reference (default 0.5)", default="0.5", type=float)
 parser.add_argument('-known_length', help="file with expected ITD length, one on each line (optional)")
 group.add_argument('-known_vaf', help="file with total expected ITD VAF of all clones (optional)")
 group.add_argument('-known_ar', help="file with total expected ITD allele ratio of all clones vs WT (optional)")
@@ -56,7 +57,8 @@ COST_MATCH = cmd_args.match
 COST_MISMATCH = cmd_args.mismatch
 COST_GAPOPEN = cmd_args.gap_open
 COST_GAPEXTEND = cmd_args.gap_extend
-MIN_SCORE = cmd_args.minscore
+MIN_SCORE = cmd_args.minscore_inserts
+MIN_SCORE_ALIGNMENTS = cmd_args.minscore_alignments
 
 MIN_READ_COPIES = cmd_args.filter_reads
 MIN_TOTAL_READS = cmd_args.filter_ins_total_reads
@@ -175,7 +177,7 @@ def get_alignment_score(char1,char2):
 # args must be a tuple because multiprocessing.pool can only pass one argument to the parallelized function!
 def align(args):
     seq1, seq2 = args
-    min_score = get_min_score(seq1, seq2)
+    min_score = get_min_score(seq1, seq2, min_max_score_fraction=MIN_SCORE_ALIGNMENTS)
     alignments = bio.align.globalcs(seq1, seq2, get_alignment_score, COST_GAPOPEN, COST_GAPEXTEND, penalize_end_gaps=False, one_alignment_only=True) # one alignment only until multiple ones are handled
     alignment_score = None
     if alignments != []:
@@ -631,7 +633,7 @@ if __name__ == '__main__':
             all_alignments = p.map(align, args)
     assert len(unique_reads) == len(all_alignments)
     #
-    print("Filtering {} / {} low quality alignments with a score < {}".format(all_alignments.count([]),len(all_alignments),  "50 % of max"))
+    print("Filtering {} / {} low quality alignments with a score < {} % of max".format(all_alignments.count([]),len(all_alignments),  MIN_SCORE_ALIGNMENTS *100))
     #
     #
     all_readCounts  = [unique_reads_counts[i] for i in range(len(all_alignments)) if all_alignments[i] != []]
@@ -640,6 +642,7 @@ if __name__ == '__main__':
     all_refs        = [x[1] for x in all_alignments]
     all_scores      = [x[2] for x in all_alignments]
     all_files       = ['needle_{}.txt'.format(i) for i in range(len(all_alignments))]  ## --> do I even need this anymore?
+    print("Total reads remaining for analysis: {}".format(sum(all_readCounts)))
     #
     #
     ## PRINT ALIGNMENTS
@@ -804,8 +807,7 @@ if __name__ == '__main__':
                     else:
                         alignment = alignments[0]
                         alignment_score, alignment_start, alignment_end = alignment[2:5]
-                        if alignment_start > max(np.where(refn != '-')[0]):
-                            print("ERROR: ALIGNMENT TOO FAR OUT: {}".format(filename))
+                    # check that min alignment score is reach and that ref covers at least part of 2nd tandem (for an internal duplication, sequence must not only be duplicated but also contained in ref. I am realigning the insert to the remainder of the read (to not penalize true germline SNPs in the ITD) so I must make sure at this point that TD is in fact internal)
                     if alignment_score >= min_score and alignment_start < max(np.where(refn != '-')[0]):
                         offset = abs(alignment_start - insert_start)
                         w_itd_nonexact["idx"].append(i)
