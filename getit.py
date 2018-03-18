@@ -118,7 +118,7 @@ class Insert(object):
     def calc_vaf(self):
         self.vaf = dc.Decimal(self.counts) / self.coverage * 100
         assert self.vaf >= 0 and self.vaf <= 100
-        return self.vaf
+        return self
 
     def norm_start(self):
         global REF
@@ -131,21 +131,29 @@ class Insert(object):
         to_save = copy.deepcopy(self)
         to_save = to_save.norm_start()
         return to_save
+
+    def annotate_domains(self, DOMAINS):
+        domains = []
+        for domain,start,end in DOMAINS:
+            if self.start <= end and self.end >= start:
+                domains.append(domain)
+        return domains
+
     
     def print(self):
         # --> don't print reads, they only clutter the screen
         pprint.pprint({key: vars(self)[key] for key in vars(self).keys() if not key == 'reads'})
 
     def is_close_to(self, that):
-        if 'tandem2_start' in vars(self):
+        if hasattr(self, 'tandem2_start'):
             return abs(self.tandem2_start - that.tandem2_start) <= self.length
         return abs(self.start - that.start) <= 2 * self.length
     
     # align two inserts' seq
     # --> consider similar when al_score >= cutoff
     def is_similar_to(self, that):
-        global COST_GAPOPEN, COST_GAPEXTEND
-        min_score = get_min_score(self.seq, that.seq)
+        global COST_GAPOPEN, COST_GAPEXTEND, MIN_SCORE_INSERTS
+        min_score = get_min_score(self.seq, that.seq, MIN_SCORE_INSERTS)
         al_score = bio.align.globalcs(self.seq, that.seq, get_alignment_score, COST_GAPOPEN, COST_GAPEXTEND, one_alignment_only=True, score_only=True, penalize_end_gaps=False)
         if al_score >= min_score:
             return True
@@ -225,7 +233,7 @@ class InsertCollection(object):
         #self.counts = insert.counts
         #self.reads = list(insert.reads)
     
-    def set_rep(self):
+    def set_representative(self):
         # most abundant insert may represent the collection
         # --> how to handle trailing?
         # --> select more abundant or longer insert?
@@ -236,12 +244,12 @@ class InsertCollection(object):
         # reads and counts must be summed for the representative -> overwrite these (that's why representative needs to be a copy!)
         self.rep.reads = flatten_list([insert.reads for insert in self.inserts])
         self.rep.counts = sum([insert.counts for insert in self.inserts])
-        self.rep.vaf = self.rep.calc_vaf()
+        self.rep = self.rep.calc_vaf()
         return self
 
     def merge(self, insert):
         self.inserts = self.inserts + insert.inserts
-        self = self.set_rep()
+        self = self.set_representative()
         return self
 
     def should_merge(self, that, condition):
@@ -376,9 +384,9 @@ def get_alignment_score(char1,char2):
         return COST_MISMATCH
 
 # get min score required to pass alignment score filter
-def get_min_score(seq1, seq2):
-    global COST_MATCH, MIN_SCORE
-    return min(len(seq1),len(seq2)) * COST_MATCH * MIN_SCORE
+def get_min_score(seq1, seq2, min_score):
+    global COST_MATCH
+    return min(len(seq1),len(seq2)) * COST_MATCH * min_score
 
 
 def parallelize(function, args, cores):
@@ -417,6 +425,19 @@ def read_annotation(filename):
         print("No annotation file given")
         return None
 
+# extract domains with start / stop coords into list of tuples
+def get_domains(ANNO):
+    domains = []
+    domain = start = end = None
+    for i,row in ANNO.iterrows():
+        if domain and domain == row["region"]:
+            end = end + 1
+        else:
+            if domain:
+                domains.append((domain,start,end))
+            domain = row["region"]
+            start = end = row["amplicon_bp"]
+    return domains
 
 # check that insert was realigned in one piece
 def integral_insert_realignment(insert_alignment, insert_length):
@@ -459,9 +480,9 @@ def get_known(df,known_length):
     missed = [x for x in known_length if x not in list(df_found["length"])]
     df_missed = pd.DataFrame( {
         "length": missed, 
-        "sample": [SAMPLE for x in range(len(missed))], 
-        "vaf": [0 for x in range(len(missed))], 
-        "counts": [0 for x in range(len(missed))]})
+        "sample": [SAMPLE] * len(missed),
+        "vaf": [0] * len(missed),
+        "counts": [0] * len(missed)})
     #
     # concatenate known_found and known_missed
     df_known = pd.concat([df_found, df_missed])
@@ -501,27 +522,50 @@ def merge(inserts, condition):
 # --> create dict, convert to pandas df, print that
 def save_to_file(inserts, filename):
     if inserts:
-        global SAMPLE, ANNO
+        global SAMPLE, ANNO, DOMAINS
         dict_ins = {}
         for key in vars(inserts[0]):
             dict_ins[key] = tuple(vars(insert)[key] for insert in [insert.prep_for_save() for insert in inserts])
         
         df_ins =  pd.DataFrame(dict_ins)
-        df_ins["sample"] = [SAMPLE for i in range(df_ins.shape[0])]
+        df_ins["sample"] = [SAMPLE] * len(inserts)
         df_ins["ar"] = [vaf_to_ar(insert.vaf) for insert in inserts]
         df_ins["counts_each"] = [[read.counts for read in insert.reads] for insert in inserts]
         df_ins["file"] = [[read.al_file for read in insert.reads] for insert in inserts]
         
         cols = ['sample','length', 'start', 'vaf', 'ar', 'coverage', 'counts', 'trailing', 'seq'] 
-        cols = cols + ['file']
         # print counts_each only when they contain fewer than X elements (i.e. unique reads)
-        cols = cols + [col for col in ['counts_each'] if max([len(x) for x in df_ins[col]]) <= 10]
-        df_ins[cols].to_csv(os.path.join(OUT_DIR,filename), index=False, float_format='%.2e', sep='\t')
+        #cols = cols + [col for col in ['counts_each'] if max([len(x) for x in df_ins[col]]) <= 10]
         if ANNO is not None:
             # if annotation file exists, 
             # overwrite with annotated df
             # (same command as above!)
-            annotate(df_ins[cols]).to_csv(os.path.join(OUT_DIR,filename), index=False, float_format='%.2e', sep='\t')
+            df_ins = annotate(df_ins)
+            df_ins["region"] = [insert.annotate_domains(DOMAINS) for insert in inserts]
+            cols = cols + ["region", "chr13_bp", "transcript_bp", "protein_as"]
+        cols = cols + ['file']
+        df_ins[cols].to_csv(os.path.join(OUT_DIR,filename), index=False, float_format='%.2e', sep='\t') # move this command below if, delete the one before if (write csv once, add region column when possible)
+
+def get_unique_reads(reads):
+    tmp = collections.Counter([(read.seq,read.sense) for read in reads])
+    unique_reads = list(tmp.keys())
+    unique_reads_counts = list(tmp.values())
+    assert len(unique_reads) == len(unique_reads_counts)
+    assert sum(unique_reads_counts) == len(reads)
+    reads = [Read(seq=this_seq, bqs=None, counts=this_count, sense=this_sense)
+        for (this_seq,this_sense),this_count in zip(unique_reads, unique_reads_counts)]
+    return reads
+
+def filter_alignment_score(reads):
+    # FILTER BASED ON ALIGNMENT SCORE (INCL FAILED ALIGNMENTS WITH read.al_score is None!
+    global REF
+    reads_filtered = [
+        read for read in reads
+        if read.al_score is not None and read.al_score >= get_min_score(
+        read.seq, REF, MIN_SCORE_ALIGNMENTS)]
+    print("Filtering {} / {} low quality alignments with a score < {} % of max".format(
+        len(reads) - len(reads_filtered), len(reads), MIN_SCORE_ALIGNMENTS *100))
+    return reads_filtered
 
 
 ########## MAIN ####################
@@ -569,7 +613,7 @@ if __name__ == '__main__':
     COST_MISMATCH = cmd_args.mismatch
     COST_GAPOPEN = cmd_args.gap_open
     COST_GAPEXTEND = cmd_args.gap_extend
-    MIN_SCORE = cmd_args.minscore_inserts
+    MIN_SCORE_INSERTS = cmd_args.minscore_inserts
     MIN_SCORE_ALIGNMENTS = cmd_args.minscore_alignments
 
     MIN_READ_COPIES = cmd_args.filter_reads
@@ -581,6 +625,7 @@ if __name__ == '__main__':
     print("==== PROCESSING SAMPLE {} ====".format(SAMPLE))
 
     ANNO = read_annotation(ANNO_FILE)
+    DOMAINS = get_domains(ANNO)
     REF = read_reference(REF_FILE).upper()
 
     ## CREATE OUTPUT FOLDER
@@ -609,13 +654,7 @@ if __name__ == '__main__':
     print("Number of total reads with mean BQS >= {}: {}".format(MIN_BQS,len(reads)))
 
     # get unique reads and counts thereof
-    tmp = collections.Counter([(read.seq,read.sense) for read in reads])
-    unique_reads = list(tmp.keys())
-    unique_reads_counts = list(tmp.values())
-    assert len(unique_reads) == len(unique_reads_counts)
-    assert sum(unique_reads_counts) == len(reads)
-    reads = [Read(seq=this_seq, bqs=None, counts=this_count, sense=this_sense)
-        for (this_seq,this_sense),this_count in zip(unique_reads, unique_reads_counts)]
+    reads = get_unique_reads(reads)
     print("Number of unique reads with mean BQS >= {}: {}".format(MIN_BQS,len(reads)))
 
     # FILTER UNIQUE READS
@@ -626,7 +665,6 @@ if __name__ == '__main__':
     else:
         reads = [read for read in reads if read.counts >= MIN_READ_COPIES ]
         print("Number of unique reads with at least {} copies: {}".format(MIN_READ_COPIES,len(reads)))
-    assert len(unique_reads) == len(unique_reads_counts)
     print("Total reads remaining for analysis: {}".format(sum([read.counts for read in reads])))
 
     ## ALIGN TO REF
@@ -636,13 +674,7 @@ if __name__ == '__main__':
     print("Alignment took {} s".format(timeit.default_timer() - start_time))
 
     # FILTER BASED ON ALIGNMENT SCORE (INCL FAILED ALIGNMENTS WITH read.al_score is None!
-    als_filtered = [
-        read for read in reads
-        if read.al_score is not None and read.al_score >= get_min_score(
-        read.seq, REF)]
-    print("Filtering {} / {} low quality alignments with a score < {} % of max".format(
-        len(reads) - len(als_filtered), len(reads), MIN_SCORE_ALIGNMENTS *100))
-    reads = als_filtered
+    reads = filter_alignment_score(reads)
 
     # FILTER BASED ON MISALIGNED PRIMERS 
     # --> require that primers (26 bp forward / 23 bp reverse) are always aligned with max 3 gaps
@@ -675,7 +707,7 @@ if __name__ == '__main__':
     if not os.path.exists(needle_dir):
         os.makedirs(needle_dir)
 
-    for i in range(len(reads)):
+    for i,read in enumerate(reads):
         reads[i].al_index = i
         reads[i].al_file = 'needle_{}.txt'.format(i)
         print_alignment(reads[i], needle_dir,
@@ -790,7 +822,7 @@ if __name__ == '__main__':
         # --> negative start (-> 5' trailing_end) will result in
         #     coverage = ref_coverage[-X] which will silently report incorrect coverage!!
         insert.coverage = ref_coverage[copy.deepcopy(insert).norm_start().start]
-        insert.vaf = insert.calc_vaf()
+        insert = insert.calc_vaf()
     print("Annotating coverage took {} s".format(timeit.default_timer() - start_time))
 
 
@@ -801,8 +833,7 @@ if __name__ == '__main__':
     itds = []
     start_time = timeit.default_timer()
     for insert in inserts:
-        max_score = insert.length * COST_MATCH
-        min_score = max_score * MIN_SCORE
+        min_score = get_min_score(insert.seq, REF, MIN_SCORE_ALIGNMENTS)
         
         # arguments: seq1, seq2, match-score, mismatch-score, gapopen-score, gapextend-score 
         # output: list of optimal alignments, each a list of seq1, seq2, score, start-idx, end-idx
