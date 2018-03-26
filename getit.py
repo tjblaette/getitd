@@ -17,10 +17,11 @@ import copy
 
 class Read(object):
     
-    def __init__(self, seq, sense=1, bqs=None, counts=1, 
+    def __init__(self, seq, sense=1, bqs=None, index_bqs=None, counts=1, 
             al_score=None, al_seq=None, al_ref=None, al_file=None, al_index=None):
         self.seq = seq
         self.bqs = bqs
+        self.index_bqs = index_bqs
         self.length = len(seq)
         self.counts = counts
         self.sense = sense
@@ -39,8 +40,10 @@ class Read(object):
     # reverse complement and return a given read
     def reverse_complement(self):
         self.seq = self.seq.translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1]
-        if self.bqs is not None:
+        if self.bqs:
             self.bqs = self.bqs[::-1]
+        if self.index_bqs:
+            self.index_bqs = self.index_bqs[::-1]
         if not self.sense:
             self.sense = -1
         else:
@@ -57,9 +60,12 @@ class Read(object):
         while base_is_n.pop():
             n_start = n_start + 1
         self.seq = self.seq[n_start:self.length - n_end]
-        if self.bqs is not None:
+        if self.bqs:
             self.bqs = self.bqs[n_start:self.length - n_end]
             assert len(self.seq) == len(self.bqs)
+        if self.index_bqs:
+            self.index_bqs = self.index_bqs[n_start:self.length - n_end]
+            assert len(self.seq) == len(self.index_bqs)
         self.length = len(self.seq)
         return self
     
@@ -69,15 +75,14 @@ class Read(object):
 
     # filter reads based on average BQS
     def filter_bqs(self):
-        global MIN_BQS
-        # if bqs is None, don't try to filter
-        if self.bqs is None or self.average_bqs() >= MIN_BQS:
-            return self
+        # filter if there is a score only
+        if not self.bqs or average_bqs(self.bqs) >= MIN_BQS:
+            if not self.index_bqs or average_bqs(self.index_bqs) >= MIN_BQS:
+                return self
         return None
     
     # align read to ref
     def align(self):
-        global REF, TECH, COST_GAPOPEN, COST_GAPEXTEND
         # one_alignment_only until more are handled
         alignment = bio.align.globalcs(self.seq, REF, get_alignment_score,
             COST_GAPOPEN, COST_GAPEXTEND, penalize_end_gaps=False, one_alignment_only=True)
@@ -121,7 +126,6 @@ class Insert(object):
         return self
 
     def norm_start(self):
-        global REF
         self.start = min(max(0,self.start), len(REF)-1)
         return self
 
@@ -152,7 +156,6 @@ class Insert(object):
     # align two inserts' seq
     # --> consider similar when al_score >= cutoff
     def is_similar_to(self, that):
-        global COST_GAPOPEN, COST_GAPEXTEND, MIN_SCORE_INSERTS
         min_score = get_min_score(self.seq, that.seq, MIN_SCORE_INSERTS)
         al_score = bio.align.globalcs(self.seq, that.seq, get_alignment_score, COST_GAPOPEN, COST_GAPEXTEND, one_alignment_only=True, score_only=True, penalize_end_gaps=False)
         if al_score >= min_score:
@@ -175,16 +178,13 @@ class Insert(object):
     
     # filter based on number of unique supporting reads
     def filter_unique_supp_reads(self):
-        global MIN_UNIQUE_READS
         return len(self.reads) >= MIN_UNIQUE_READS
 
     # filter based on number of total supporting reads
     def filter_total_supp_reads(self):
-        global MIN_TOTAL_READS
         return self.counts >= MIN_TOTAL_READS
 
     def filter_vaf(self):
-        global MIN_VAF
         return self.vaf >= MIN_VAF
 
 
@@ -218,7 +218,6 @@ class ITD(Insert):
     # for all itds, set start to tandem2_start
     # and norm start coords to [0,len(REF)[ before printing
     def prep_for_save(self):
-        global REF
         to_save = copy.deepcopy(self)
         to_save = to_save.fix_trailing_length()
         to_save.start = to_save.tandem2_start
@@ -266,6 +265,9 @@ class InsertCollection(object):
 def flatten_list(list_):
     return [item for sublist in list_ for item in sublist]
 
+# calculate average BQS
+def average_bqs(bqs):
+    return sum([ord(x) - 33 for x in bqs]) / len(bqs)
 
 def connect_bases(char1, char2):
     if char1 == '-' or char2 == '-':
@@ -301,7 +303,6 @@ def print_alignment_seq(seq, seq_coord, pre_width, post_width,f):
 # print pretty alignment, format inspired by EMBOSS needle output
 def print_alignment(read, out_dir,
         command='bio.align.globalcs', command_seq='read.seq', command_ref='REF'):
-    global COST_GAPOPEN, GAPEXTEND
     al = connect_alignment(read.al_seq, read.al_ref)
     al_len = len(read.al_seq)
     command_score_function = "get_alignment_score"
@@ -375,7 +376,6 @@ def print_alignment(read, out_dir,
 # insert is masked by 'Z'
 # --> return max penalty (min score of -Inf) to prohibit realignment of insert to itself
 def get_alignment_score(char1,char2):
-    global COST_MATCH, COST_MISMATCH
     # only ever one of the sequences chars are taken from should contain masking letter 'Z'
     # -->  i.e. the read sequence but not the ref
     assert not (char1 == 'Z' and char2 == 'Z')
@@ -388,7 +388,6 @@ def get_alignment_score(char1,char2):
 
 # get min score required to pass alignment score filter
 def get_min_score(seq1, seq2, min_score):
-    global COST_MATCH
     return min(len(seq1),len(seq2)) * COST_MATCH * min_score
 
 
@@ -396,20 +395,44 @@ def parallelize(function, args, cores):
     with multiprocessing.Pool(cores) as p:
         return p.map(function, args)
 
-def read_fastq(filename):
+def read_fastq(reads_file, index_file=None):
 # read in FASTQ files, init Read instances for each record
     reads = []
-    with open(filename,'r') as f:
-        line = f.readline()
-        while line:
-            read_id = line
-            read_seq = f.readline().rstrip('\n')
-            read_desc = f.readline()
-            read_bqs = f.readline().rstrip('\n')
-            assert len(read_seq) == len(read_bqs)
-            reads.append(Read(seq=read_seq, bqs=read_bqs, sense=1))
+    try:
+        with open(reads_file,'r') as f:
             line = f.readline()
-    return reads#[0:10000] # REMOVE THIS ###############################################################
+            while line:
+                read_id = line
+                read_seq = f.readline().rstrip('\n')
+                read_desc = f.readline()
+                read_bqs = f.readline().rstrip('\n')
+                assert len(read_seq) == len(read_bqs)
+                reads.append(Read(seq=read_seq, bqs=read_bqs, sense=1))
+                line = f.readline()
+        if index_file:
+            with open(index_file) as f:
+                for read in reads:
+                    index_id = f.readline()
+                    index_seq = f.readline()
+                    index_desc = f.readline()
+                    index_bqs = f.readline().rstrip('\n')
+                    read.index_bqs = index_bqs
+    # catch missing file or permissions
+    except IOError as e:
+        print("---\nCould not read index file!\n---")
+    return reads#[0:10000] # CAVE: REMOVE THIS ###############################################################
+
+
+def read_index_bqs(index_file):
+    try:
+        with open(index_file, "r") as f:
+            all_lines = f.readlines()
+            index_bqs = all_lines[3::4]
+            index_bqs = [bqs.rstrip('\n') for bqs in index_bqs]
+        return index_bqs
+    except IOError as e:
+        print("---\nCould not read index file!\n---")
+
 
 # read in wt reference for alignment
 def read_reference(filename):
@@ -465,7 +488,6 @@ def get_coverage(df, start_col, ref_coverage):
     return [ref_coverage[pos-1] for pos in df[start_col]]
 
 def annotate(df):
-    global ANNO
     df = pd.merge(df, ANNO, 
         how='left', left_on=['end'], right_on=['amplicon_bp']).drop(['amplicon_bp', 'region'], axis=1)
     df = df.rename(columns={"chr13_bp": "end_chr13_bp", "transcript_bp": "end_transcript_bp", "protein_as": "end_protein_as"})
@@ -481,7 +503,6 @@ def read_known(filename, dtype=str):
 
 # extract ITDs of known length from df
 def get_known(df,known_length):
-    global SAMPLE
     df_found = df.ix[[x in known_length for x in df["length"]]]
     #
     # fill in available data on known ITDs/inserts that were missed (and not present in df)
@@ -530,7 +551,6 @@ def merge(inserts, condition):
 # --> create dict, convert to pandas df, print that
 def save_to_file(inserts, filename):
     if inserts:
-        global SAMPLE, ANNO, DOMAINS
         dict_ins = {}
         for key in vars(inserts[0]):
             dict_ins[key] = tuple(vars(insert)[key] for insert in [insert.prep_for_save() for insert in inserts])
@@ -566,7 +586,6 @@ def get_unique_reads(reads):
 
 def filter_alignment_score(reads):
     # FILTER BASED ON ALIGNMENT SCORE (INCL FAILED ALIGNMENTS WITH read.al_score is None!
-    global REF
     reads_filtered = [
         read for read in reads
         if read.al_score is not None and read.al_score >= get_min_score(
@@ -585,6 +604,8 @@ if __name__ == '__main__':
     parser.add_argument("fastq2", help="FASTQ file of reverse reads (REQUIRED)")
     parser.add_argument("sampleID", help="sample ID used as output folder prefix (REQUIRED)")
     parser.add_argument("minBQS", help="minimum average base quality score (BQS) required by each read (default 30)", type=int, default=30, nargs='?')
+    parser.add_argument("-index1", help="FASTQ file of I1 index (may be omitted)", default=None)
+    parser.add_argument("-index2", help="FASTQ file of I2 index (may be omitted)", default=None)
     parser.add_argument("-reference", help="WT amplicon sequence as reference for read alignment (default /NGS/known_sites/hg19/flt3-itd_anno/amplicon.txt)", default="/NGS/known_sites/hg19/flt3-itd_anno/amplicon.txt", type=str)
     parser.add_argument("-anno", help="WT amplicon sequence annotation (default /NGS/known_sites/hg19/flt3-itd_anno/amplicon_kayser.tsv)", default="/NGS/known_sites/hg19/flt3-itd_anno/amplicon_kayser.tsv", type=str)
     parser.add_argument("-technology", help="Sequencing technology used, options are '454' or 'Illumina' (default)", default="Illumina", type=str)
@@ -606,6 +627,8 @@ if __name__ == '__main__':
 
     R1 = cmd_args.fastq1
     R2 = cmd_args.fastq2
+    I1 = cmd_args.index1
+    I2 = cmd_args.index2
     SAMPLE = cmd_args.sampleID
     MIN_BQS = cmd_args.minBQS
     REF_FILE = cmd_args.reference
@@ -646,12 +669,28 @@ if __name__ == '__main__':
 
     # IF IT EXISTS:
     # --> reverse-complement R2 reads so that all reads can be aligned to the same reference
-    if 'R2' in locals():# --> check how this works with argparse
+    if R2:
         reads_rev = read_fastq(R2)
         reads_rev_rev = parallelize(Read.reverse_complement,reads_rev,NKERN)
         reads = reads + reads_rev_rev
     print("Reading FASTQ files took {} s".format(timeit.default_timer() - start_time))
     print("Number of total reads: {}".format(len(reads)))
+
+    ## IF GIVEN, GET AND FILTER ON INDEX BQS
+    start_time = timeit.default_timer()
+    if I1 or I2:
+        if I1:
+            indices1_bqs = read_index_bqs(I1)
+            indices_bqs = indices1_bqs
+        if I2:
+            indices2_bqs = read_index_bqs(I2)
+            indices_bqs = indices2_bqs
+        if I1 and I2:
+            merged_indices_bqs = [index1_bqs + index2_bqs for index1_bqs,index2_bqs in zip(indices1_bqs, indices2_bqs)]
+            indices_bqs = merged_indices_bqs
+        reads = [read for read,index_bqs in zip(reads, indices_bqs) if average_bqs(index_bqs) >= MIN_BQS] 
+    print("Reading and filtering index BQS took {} s".format(timeit.default_timer() - start_time))
+    print("Number of total reads with index BQS >= {}: {}".format(MIN_BQS, len(reads)))
 
     ## TRIM trailing AMBIGUOUS 'N's
     reads = parallelize(Read.trim_n, reads, NKERN)
@@ -659,7 +698,7 @@ if __name__ == '__main__':
     ## FILTER ON BQS
     if MIN_BQS > 0:
         reads = [x for x in parallelize(Read.filter_bqs, reads, NKERN) if x is not None]
-    print("Number of total reads with mean BQS >= {}: {}".format(MIN_BQS,len(reads)))
+    print("Number of total reads with mean BQS >= {}: {}".format(MIN_BQS, len(reads)))
 
     # get unique reads and counts thereof
     reads = get_unique_reads(reads)
