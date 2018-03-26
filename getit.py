@@ -218,9 +218,12 @@ class ITD(Insert):
     # for all itds, set start to tandem2_start
     # and norm start coords to [0,len(REF)[ before printing
     def prep_for_save(self):
+        global REF
         to_save = copy.deepcopy(self)
         to_save = to_save.fix_trailing_length()
         to_save.start = to_save.tandem2_start
+        to_save.end = to_save.start + to_save.length - 1
+        assert to_save.end <= len(REF)
         to_save = to_save.norm_start()
         return to_save
 
@@ -463,8 +466,13 @@ def get_coverage(df, start_col, ref_coverage):
 
 def annotate(df):
     global ANNO
-    return pd.merge(df, ANNO, 
+    df = pd.merge(df, ANNO, 
+        how='left', left_on=['end'], right_on=['amplicon_bp']).drop(['amplicon_bp', 'region'], axis=1)
+    df = df.rename(columns={"chr13_bp": "end_chr13_bp", "transcript_bp": "end_transcript_bp", "protein_as": "end_protein_as"})
+    df = pd.merge(df, ANNO, 
         how='left', left_on=['start'], right_on=['amplicon_bp']).drop('amplicon_bp', axis=1)
+    df = df.rename(columns={"chr13_bp": "start_chr13_bp", "transcript_bp": "start_transcript_bp", "protein_as": "start_protein_as"})
+    return df
 
 # read in txt file with known ITD length and VAF
 def read_known(filename, dtype=str):
@@ -533,7 +541,7 @@ def save_to_file(inserts, filename):
         df_ins["counts_each"] = [[read.counts for read in insert.reads] for insert in inserts]
         df_ins["file"] = [[read.al_file for read in insert.reads] for insert in inserts]
         
-        cols = ['sample','length', 'start', 'vaf', 'ar', 'coverage', 'counts', 'trailing', 'seq'] 
+        cols = ['sample','length', 'start', 'end', 'vaf', 'ar', 'coverage', 'counts', 'trailing', 'seq'] 
         # print counts_each only when they contain fewer than X elements (i.e. unique reads)
         #cols = cols + [col for col in ['counts_each'] if max([len(x) for x in df_ins[col]]) <= 10]
         if ANNO is not None:
@@ -542,7 +550,7 @@ def save_to_file(inserts, filename):
             # (same command as above!)
             df_ins = annotate(df_ins)
             df_ins["region"] = [insert.annotate_domains(DOMAINS) for insert in inserts]
-            cols = cols + ["region", "chr13_bp", "transcript_bp", "protein_as"]
+            cols = cols + ["region", "start_chr13_bp", "start_transcript_bp", "start_protein_as", "end_chr13_bp", "end_transcript_bp", "end_protein_as"]
         cols = cols + ['file']
         df_ins[cols].to_csv(os.path.join(OUT_DIR,filename), index=False, float_format='%.2e', sep='\t') # move this command below if, delete the one before if (write csv once, add region column when possible)
 
