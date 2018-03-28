@@ -597,6 +597,7 @@ def filter_alignment_score(reads):
 def save_config(file_, cmd_args):
     with open(os.path.join(OUT_DIR, file_), "w") as f:
         f.write("Commandline_argument\tValue\n")
+        f.write("Time\t{}\n".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%d")))
         #for arg in vars(cmd_args):
         # write arguments in alphabetical order
         for arg in sorted(list(vars(cmd_args).keys())):
