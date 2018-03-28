@@ -18,7 +18,7 @@ import copy
 class Read(object):
     
     def __init__(self, seq, sense=1, bqs=None, index_bqs=None, counts=1, 
-            al_score=None, al_seq=None, al_ref=None, al_file=None, al_index=None):
+            al_score=None, al_seq=None, al_ref=None, al_file=None):
         self.seq = seq
         self.bqs = bqs
         self.index_bqs = index_bqs
@@ -29,7 +29,6 @@ class Read(object):
         self.al_seq = al_seq
         self.al_ref = al_ref
         self.al_file = al_file
-        self.al_index = al_index # get rid of this? (or al_file)
         assert self.counts > 0
         if self.bqs is not None:
             assert len(self.seq) == len(self.bqs)
@@ -767,7 +766,6 @@ if __name__ == '__main__':
         os.makedirs(needle_dir)
 
     for i,read in enumerate(reads):
-        reads[i].al_index = i
         reads[i].al_file = 'needle_{}.txt'.format(i)
         print_alignment(reads[i], needle_dir,
             command='bio.align.globalcs', command_seq='read.seq', command_ref='REF')
