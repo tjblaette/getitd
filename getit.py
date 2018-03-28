@@ -595,6 +595,16 @@ def filter_alignment_score(reads):
     return reads_filtered
 
 
+def save_config(file_, cmd_args):
+    with open(os.path.join(OUT_DIR, file_), "w") as f:
+        f.write("Commandline_argument\tValue\n")
+        #for arg in vars(cmd_args):
+        # write arguments in alphabetical order
+        for arg in sorted(list(vars(cmd_args).keys())):
+            f.write("{}\t{}\n".format(arg, vars(cmd_args)[arg]))
+
+
+
 ########## MAIN ####################
 if __name__ == '__main__':
     # prevent neg nkern/minBQS?
@@ -651,6 +661,8 @@ if __name__ == '__main__':
     MIN_TOTAL_READS = cmd_args.filter_ins_total_reads
     MIN_UNIQUE_READS = cmd_args.filter_ins_unique_reads
     MIN_VAF = cmd_args.filter_ins_vaf
+
+    save_config("config.tsv", cmd_args)
 
 
     print("==== PROCESSING SAMPLE {} ====".format(SAMPLE))
