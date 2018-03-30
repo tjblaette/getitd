@@ -162,13 +162,13 @@ class Insert(object):
         return False
     
     def should_merge(self, that, condition):
-        if condition == 'is_same':
+        if condition == 'is-same':
             return self.seq == that.seq and self.start == that.start
-        if condition == 'is_similar':
+        if condition == 'is-similar':
             return self.length == that.length and self.start == that.start and self.is_similar_to(that)
-        if condition == 'is_close':
+        if condition == 'is-close':
             return self.length == that.length and self.is_similar_to(that) and self.is_close_to(that)
-        if condition == 'is_same_trailing':
+        if condition == 'is-same_trailing':
             return self.trailing and that.trailing and self.trailing_end == that.trailing_end and self.is_similar_to(that)
         if condition == 'any':
             return ((self.length == that.length and self.is_close_to(that)) or (self.trailing and that.trailing and self.trailing_end == that.trailing_end)) and self.is_similar_to(that)
@@ -956,15 +956,16 @@ if __name__ == '__main__':
         # turn Insert objects into InsertCollection to keep merging methods simple and not have to distinguish between the two
         to_merge = [InsertCollection(insert) for insert in inserts_]
         for condition,abrev in [
-                ("is_same",""), 
-                ("is_similar","similar"), 
-                ("is_close","close"), 
-                ("is_same_trailing","trailing")]:
+                ("is-same",""), 
+                ("is-similar","similar"), 
+                ("is-close","close"), 
+                ("is-same_trailing","trailing")]:
             to_merge = merge(to_merge, condition)
             all_merged[inserts_type].append(to_merge)
             print("{} {} remain after merging".format(len(to_merge), inserts_type))
-            suffix = suffix + "-" + condition
-            save_to_file([insert.rep for insert in to_merge], "flt3_" + inserts_type + "_collapsed" + suffix + ".tsv")
+            suffix = suffix + condition
+            save_to_file([insert.rep for insert in to_merge], inserts_type + "_collapsed-" + suffix + ".tsv")
+            suffix = suffix + "_"
 
 
     # save as list of Insert(s) to process further as before (vs continuing with list of InsertCollection(s)
@@ -992,7 +993,7 @@ if __name__ == '__main__':
             print("Filtered {} / {} {} based on the {}".format(
                 len(passed) - sum(passed), len(passed), inserts_type, filter_type))
         print("{} {} remain after filtering!".format(len(filtered), inserts_type))
-        save_to_file(filtered, "flt3_" + inserts_type + "_collapsed" + suffix + "_hc.tsv")
+        save_to_file(filtered, inserts_type + "_collapsed-" + suffix + "hc.tsv")
         final_filtered[inserts_type] = filtered
     print("Filtering took {} s".format(timeit.default_timer() - start_time))
 
@@ -1007,10 +1008,10 @@ if __name__ == '__main__':
     if False and KNOWN_LENGTH_FILE is not None:
         known_length = read_known(KNOWN_LENGTH_FILE,int)
         df_itds_known = get_known(fix_trailing_length(df_itds_collapsed), known_length)
-        df_itds_known[['sample','length','vaf','coverage','counts','tandem2_start','seq']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed-similar-close-trailing_hc_known.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
+        df_itds_known[['sample','length','vaf','coverage','counts','tandem2_start','seq']].to_csv(os.path.join(OUT_DIR,"itds_collapsed-similar-close-trailing_hc_known.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
         #
         df_ins_known = get_known(df_ins_collapsed, known_length)
-        df_ins_known[['sample','length','vaf','coverage','counts','start','seq']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed-similar-close-trailing_hc_known.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
+        df_ins_known[['sample','length','vaf','coverage','counts','start','seq']].to_csv(os.path.join(OUT_DIR,"ins_collapsed-similar-close-trailing_hc_known.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
         #
         #
         # associate detected ITDs with expected VAF (if available)  -> useful to check correlation between VAF estimates of different experiments --> right now assuming there is only one VAF/AR for sum of all ITD clones!
@@ -1026,10 +1027,10 @@ if __name__ == '__main__':
         # does this make sense with multiple inserts per read? counts/vaf would be messed up because counted twice, right? --> more accurate maybe: collect all supporting reads and count unique
         df_itds_known_collapsed = collapse(df_itds_known,keep=["sample"],add=["counts","vaf"],append=["length","tandem2_start","coverage"])
         df_itds_known_collapsed["vaf_genescan"] = known_vaf
-        df_itds_known_collapsed[['sample','length','vaf','vaf_genescan','vaf_each','tandem2_start','coverage','counts_each']].to_csv(os.path.join(OUT_DIR,"flt3_itds_collapsed-similar-close-trailing_hc_known_collapsed.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
+        df_itds_known_collapsed[['sample','length','vaf','vaf_genescan','vaf_each','tandem2_start','coverage','counts_each']].to_csv(os.path.join(OUT_DIR,"itds_collapsed-similar-close-trailing_hc_known_collapsed.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
         #
         df_ins_known_collapsed = collapse(df_ins_known,keep=["sample"],add=["counts","vaf"],append=["length","start","coverage"])
         df_ins_known_collapsed["vaf_genescan"] = known_vaf
-        df_ins_known_collapsed[['sample','length','vaf','vaf_genescan','vaf_each','start','coverage','counts_each']].to_csv(os.path.join(OUT_DIR,"flt3_ins_collapsed-similar-close-trailing_hc_known_collapsed.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
+        df_ins_known_collapsed[['sample','length','vaf','vaf_genescan','vaf_each','start','coverage','counts_each']].to_csv(os.path.join(OUT_DIR,"ins_collapsed-similar-close-trailing_hc_known_collapsed.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
 
 
