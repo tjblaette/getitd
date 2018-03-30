@@ -29,7 +29,7 @@ pip install numpy pandas biopython
 
 
 ## Output
-###### Output files
+##### Files
 For each sample, an output directory will be created in the current directory, named using the provided Sample ID / Output folder prefix.
 Inside, all generated output files reside:
 - config.tsv contains parameters, date and time of the analysis
@@ -41,7 +41,7 @@ Inside, all generated output files reside:
 - itds\_collapsed-is-same.tsv contains all ITDs, having merged those that share the same length, tandem sequence and start coordinates
 - insertions\*.tsv files are analogous to ITD files but list all insertions, regardless of whether these are also ITDs or not
 
-###### Output on stdout
+##### On stdout
 At eat filtering step, the number of reads and insertions passing the specified requirements are printed.   
 Currently, also the computation time of various steps is printed, but presumably this will change in the future. 
 
