@@ -998,39 +998,3 @@ if __name__ == '__main__':
     print("Filtering took {} s".format(timeit.default_timer() - start_time))
 
 
-
-    # compare with get_itd to make sure I didn't forget anything
-
-    ########################################
-    # GET KNOWN ITDs
-    # --> if length known is given, extract relevant ITDs
-    # --> if vaf known is given, compare numbers? (vaf is always known if length is known? is there a better way to supply this together?)
-    if False and KNOWN_LENGTH_FILE is not None:
-        known_length = read_known(KNOWN_LENGTH_FILE,int)
-        df_itds_known = get_known(fix_trailing_length(df_itds_collapsed), known_length)
-        df_itds_known[['sample','length','vaf','coverage','counts','tandem2_start','seq']].to_csv(os.path.join(OUT_DIR,"itds_collapsed-similar-close-trailing_hc_known.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
-        #
-        df_ins_known = get_known(df_ins_collapsed, known_length)
-        df_ins_known[['sample','length','vaf','coverage','counts','start','seq']].to_csv(os.path.join(OUT_DIR,"ins_collapsed-similar-close-trailing_hc_known.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
-        #
-        #
-        # associate detected ITDs with expected VAF (if available)  -> useful to check correlation between VAF estimates of different experiments --> right now assuming there is only one VAF/AR for sum of all ITD clones!
-        known_vaf = None
-        if KNOWN_VAF_FILE is not None:
-            known_vaf = read_known(KNOWN_VAF_FILE,dc.Decimal)[0]
-        elif KNOWN_AR_FILE is not None:
-            known_vaf = ar_to_vaf(read_known(KNOWN_AR_FILE,dc.Decimal)[0])
-        #
-        if known_vaf is not None:
-            assert known_vaf <= 100 and known_vaf >= 0
-        #
-        # does this make sense with multiple inserts per read? counts/vaf would be messed up because counted twice, right? --> more accurate maybe: collect all supporting reads and count unique
-        df_itds_known_collapsed = collapse(df_itds_known,keep=["sample"],add=["counts","vaf"],append=["length","tandem2_start","coverage"])
-        df_itds_known_collapsed["vaf_genescan"] = known_vaf
-        df_itds_known_collapsed[['sample','length','vaf','vaf_genescan','vaf_each','tandem2_start','coverage','counts_each']].to_csv(os.path.join(OUT_DIR,"itds_collapsed-similar-close-trailing_hc_known_collapsed.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
-        #
-        df_ins_known_collapsed = collapse(df_ins_known,keep=["sample"],add=["counts","vaf"],append=["length","start","coverage"])
-        df_ins_known_collapsed["vaf_genescan"] = known_vaf
-        df_ins_known_collapsed[['sample','length','vaf','vaf_genescan','vaf_each','start','coverage','counts_each']].to_csv(os.path.join(OUT_DIR,"ins_collapsed-similar-close-trailing_hc_known_collapsed.tsv"), index=False, float_format='%.2e', sep='\t', na_rep='NA')
-
-
