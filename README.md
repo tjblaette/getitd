@@ -28,20 +28,25 @@ pip install numpy pandas biopython
 -
 
 
-## Output / Directory content explanation / stdout!
+## Output
+###### Output files
 For each sample, an output directory will be created in the current directory, named using the provided Sample ID / Output folder prefix.
 Inside, all generated output files reside:
 - config.tsv contains parameters, date and time of the analysis
 - out\_needle/ contains individual alignment files, needle\_\*.txt, of all the different reads processed
-- flt3\_itds\_collapsed-is-same\_is-similar\_is-close\_is-same-trailing\_hc.tsv contains filtered high-confidence (hc) ITDs, fully merged
-- flt3\_itds\_collapsed-is-same\_is-similar\_is-close\_is-same-trailing.tsv contains all ITDs, fully merged
-- flt3\_itds\_collapsed-is-same\_is-similar\_is-close.tsv contains all ITDs, having merged those of the same length with identical or similar tandem sequences and close start coordinates (within one tandem length)
-- flt3\_itds\_collapsed-is-same\_is-similar.tsv contains all ITDs, having merged those of the same length and tandem sequence
-- flt3\_itds\_collapsed-is-same.tsv contains all ITDs, having merged those that share the same length, tandem sequence and start coordinates
-- flt3\_insertions\*.tsv files are analogous to ITD files but list all insertions, regardless of whether these are also ITDs or not
+- itds\_collapsed-is-same\_is-similar\_is-close\_is-same-trailing\_hc.tsv contains filtered high-confidence (hc) ITDs, fully merged
+- itds\_collapsed-is-same\_is-similar\_is-close\_is-same-trailing.tsv contains all ITDs, fully merged
+- itds\_collapsed-is-same\_is-similar\_is-close.tsv contains all ITDs, having merged those of the same length with identical or similar tandem sequences and close start coordinates (within one tandem length)
+- itds\_collapsed-is-same\_is-similar.tsv contains all ITDs, having merged those of the same length and tandem sequence
+- itds\_collapsed-is-same.tsv contains all ITDs, having merged those that share the same length, tandem sequence and start coordinates
+- insertions\*.tsv files are analogous to ITD files but list all insertions, regardless of whether these are also ITDs or not
+
+###### Output on stdout
+At eat filtering step, the number of reads and insertions passing the specified requirements are printed.   
+Currently, also the computation time of various steps is printed, but presumably this will change in the future. 
 
 ## Output format
--> with pictures
+-> with pictures / examples, here or down below for example? Will be provided in folder at some point
 
 
 ## How it works
@@ -76,13 +81,14 @@ Inside, all generated output files reside:
 
 
 ## Examples
-Start analysis of provided example test files:
-```
-python3 getitd.py test_R1.fastq test_R2.fastq test
-```
--> explain output (1 21 bp ITD of MOLM14) -> show pics?
-
 List commandline arguments:
 ```
 python3 getitd.py --help
 ```
+
+Start analysis of provided example test files:
+```
+cd test
+python3 ../getitd.py test_R1.fastq test_R2.fastq test
+```
+-> explain output (1 21 bp ITD of MOLM14) -> show pics?
