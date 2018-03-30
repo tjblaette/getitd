@@ -55,7 +55,8 @@ Start analysis of provided example test files:
 cd test
 python3 ../getitd.py test_R1.fastq test_R2.fastq test
 ```
-Expected output:
+
+Expected output:  
 ![test/test_output.png](test/test_output.png)
 
 ## How it works
