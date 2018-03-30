@@ -1,0 +1,116 @@
+hl60_30
+tabl@ChipSeq:/media/data/tabl/laura_mrd_flt3/new_samples/hl60$ time python3 ../../get_itd.py -mismatch -10 -minscore 0.5 na-HL60-na-a_S32_L001_R*fastq 
+hl60_mismatch10_trailingNotInFrame_minScore05_minCov30 30                               Number of total reads: 563712                                  
+                                                                                                                                                       
+                         Number of total reads with mean BQS >= 30: 363780
+Number of unique reads with mean BQS >= 30: 184043
+Number of unique reads present at least twice: 11649
+--> Number of total reads passing both filters: 191386
+
+Filtering 4 / 11649 low quality alignments with a score < 50 % of max
+There were 2 inserts that generated ambiguous alignments.
+There were 0 inserts whose alignment should have been left normalized.
+
+There were 3 trailing inserts.
+There were 0 trailing exact ITDs.
+There were 1 trailing nonexact ITDs.
+There were 2 trailing nonexact ITDs failed.
+
+Number of unique reads supporting each type of insert
+Insertions: 13
+Single exact ITD: 6
+Single non-exact ITD: 5
+Single insertion failed alignment: 2
+
+real    3m59.718s
+user    14m17.192s
+sys     0m2.988s
+
+
+
+#######################
+
+rerun_molm
+for file in na-na-MOLM14-1-na-a-30032017_S1_L001_R1*fastq; do ID=$(echo $file | cut -f3-4 -d'-'); echo $ID; ls *-${ID}-*fastq; time python3 ../get_itd.py -nkern 14  -mismatch -10 -minscore 0.5 *-${ID}-*fastq ${ID}_mismatch10_trailingNotInFrame_minScore05_minCov30 30 /NGS/known_sites/hg19/flt3-itd_anno/amplicon.txt; done
+MOLM14-1
+na-na-MOLM14-1-na-a-30032017_S1_L001_R1_001.fastq  na-na-MOLM14-1-na-a-30032017_S1_L001_R2_001.fastq
+Number of total reads: 5011236
+Number of total reads with mean BQS >= 30: 4542257
+Number of unique reads with mean BQS >= 30: 409139
+Number of unique reads present at least twice: 55411
+--> Number of total reads passing both filters: 4188529
+
+Filtering 284 / 55411 low quality alignments with a score < 50 % of max
+There were 274 inserts that generated ambiguous alignments.
+There were 0 inserts whose alignment should have been left normalized.
+
+There were 36 trailing inserts.
+There were 0 trailing exact ITDs.
+There were 24 trailing nonexact ITDs.
+There were 12 trailing nonexact ITDs failed.
+
+Number of unique reads supporting each type of insert
+Insertions: 15355
+Single exact ITD: 13419
+Single non-exact ITD: 1909
+Single insertion failed alignment: 27
+
+real    8m21.519s
+user    70m22.748s
+sys     1m7.988s
+
+
+
+########################
+
+rerunSamples
+tabl@ChipSeq:/media/data/tabl/laura_mrd_flt3/samples$ for file in *_R1*fastq; do ID=$(echo $file | cut -f2 -d'-'); echo $ID; ls *-${ID}-*fastq; time python3 ../get_itd.py -nkern 14 -known_length ${ID}_known_length.txt -known_vaf ${ID}_known_vaf.txt  -mismatch -10 -minscore 0.5 *-${ID}-*fastq ${ID}_mismatch10_trailingNotInFrame_minScore05_minCov30 30 /NGS/known_sites/hg19/flt3-itd_anno/amplicon.txt; done
+
+########################
+
+rerunSamples (?)
+tabl@ChipSeq:/media/data/tabl/laura_mrd_flt3/new_samples$ for file in *_R1*fastq; do ID=$(echo $file | cut -f2 -d'-'); echo $ID; TIME=$(echo $file | cut -f4 -d'-'); ls *-${ID}-*${TIME}-*fastq; time python3 ../get_itd.py -nkern 14 -known_length ${ID}_known_length.txt -known_vaf ${ID}-${TIME}_known_vaf.txt  -mismatch -10 -minscore 0.5 *-${ID}-*${TIME}-*fastq ${ID}-${TIME}_mismatch10_trailingNotInFrame_minScore05_minCov30 30 /NGS/known_sites/hg19/flt3-itd_anno/amplicon.txt; done
+
+########################
+
+rerunSamples (?)
+tabl@ChipSeq:/media/data/tabl/laura_mrd_flt3/new_samples/resequence$ for file in *_R1*fastq; do ID=$(echo $file | cut -f2 -d'-'); echo $ID; ls *-${ID}-*fastq; time python3 ../../get_itd.py -nkern 14 -known_length ${ID}_known_length.txt -known_vaf ${ID}_known_vaf.txt  -mismatch -10 -minscore 0.5 *-${ID}-*fastq ${ID}_mismatch10_trailingNotInFrame_minScore05_minCov30 30 /NGS/known_sites/hg19/flt3-itd_anno/amplicon.txt; done
+
+
+########################
+
+pindel_molm
+tabl@ChipSeq:/media/data/tabl/laura_mrd_flt3/new_samples$ ls *R1*fastq | cut -f1-4 -d'-' | while read SAMPLE; do bpipe run -p region=chr13 -p nkern=14 /NGS/myscripts/bpipe_pindel.pipeline ${SAMPLE}*fastq; done
+
+
+########################
+
+pandas_samples
+tabl@ChipSeq:/media/data/tabl/laura_mrd_flt3/samples$ for file in pandas-[689]*fastq; do time ../flt3itd_merged.sh $file ${file%.fastq} 0 24; done
+
+
+########################
+
+mreps_sample1
+tabl@ChipSeq:/NGS/doMreps/sample1/paired-end$ time /media/data/tabl/laura_mrd_flt3/flt3itd.sh *fastq mreps_sample1 35 24
+
+########################
+
+mreps_sample1_2
+tabl@ChipSeq:/NGS/doMreps/sample1/paired-end$ time /media/data/tabl/laura_mrd_flt3/flt3itd.sh *fastq mreps_sample1 0 24
+
+########################
+
+mreps_unpaired
+tabl@ChipSeq:/media/data/tabl/laura_mrd_flt3/domreps$ time ../flt3itd.sh sampl1_S4_L001_R* sampl1 35 24
+
+
+
+
+
+
+
+
+
+###
+sed 's/\(.\)/\1\n/g' amplicon.txt | tr 'a-z' 'A-Z' |  awk  -v OFS='\t' '{print "chr13",28608022+NR,28608022+NR,$0,$0}' >> amplicon.avinput

@@ -18,11 +18,11 @@ pip install numpy pandas biopython
 ```
 
 ## Input
-######Required:
+###### Required:
 - Fastq files to process
 - Sample ID / Output folder prefix  
 
-######Optional:
+###### Optional:
 -
 -
 -
