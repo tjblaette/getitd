@@ -17,7 +17,7 @@ import copy
 
 class Read(object):
     
-    def __init__(self, seq, sense=1, bqs=None, index_bqs=None, counts=1, 
+    def __init__(self, seq, sense=1, bqs=None, index_bqs=None, counts=1,
             al_score=None, al_seq=None, al_ref=None, al_file=None):
         self.seq = seq
         self.bqs = bqs
@@ -47,7 +47,7 @@ class Read(object):
             self.sense = -1
         else:
             self.sense = self.sense * -1
-        return self 
+        return self
     
     # trim ambinguous N bases at reads' ends
     def trim_n(self): # rewrite using str.startswith / endswith?
@@ -356,7 +356,7 @@ def print_alignment(read, out_dir,
         f.write('\n')
         
         # split alignment strings into per-line chunks for pretty printing
-        alignment_chunks = [(read.al_seq[i:i+width],al[i:i+width],read.al_ref[i:i+width]) 
+        alignment_chunks = [(read.al_seq[i:i+width],al[i:i+width],read.al_ref[i:i+width])
             for i in range(0, al_len, width)]
         seq_coord = 1
         ref_coord = 1
@@ -441,7 +441,7 @@ def read_reference(filename):
     assert len(ref) == 1
     return ref[0]
 
-# read in wt reference annotation 
+# read in wt reference annotation
 # --> genomic / transcript / protein coordinates and exon/intron information
 def read_annotation(filename):
     try:
@@ -481,16 +481,16 @@ def update_coverage(coverage, read):
     coverage[wt_ref_covered_range] = coverage[wt_ref_covered_range] + read.counts
     return coverage
 
-# get coverage at a certain insert position (for all pos in df["start_col"] 
+# get coverage at a certain insert position (for all pos in df["start_col"]
 # --> for VAF calculation
 def get_coverage(df, start_col, ref_coverage):
     return [ref_coverage[pos-1] for pos in df[start_col]]
 
 def annotate(df):
-    df = pd.merge(df, ANNO, 
+    df = pd.merge(df, ANNO,
         how='left', left_on=['end'], right_on=['amplicon_bp']).drop(['amplicon_bp', 'region'], axis=1)
     df = df.rename(columns={"chr13_bp": "end_chr13_bp", "transcript_bp": "end_transcript_bp", "protein_as": "end_protein_as"})
-    df = pd.merge(df, ANNO, 
+    df = pd.merge(df, ANNO,
         how='left', left_on=['start'], right_on=['amplicon_bp']).drop('amplicon_bp', axis=1)
     df = df.rename(columns={"chr13_bp": "start_chr13_bp", "transcript_bp": "start_transcript_bp", "protein_as": "start_protein_as"})
     return df
@@ -507,7 +507,7 @@ def get_known(df,known_length):
     # fill in available data on known ITDs/inserts that were missed (and not present in df)
     missed = [x for x in known_length if x not in list(df_found["length"])]
     df_missed = pd.DataFrame( {
-        "length": missed, 
+        "length": missed,
         "sample": [SAMPLE] * len(missed),
         "vaf": [0] * len(missed),
         "counts": [0] * len(missed)})
@@ -530,7 +530,7 @@ def ar_to_vaf(ar):
 def vaf_to_ar(vaf):
     if vaf == 100:
         return -1
-    return vaf/(100 - vaf) 
+    return vaf/(100 - vaf)
 
 # merge / collapse insert/itd records describing the same mutation
 def merge(inserts, condition):
@@ -560,11 +560,11 @@ def save_to_file(inserts, filename):
         df_ins["counts_each"] = [[read.counts for read in insert.reads] for insert in inserts]
         df_ins["file"] = [[read.al_file for read in insert.reads] for insert in inserts]
         
-        cols = ['sample','length', 'start', 'end', 'vaf', 'ar', 'coverage', 'counts', 'trailing', 'seq'] 
+        cols = ['sample','length', 'start', 'end', 'vaf', 'ar', 'coverage', 'counts', 'trailing', 'seq']
         # print counts_each only when they contain fewer than X elements (i.e. unique reads)
         #cols = cols + [col for col in ['counts_each'] if max([len(x) for x in df_ins[col]]) <= 10]
         if ANNO is not None:
-            # if annotation file exists, 
+            # if annotation file exists,
             # overwrite with annotated df
             # (same command as above!)
             df_ins = annotate(df_ins)
@@ -700,7 +700,7 @@ if __name__ == '__main__':
         if I1 and I2:
             merged_indices_bqs = [index1_bqs + index2_bqs for index1_bqs,index2_bqs in zip(indices1_bqs, indices2_bqs)]
             indices_bqs = merged_indices_bqs
-        reads = [read for read,index_bqs in zip(reads, indices_bqs) if average_bqs(index_bqs) >= MIN_BQS] 
+        reads = [read for read,index_bqs in zip(reads, indices_bqs) if average_bqs(index_bqs) >= MIN_BQS]
     print("Reading and filtering index BQS took {} s".format(timeit.default_timer() - start_time))
     print("Number of total reads with index BQS >= {}: {}".format(MIN_BQS, len(reads)))
 
@@ -735,23 +735,23 @@ if __name__ == '__main__':
     # FILTER BASED ON ALIGNMENT SCORE (INCL FAILED ALIGNMENTS WITH read.al_score is None!
     reads = filter_alignment_score(reads)
 
-    # FILTER BASED ON MISALIGNED PRIMERS 
+    # FILTER BASED ON MISALIGNED PRIMERS
     # --> require that primers (26 bp forward / 23 bp reverse) are always aligned with max 3 gaps
     # --> only works for this specific MRD project! --> 454 has different and multiple primers (2 PCRs!)
     if TECH == "Illumina":
         rev_primer = 'GGTTGCCGTCAAAATGCTGAAAG'
         fwrd_primer = 'GCAATTTAGGTATGAAAGCCAGCTAC'
-        primers_filtered = [read for read in reads if ( 
-            (read.sense == -1 
+        primers_filtered = [read for read in reads if (
+            (read.sense == -1
             and read.al_seq.count('-', read.al_ref.find(rev_primer), read.al_ref.find(rev_primer) + len(rev_primer)) <= 0
-            ) or 
-                (read.sense == 1 
+            ) or
+                (read.sense == 1
                 and read.al_seq.count('-', read.al_ref.find(fwrd_primer), read.al_ref.find(fwrd_primer) + len(fwrd_primer)) <= 0))]
         primer_fail = [read for read in reads if not ( ### keep this for initial testing only!!!
-            (read.sense == -1 
+            (read.sense == -1
             and read.al_seq.count('-', read.al_ref.find(rev_primer), read.al_ref.find(rev_primer) + len(rev_primer)) <= 0
-            ) or 
-                (read.sense == 1 
+            ) or
+                (read.sense == 1
                 and read.al_seq.count('-', read.al_ref.find(fwrd_primer), read.al_ref.find(fwrd_primer) + len(fwrd_primer)) <= 0))]
         print("Filtering {} / {} alignments with more than 3 unaligned primer bases".format(
             len(reads) - len(primers_filtered), len(reads)))
@@ -816,21 +816,21 @@ if __name__ == '__main__':
             insert_idxs_list.append(insert_idxs)
             assert np.all(np.concatenate(insert_idxs_list) == insert_idxs_all)
            
-            # analyze largest insert per read only 
+            # analyze largest insert per read only
             # --> assume no two true inserts occur within the same read
             # --> assume the smaller one is more likely to be the false positive (not always true though!)
             #insert_idxs_list = [insert_idxs_list[[len(ins) for ins in insert_idxs_list].index(max([len(ins) for ins in insert_idxs_list]))]]
-            # --> could try to discard all reads with multiple inserts!  (might be more accurate) 
+            # --> could try to discard all reads with multiple inserts!  (might be more accurate)
             # --> would have to discard all mini-inserts (< 6 bp) first to allow alignment/minor sequencing errors
             for insert_idxs in insert_idxs_list:
                 if len(insert_idxs) >= 6 and "N" not in readn[insert_idxs]:
                     insert_start = insert_idxs[0]
                     insert_end = insert_idxs[-1]
                     insert = Insert(
-                        seq=read.al_seq[insert_start:insert_end+1], 
-                        start=insert_start, 
-                        end=insert_end, 
-                        reads=[read], 
+                        seq=read.al_seq[insert_start:insert_end+1],
+                        start=insert_start,
+                        end=insert_end,
+                        reads=[read],
                         counts=read.counts)
                     assert insert.length == len(insert_idxs)
                     
@@ -868,14 +868,14 @@ if __name__ == '__main__':
 
 
     start_time = timeit.default_timer()
-    # ref_coverage was of type np.float because initialized as np.zeros 
-    # --> (which was necessary to add read counts as I did) 
+    # ref_coverage was of type np.float because initialized as np.zeros
+    # --> (which was necessary to add read counts as I did)
     # --> could change that by using a generator!
-    ref_coverage = ref_coverage.astype(int) 
+    ref_coverage = ref_coverage.astype(int)
 
     # add coverage to inserts # -> delete timer, move up to insert block above
     for insert in inserts:
-        # add coverage 
+        # add coverage
         # --> be sure to normalize start coord to [0,len(REF)[ first
         # --> negative start (-> 5' trailing_end) will result in
         #     coverage = ref_coverage[-X] which will silently report incorrect coverage!!
@@ -893,7 +893,7 @@ if __name__ == '__main__':
     for insert in inserts:
         min_score = get_min_score(insert.seq, REF, MIN_SCORE_ALIGNMENTS)
         
-        # arguments: seq1, seq2, match-score, mismatch-score, gapopen-score, gapextend-score 
+        # arguments: seq1, seq2, match-score, mismatch-score, gapopen-score, gapextend-score
         # output: list of optimal alignments, each a list of seq1, seq2, score, start-idx, end-idx
         alignments = bio.align.localcs(insert.seq, REF, get_alignment_score, COST_GAPOPEN, COST_GAPEXTEND)
         
@@ -908,11 +908,11 @@ if __name__ == '__main__':
         if not alignments:
             alignment_score = -1
         else:
-            # how often is there more than one alignment? 
-            # --> (more than 1 => alignment is ambiguous) 
+            # how often is there more than one alignment?
+            # --> (more than 1 => alignment is ambiguous)
             # --> Can I choose a smart one somehow? Otherwise return only one in the first place...
-            # ---> only if there can never be an integral and non-integral alignment!! 
-            alignment = alignments[0]  
+            # ---> only if there can never be an integral and non-integral alignment!!
+            alignment = alignments[0]
             alignment_score, alignment_start, alignment_end = alignment[2:5]
             #print(bio.format_alignment(*alignment))
         if alignment_score >= min_score:
@@ -931,13 +931,13 @@ if __name__ == '__main__':
                         print("BUT NOT IN FRAME!!!")
                         # remove from inserts list (see below loop)
                 itd = ITD(
-                    insert, 
-                    offset=offset, 
+                    insert,
+                    offset=offset,
                     tandem2_start=alignment_start)
                 itds.append(itd)
 
     # in case any out-of-frame insert was untrailed: remove it from list of inserts
-    inserts[:] = [insert for insert in inserts if insert.trailing or insert.length % 3 == 0] 
+    inserts[:] = [insert for insert in inserts if insert.trailing or insert.length % 3 == 0]
     inserts = sorted(inserts, key=Insert.get_seq)
     itds = sorted(itds, key=Insert.get_seq)
     print("Collecting ITDs took {} s".format(timeit.default_timer() - start_time))
@@ -956,9 +956,9 @@ if __name__ == '__main__':
         # turn Insert objects into InsertCollection to keep merging methods simple and not have to distinguish between the two
         to_merge = [InsertCollection(insert) for insert in inserts_]
         for condition,abrev in [
-                ("is-same",""), 
-                ("is-similar","similar"), 
-                ("is-close","close"), 
+                ("is-same",""),
+                ("is-similar","similar"),
+                ("is-close","close"),
                 ("is-same_trailing","trailing")]:
             to_merge = merge(to_merge, condition)
             all_merged[inserts_type].append(to_merge)
@@ -981,7 +981,7 @@ if __name__ == '__main__':
 
     final_filtered = {}
     filter_dic = {
-        "number of unique supporting reads": Insert.filter_unique_supp_reads, 
+        "number of unique supporting reads": Insert.filter_unique_supp_reads,
         "number of total supporting reads": Insert.filter_total_supp_reads,
         "vaf": Insert.filter_vaf}
     start_time = timeit.default_timer()
