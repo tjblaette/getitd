@@ -49,7 +49,7 @@ Inside, all generated output files reside:
 At each filtering step, the number of reads and insertions passing the specified requirements are printed.   
 Currently, also the computation time of various steps is printed, but presumably this will change in the future. 
 
-## Run getITD / Example analysis
+## Example
 Start analysis of provided example test files:
 ```
 cd test
@@ -76,7 +76,7 @@ Expected output:
     - error-free alignment to primer sequence
 6. Collect insertions within passing reads, require
     - insert length of at least 6 bp
-    - in-frame insert (length divisable by 3)
+    - in-frame insert (length divisible by 3)
     - absence of ambiguous "N" bases within the actual insert sequence
     - 3' or 5' trailing inserts not fully spanned by the sequenced reads are not required to be in-frame, since their exact length is not actually known
 7. Collect ITDs within passing insertions, require
