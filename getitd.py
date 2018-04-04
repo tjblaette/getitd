@@ -534,6 +534,15 @@ def vaf_to_ar(vaf):
 
 # merge / collapse insert/itd records describing the same mutation
 def merge(inserts, condition):
+    """
+    Merge insertions describing the same mutation.
+
+    Args:
+        inserts ([InsertCollection]): List of insertions to merge.
+        condition (str): Encodes condition to determine whether
+                insertions do describe the same mutation. One of 
+                "is-same", "is-similar", "is-close", "is-same_trailing"
+    """
     merged = []
     for insert_collection in inserts:
         was_merged = False
@@ -546,9 +555,18 @@ def merge(inserts, condition):
             merged.append(insert_collection)
     return merged
 
-# save list of Insert objects to file
-# --> create dict, convert to pandas df, print that
 def save_to_file(inserts, filename):
+    """
+    Write insertions detected to TSV file.
+    
+    Add additional columns with sample ID, allelic ratio (MUT : WT) 
+    and counts and alignment filenames of each of the distinct 
+    supporting reads. If annotation was supplied, add that as well. 
+
+    Args:
+        inserts ([InsertCollection]): List of inserts to save.
+        filename (str): Name of the file, will be saved in specified OUT_DIR.
+    """
     if inserts:
         dict_ins = {}
         for key in vars(inserts[0]):
@@ -571,9 +589,22 @@ def save_to_file(inserts, filename):
             df_ins["region"] = [insert.annotate_domains(DOMAINS) for insert in inserts]
             cols = cols + ["region", "start_chr13_bp", "start_transcript_bp", "start_protein_as", "end_chr13_bp", "end_transcript_bp", "end_protein_as"]
         cols = cols + ['file']
-        df_ins[cols].to_csv(os.path.join(OUT_DIR,filename), index=False, float_format='%.2e', sep='\t') # move this command below if, delete the one before if (write csv once, add region column when possible)
+        df_ins[cols].to_csv(os.path.join(OUT_DIR,filename), index=False, float_format='%.2e', sep='\t')
 
 def get_unique_reads(reads):
+    """
+    Merge reads with identical read sequences.
+    
+    Create a Read() object and sum up supporting read counts 
+    in Read.counts for each Read.seq.
+
+    Args:
+        reads ([Read]): Reads to merge, may share the same Read.seq.
+    
+    Returns:
+        Merged reads ([Read]), each with a unique Read.seq.
+        
+    """
     tmp = collections.Counter([(read.seq,read.sense) for read in reads])
     unique_reads = list(tmp.keys())
     unique_reads_counts = list(tmp.values())
@@ -584,7 +615,17 @@ def get_unique_reads(reads):
     return reads
 
 def filter_alignment_score(reads):
-    # FILTER BASED ON ALIGNMENT SCORE (INCL FAILED ALIGNMENTS WITH read.al_score is None!
+    """
+    Filter reads based on alignment score.
+
+    Keep reads with an alignment score above the specified fraction of
+    the max achievable alignment score. Failed alignments' score is None.
+
+    Args:
+        reads ([Read]): Reads to filter.
+    Returns:
+        Passing reads ([Read]).
+    """
     reads_filtered = [
         read for read in reads
         if read.al_score is not None and read.al_score >= get_min_score(
@@ -595,6 +636,13 @@ def filter_alignment_score(reads):
 
 
 def save_config(file_, cmd_args):
+    """
+    Write timestamp and commandline arguments to file.
+
+    Args:
+        file_ (str): Name of the file to write to.
+        cmd_args (argparse.Namespace): Commandline arguments and values to write.
+    """
     with open(os.path.join(OUT_DIR, file_), "w") as f:
         f.write("Commandline_argument\tValue\n")
         f.write("Time\t{}\n".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%d")))
