@@ -262,13 +262,38 @@ class InsertCollection(object):
             
 
 def flatten_list(list_):
+    """
+    Turn list of lists into list of all of sublists' elements.
+
+    Args:
+        list_ (list): List to flatten.
+
+    Returns:
+        Flattened list.
+    """
     return [item for sublist in list_ for item in sublist]
 
-# calculate average BQS
 def average_bqs(bqs):
+    """
+    Calculate the mean BQS of a given string of quality scores.
+    Assumes BQS are in Sanger format, encoded as Phred +33.
+
+    Args:
+        bqs (str): String of base quality scores.
+
+    Returns:
+        Mean BQS of that string.
+    """
     return sum([ord(x) - 33 for x in bqs]) / len(bqs)
 
 def connect_bases(char1, char2):
+    """
+    For two aligned bases, get connecting symbol.
+    Bases on whether bases match, mismatch or are part of a gap.
+
+    Args:
+        char1, char2 (str): Two aligned bases.
+    """
     if char1 == '-' or char2 == '-':
         return ' '
     if char1 == char2:
@@ -276,21 +301,60 @@ def connect_bases(char1, char2):
     return '.'
 
 def connect_alignment(seq1, seq2):
+    """
+    For two aligned sequences, get connecting symbols.
+    Based on whether bases match, mismatch or are part of a gap.
+
+    Args:
+        seq1, seq2 (str): Two aligned sequences.
+    """
     return ''.join([connect_bases(char1,char2) for char1,char2 in zip(seq1,seq2)])
 
-# count number of digits to align all lines in pretty alignment printout
-# --> (need to know how many spaces to insert)
 def get_number_of_digits(number):
+    """
+    Count the number of digits in a given number. 
+    
+    Use this, to print that many less spaces in front of each 
+    part of the well-formatted read-to-reference alignment.
+
+    Args:
+        number (int): Number whose digits to count.
+
+    Returns:
+        The number of digits.
+    """
     if number == 0:
         return 1
     return int(np.log10(number)) +1
 
-def print_alignment_connection(connection, pre_width,f):
+def print_alignment_connection(connection, pre_width, f):
+    """
+    Print the symbols connecting aligned read and reference, encoding
+    match, mismatch and gap at each bp.
+
+    Args: 
+        connection (str): String of connecting symbols.
+        pre_width (int): Number of spaces printed before the alignment to keep everything formatted.
+        f (file_object): Output file to contain the alignment. 
+    """
     f.write(' ' * (pre_width +2))
     f.write(connection)
     f.write('\n')
 
-def print_alignment_seq(seq, seq_coord, pre_width, post_width,f):
+def print_alignment_seq(seq, seq_coord, pre_width, post_width, f):
+    """
+    Print part of an alignment.
+
+    Args:
+        seq (str): The part of the read's sequence to be printed.
+        seq_coord (int): Start coordinate of the part of the alignment printed.
+        pre_width (int): Number of spaces printed before the alignment to keep everything formatted.
+        post_width (int): Number of spaces printed after it.
+        f (file_object): Output file to contain the alignment as a whole.
+
+    Return:
+       Start coordinate of the next part of this alignment to be printed.
+    """
     f.write(' ' * (pre_width - get_number_of_digits(seq_coord) +1))
     f.write(str(seq_coord) + ' ')
     f.write(seq)
@@ -299,17 +363,27 @@ def print_alignment_seq(seq, seq_coord, pre_width, post_width,f):
     f.write(str(seq_coord) + '\n')
     return seq_coord +1
 
-# print pretty alignment, format inspired by EMBOSS needle output
-def print_alignment(read, out_dir,
-        command='bio.align.globalcs', command_seq='read.seq', command_ref='REF'):
+def print_alignment(read, out_dir)
+    """
+    Print read-to-reference alignment in a nice format, inspired by EMBOSS needle output.
+
+    Args:
+        read (Read): Read whose alignment will be printed.
+        out_dir (str): Name of output directory to save alignment files to.
+    """
     al = connect_alignment(read.al_seq, read.al_ref)
     al_len = len(read.al_seq)
+
+    command = 'bio.align.globalcs'
+    command_seq = 'read.seq'
+    command_ref = 'REF'
     command_score_function = "get_alignment_score"
+
     width = 50
     pre_width = 20
     post_width = 7
     score_width = 15
-    #
+    
     with open(os.path.join(out_dir,read.al_file), 'w') as f:
         f.write('########################################\n')
         f.write('# Program: Biopython\n')
@@ -356,13 +430,16 @@ def print_alignment(read, out_dir,
         f.write('\n')
         
         # split alignment strings into per-line chunks for pretty printing
-        alignment_chunks = [(read.al_seq[i:i+width],al[i:i+width],read.al_ref[i:i+width])
-            for i in range(0, al_len, width)]
+        alignment_chunks = [(
+                read.al_seq[i:i+width],
+                al[i:i+width],
+                read.al_ref[i:i+width])
+                for i in range(0, al_len, width)]
         seq_coord = 1
         ref_coord = 1
-        for s,a,r in alignment_chunks:
+        for s, a, r in alignment_chunks:
             seq_coord = print_alignment_seq(s, seq_coord,pre_width,post_width,f)
-            print_alignment_connection(a, pre_width,f)
+            print_alignment_connection(a, pre_width, f)
             ref_coord = print_alignment_seq(r, ref_coord,pre_width,post_width,f)
             f.write('\n')
         
@@ -371,13 +448,20 @@ def print_alignment(read, out_dir,
         f.write('#---------------------------------------\n')
 
 
-# callback function for align() to calc alignment score for 2 bases
-# insert is masked by 'Z'
-# --> return max penalty (min score of -Inf) to prohibit realignment of insert to itself
 def get_alignment_score(char1,char2):
-    # only ever one of the sequences chars are taken from should contain masking letter 'Z'
-    # -->  i.e. the read sequence but not the ref
-    assert not (char1 == 'Z' and char2 == 'Z')
+    """
+    Calculate the alignment score of two aligned bases.
+
+    When realigning an insert to the WT reference, the actual insert
+    is masked by 'Z'. Return the maximum penalty (- np.inf) to probibit
+    realignment of the insert to itself.
+
+    Args:
+        char1, char2 (str): The two aligned bases.
+
+    Returns:
+        Alignment score (float).
+    """
     if char1 == char2:
         return COST_MATCH
     elif char1 == 'Z' or char2 == 'Z':
@@ -385,20 +469,55 @@ def get_alignment_score(char1,char2):
     else:
         return COST_MISMATCH
 
-# get min score required to pass alignment score filter
 def get_min_score(seq1, seq2, min_score):
+    """
+    For two sequences, calculate the minimum alignment score required
+    to pass the respective alignment filter, which is a percentage of the
+    maximum possible alignment score between these sequences - and 
+    therefore dependent on the two aligned sequences' length.
+
+    Args:
+        seq1, seq2 (str): The two aligned sequences.
+
+        min_score (float): Proportion of the maximum possible alignment score
+                that is required to pass the alignment score filter.
+
+    Returns:
+        Minimum required alignment score (float).
+    """
     return min(len(seq1),len(seq2)) * COST_MATCH * min_score
 
 
 def parallelize(function, args, cores):
+    """
+    Parallelize a given function across a given number of cores.
+
+    Args:
+        function (function): Function or method to parallelize.
+
+        args (tuple): Tuple of function's arguments.
+
+        cores (int): Number of cores to utilize.
+
+    Returns:
+        List of function's outputs.
+    """
     with multiprocessing.Pool(cores) as p:
         return p.map(function, args)
 
-def read_fastq(reads_file, index_file=None):
-# read in FASTQ files, init Read instances for each record
+def read_fastq(fastq_file):
+    """
+    Read sequence fastq file and extract sequences and BQS.
+
+    Args:
+        fastq_file: Name of the fastq file to read, R1 or R2.        
+
+    Returns:
+        List of Read() objects.
+    """
     reads = []
     try:
-        with open(reads_file,'r') as f:
+        with open(fastq_file,'r') as f:
             line = f.readline()
             while line:
                 read_id = line
@@ -408,21 +527,22 @@ def read_fastq(reads_file, index_file=None):
                 assert len(read_seq) == len(read_bqs)
                 reads.append(Read(seq=read_seq, bqs=read_bqs, sense=1))
                 line = f.readline()
-        if index_file:
-            with open(index_file) as f:
-                for read in reads:
-                    index_id = f.readline()
-                    index_seq = f.readline()
-                    index_desc = f.readline()
-                    index_bqs = f.readline().rstrip('\n')
-                    read.index_bqs = index_bqs
     # catch missing file or permissions
     except IOError as e:
-        print("---\nCould not read index file!\n---")
-    return reads#[0:10000] # CAVE: REMOVE THIS ###############################################################
+        print("---\nCould not read fastq file {}!\n---".format(fastq_file))
+    return reads
 
 
 def read_index_bqs(index_file):
+    """
+    Read index BQS. 
+
+    Args:
+        index_file: Name of the index fastq file, I1 or I2.
+
+    Returns:
+        List of index BQS.
+    """
     try:
         with open(index_file, "r") as f:
             all_lines = f.readlines()
@@ -430,28 +550,60 @@ def read_index_bqs(index_file):
             index_bqs = [bqs.rstrip('\n') for bqs in index_bqs]
         return index_bqs
     except IOError as e:
-        print("---\nCould not read index file!\n---")
+        print("---\nCould not read index file {}!\n---".format(index_file))
 
 
-# read in wt reference for alignment
 def read_reference(filename):
+    """
+    Read in WT reference sequence.
+
+    Args:
+        filename (str): Name of the file to be read.
+
+    Returns: 
+        Reference sequence, stripped of trailing newlines.
+    """
     with open(filename, 'r') as f:
         ref = f.read()
     ref = ref.splitlines()
     assert len(ref) == 1
     return ref[0]
 
-# read in wt reference annotation
-# --> genomic / transcript / protein coordinates and exon/intron information
+# add column names!
 def read_annotation(filename):
+    """
+    Read in WT reference annotation file.
+    
+    For each bp of the WT reference, provides genomic, transcriptomic
+    and proteomic coordinate, exon/intron annotation and the respective
+    reference bp.
+
+    Args:
+        filename (str): Name of the file to be read.
+
+    Returns:
+        pd.DataFrame of the annotation.
+    """
     try:
         return pd.read_csv(filename, sep='\t')
     except IOError as e:
         print("No annotation file given")
         return None
 
-# extract domains with start / stop coords into list of tuples
-def get_domains(ANNO):
+def get_domains(anno):
+    """
+    Extract start and stop coordinates of annotated domains.
+
+    Args:
+       anno (pd.DataFrame): Annotation supplied by user with one row
+                per reference bp and at least two columns: 
+                "region" contains the domain name and 
+                "amplicon_bp" the annotated coordinates.
+     
+    Returns:
+        List of tuples (domain_name, start_coord, end_coord) where
+        coordinates refer to amplicon bp.
+    """
     domains = []
     domain = start = end = None
     for i,row in ANNO.iterrows():
@@ -464,14 +616,40 @@ def get_domains(ANNO):
             start = end = row["amplicon_bp"]
     return domains
 
-# check that insert was realigned in one piece
 def integral_insert_realignment(insert_alignment, insert_length):
-    insert_idxs = [i for i in range(len(insert_alignment)) if insert_alignment[i] != '-']
-    return insert_idxs[-1] - insert_idxs[0] +1 == insert_length
+    """
+    Check whether insert realigned without gaps to the reference.
 
-# add read.counts to coverage where read covers ref
-# --> coords are 0-based and relative to WT ref
+    Inserts are only considered as ITDs if they realign to the reference
+    in one piece (to their respective second tandem).
+
+    Args:
+        insert_alignment (str): Alignment string of insert relative to
+                WT reference, output by bio.align.localcs().
+        insert_length:  Length / number of bp of the insert.
+
+    Returns:
+        bool, True when alignment contains one or more gaps, False otherwise.
+    """
+    insert_idxs = [i for i in range(len(insert_alignment)) if insert_alignment[i] != '-']
+    return insert_idxs[-1] - insert_idxs[0] + 1 == insert_length
+
 def update_coverage(coverage, read):
+    """
+    Update reference coverage.
+
+    Add a given read's counts to where it spans the reference.
+    Coordinates are 0-based and relative to the WT reference.
+
+    Args:
+        coverage (np.array): Contains number of reads spanning
+                each reference bp.
+        read (Read): Read whose counts are to be added to coverage
+                where it spans the WT reference.
+
+    Returns:
+        Updated coverage.
+    """
     refn = np.array(list(read.al_ref))
     readn = np.array(list(read.al_seq))
     wt_ref_covered_bp = np.where(readn[refn != '-'] != '-')
@@ -481,12 +659,20 @@ def update_coverage(coverage, read):
     coverage[wt_ref_covered_range] = coverage[wt_ref_covered_range] + read.counts
     return coverage
 
-# get coverage at a certain insert position (for all pos in df["start_col"]
-# --> for VAF calculation
-def get_coverage(df, start_col, ref_coverage):
-    return [ref_coverage[pos-1] for pos in df[start_col]]
 
 def annotate(df):
+    """
+    Annotate insertions with chromosomal regions and coordinates.
+
+    Add genomic, transcriptomic and proteomic coordinates and
+    genomic region (exonic, intronic, splicing).
+
+    Args:
+        df (pd.DataFrame): DataFrame with insertions.
+
+    Returns:
+        Annotated df.
+    """
     df = pd.merge(df, ANNO,
         how='left', left_on=['end'], right_on=['amplicon_bp']).drop(['amplicon_bp', 'region'], axis=1)
     df = df.rename(columns={"chr13_bp": "end_chr13_bp", "transcript_bp": "end_transcript_bp", "protein_as": "end_protein_as"})
@@ -495,44 +681,47 @@ def annotate(df):
     df = df.rename(columns={"chr13_bp": "start_chr13_bp", "transcript_bp": "start_transcript_bp", "protein_as": "start_protein_as"})
     return df
 
-# read in txt file with known ITD length and VAF
-def read_known(filename, dtype=str):
-    with open(filename) as f:
-        return [dtype(x) for x in f.read().splitlines()]
 
-# extract ITDs of known length from df
-def get_known(df,known_length):
-    df_found = df.ix[[x in known_length for x in df["length"]]]
-    #
-    # fill in available data on known ITDs/inserts that were missed (and not present in df)
-    missed = [x for x in known_length if x not in list(df_found["length"])]
-    df_missed = pd.DataFrame( {
-        "length": missed,
-        "sample": [SAMPLE] * len(missed),
-        "vaf": [0] * len(missed),
-        "counts": [0] * len(missed)})
-    #
-    # concatenate known_found and known_missed
-    df_known = pd.concat([df_found, df_missed])
-    df_known[["length","counts"]] = df_known[["length","counts"]].astype(int)
-    return df_known
-
-
-# convert ITD allele ratio (AR) to variant allele frequency (VAF)
-# --> AR = V-AF/WT-AF
-# --> VAF = V-AF
-# --> V-AF + WT-AF = 100 (%)
 def ar_to_vaf(ar):
+    """
+    Convert AR to VAF.
+
+    VAF (variant allele frequency) = V-AF
+    AR (allele ratio) = V-AF / WT-AF
+    V-AF + WT-AF = 100 (%)
+
+    Args:
+        ar (float): AR to convert.
+    
+    Returns:
+        VAF (float)
+    
+    """
     return ar/(ar + 1) * 100 # * 100 because VAF is in %
 
-# convert VAF to AR
-# --> if VAF == 100, AR = 100/0??
 def vaf_to_ar(vaf):
+    """
+    Convert VAF to AR.
+
+    VAF (variant allele frequency) = V-AF
+    AR (allele ratio) = V-AF / WT-AF
+    V-AF + WT-AF = 100 (%)
+    
+    Note:
+        if VAF == 100:
+            AR = -1
+            (instead of 100 / 0)
+
+    Args:
+        vaf (dc.Decimal): VAF to convert.
+
+    Returns:
+        AR (dc.Decimal)
+    """
     if vaf == 100:
         return -1
     return vaf/(100 - vaf)
 
-# merge / collapse insert/itd records describing the same mutation
 def merge(inserts, condition):
     """
     Merge insertions describing the same mutation.
@@ -542,6 +731,9 @@ def merge(inserts, condition):
         condition (str): Encodes condition to determine whether
                 insertions do describe the same mutation. One of 
                 "is-same", "is-similar", "is-close", "is-same_trailing"
+
+    Returns:
+        InsertCollection of merged insertions.
     """
     merged = []
     for insert_collection in inserts:
@@ -946,12 +1138,6 @@ if __name__ == '__main__':
         alignments = bio.align.localcs(insert.seq, REF, get_alignment_score, COST_GAPOPEN, COST_GAPEXTEND)
         
         # filter alignments where insert cannot be realigned in one piece
-        # --> is it possible to obtain alignments where inserts are in one piece and in multiple pieces but with the same al_score??
-        # --> I don't think so... --> test below, see if this ever happens (otherwise remove following "if" block and alignments = reassignment)
-        if not (not any([al for al in alignments if integral_insert_realignment(al[0],insert.length)]) or all([al for al in alignments if integral_insert_realignment(al[0],insert.length)])):
-            print("Inserts broken and whole with same alignment score?!?!?")
-            print(alignments)
-            stop
         alignments = [al for al in alignments if integral_insert_realignment(al[0],insert.length)]
         if not alignments:
             alignment_score = -1
@@ -959,7 +1145,6 @@ if __name__ == '__main__':
             # how often is there more than one alignment?
             # --> (more than 1 => alignment is ambiguous)
             # --> Can I choose a smart one somehow? Otherwise return only one in the first place...
-            # ---> only if there can never be an integral and non-integral alignment!!
             alignment = alignments[0]
             alignment_score, alignment_start, alignment_end = alignment[2:5]
             #print(bio.format_alignment(*alignment))
