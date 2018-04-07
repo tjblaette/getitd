@@ -1156,8 +1156,6 @@ if __name__ == '__main__':
     MIN_UNIQUE_READS = cmd_args.filter_ins_unique_reads
     MIN_VAF = cmd_args.filter_ins_vaf
 
-    save_config("config.tsv", cmd_args)
-
 
     print("==== PROCESSING SAMPLE {} ====".format(SAMPLE))
 
@@ -1168,6 +1166,8 @@ if __name__ == '__main__':
     ## CREATE OUTPUT FOLDER
     if not os.path.exists(OUT_DIR):
         os.makedirs(OUT_DIR)
+
+    save_config("config.tsv", cmd_args)
 
     print("-- Reading FASTQ files --")
     start_time = timeit.default_timer()
