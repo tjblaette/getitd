@@ -617,7 +617,7 @@ def print_alignment_seq(seq, seq_coord, pre_width, post_width, f):
     f.write(str(seq_coord) + '\n')
     return seq_coord +1
 
-def print_alignment(read, out_dir)
+def print_alignment(read, out_dir):
     """
     Print read-to-reference alignment in a nice format, inspired by EMBOSS needle output.
 
