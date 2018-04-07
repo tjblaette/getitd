@@ -12,13 +12,40 @@ import pprint
 import os
 import copy
 
-#######################################
-## INITIALIZE VARIABLES
 
 class Read(object):
-    
-    def __init__(self, seq, sense=1, bqs=None, index_bqs=None, counts=1,
-            al_score=None, al_seq=None, al_ref=None, al_file=None):
+    """
+    Sequencing read.
+    """ 
+    def __init__(
+                self, 
+                seq, 
+                sense=1, 
+                bqs=None, 
+                index_bqs=None, 
+                counts=1,
+                al_score=None, 
+                al_seq=None, 
+                al_ref=None,
+                al_file=None):
+        """
+        Initialize Read.
+
+        Args:
+            seq (str): Base pair sequence of the read.
+            sense (int): 1 for forward reads, -1 for reverse.
+            bqs (str): Base quality scores of the read.
+            index_bqs (str): Base quality scores of the 
+                corresponding index read.
+            counts (int): Total number of reads with these
+                exact attributes.
+            al_score (int): Score of the read-to-reference
+                alignment.
+            al_seq (str): Read sequence aligned to the reference.
+            al_ref (str): Reference sequence aligned to the read.
+            al_file (str): Name of the file containing the 
+                read-to-reference alignment.
+        """
         self.seq = seq
         self.bqs = bqs
         self.index_bqs = index_bqs
@@ -34,10 +61,21 @@ class Read(object):
             assert len(self.seq) == len(self.bqs)
     
     def print(self):
+        """
+        Pretty print Read.
+        """
         pprint.pprint(vars(self))
     
-    # reverse complement and return a given read
     def reverse_complement(self):
+        """
+        Reverse complement a given Read.
+
+        Reverse complement the Read's sequence, 
+        reverse its BQS and invert its sense.
+
+        Returns:
+            Reverse complemented Read.
+        """
         self.seq = self.seq.translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1]
         if self.bqs:
             self.bqs = self.bqs[::-1]
@@ -49,8 +87,20 @@ class Read(object):
             self.sense = self.sense * -1
         return self
     
-    # trim ambinguous N bases at reads' ends
-    def trim_n(self): # rewrite using str.startswith / endswith?
+    def trim_n(self):
+        """
+        Trim trailing N's at Read's ends.
+
+        Consider:
+            Should filter based on minimum Read length
+            to prevent returning empty Read when one 
+            contains N's only.
+            
+            Rewrite this using str.startswith / endswith?
+
+        Returns:
+            Trimmed Read.
+        """
         base_is_n = [x in 'nN' for x in self.seq]
         n_start,n_end = 0,0
         while base_is_n.pop():
@@ -68,26 +118,41 @@ class Read(object):
         self.length = len(self.seq)
         return self
     
-    # calculate average BQS
-    def average_bqs(self):
-        return sum([ord(x) - 33 for x in self.bqs]) / len(self.bqs)
 
-    # filter reads based on average BQS
     def filter_bqs(self):
-        # filter if there is a score only
+        """
+        Filter Read based on its average BQS.
+
+        Returns:
+            Read when it passes the average BQS filter,
+            None otherwise. 
+            
+            When no BQS is set, also return the Read.
+        """
         if not self.bqs or average_bqs(self.bqs) >= MIN_BQS:
             if not self.index_bqs or average_bqs(self.index_bqs) >= MIN_BQS:
                 return self
         return None
     
-    # align read to ref
     def align(self):
-        # one_alignment_only until more are handled
+        """
+        Align a Read to the WT reference.
+        
+        For 454 data, I do not know which Read is forward, which is
+        reverse - try both and keep the reverse Read if that succeeds
+        instead of the forward.
+        
+        Consider:
+            Is there a smart way to handle multiple alignments?
+
+        Returns:
+            Aligned Read. May be reversed for 454.
+        """
         alignment = bio.align.globalcs(self.seq, REF, get_alignment_score,
             COST_GAPOPEN, COST_GAPEXTEND, penalize_end_gaps=False, one_alignment_only=True)
         if alignment:
             self.al_seq, self.al_ref, self.al_score = alignment[0][0:3]
-        # for 454, I don't know which read is forward, which is reverse -> try both
+
         if TECH == '454':
             rev = self.reverse_complement()
             rev_alignment = bio.align.globalcs(rev.seq, REF, get_alignment_score,
@@ -100,8 +165,43 @@ class Read(object):
 
 
 class Insert(object):
-    def __init__(self, seq, start, end, counts,
-            trailing=None, trailing_end=None, reads=None, coverage=None, vaf=None):
+    """
+    Insertion.
+    """
+    def __init__(
+                self, 
+                seq, 
+                start, 
+                end, 
+                counts,
+                trailing=None, 
+                trailing_end=None, 
+                reads=None, 
+                coverage=None, 
+                vaf=None):
+        """
+        Initialize Insert.
+
+        Args:
+            seq (str): Base pair sequence of the Insert.
+            start (int): Start coordinate of the Insert. Relative to
+                the WT reference, 0-based, refers to the last WT base
+                before the insert.
+            end (int): End coordinate. Should be start + length -1.
+            counts (int): Total number of supporting reads.
+            trailing (bool): True when insert is not fully spanned but
+                instead occurs at the very beginning or end of supporting
+                reads. In such a case, the insert's true length is
+                unknown and only estimated using the position of the
+                second tandem.
+            trailing_end (int): 5 or 3, depending on the end at which
+                the insert trails / is not encompassed by bases aligned
+                to the reference.
+            reads ([Read]): List of supporting reads.
+            coverage (int): Total number of reads spanning start.
+            vaf (dc.Decimal): Fraction of insert supporting reads in
+                all spanning reads, i.e. counts / coverage.
+        """
         self.seq = seq
         self.length = len(seq)
         self.start = start
@@ -115,46 +215,97 @@ class Insert(object):
             reads = []
         self.reads = reads
     
-    # function to call for sorting list of inserts by seq
     def get_seq(self):
+        """"
+        Return Insert's sequence.
+        Implemented to sort list of Inserts by their sequence.
+        """
         return self.seq
 
     def calc_vaf(self):
+        """
+        Calculate and set Insert's variant allele frequency (VAF).
+
+        Returns:
+            Insert.
+        """
         self.vaf = dc.Decimal(self.counts) / self.coverage * 100
         assert self.vaf >= 0 and self.vaf <= 100
         return self
 
     def norm_start(self):
+        """
+        Normalize Insert's start coordinate to [0, len(REF)[.
+
+        Returns:
+            Insert.
+        """
         self.start = min(max(0,self.start), len(REF)-1)
         return self
 
-    # inserts
-    # norm start coords to [0,len(REF)[ before printing
     def prep_for_save(self):
+        """
+        Prepare Insert for saving to file by normalizing start
+        coordinates to [0, len(REF)[.
+        
+        Returns:
+            Prepared Insert. 
+        """
         to_save = copy.deepcopy(self)
         to_save = to_save.norm_start()
         return to_save
 
-    def annotate_domains(self, DOMAINS):
+    def annotate_domains(self, domains):
+        """
+        Get annotated domains of the Insert's sequence.
+
+        Args:
+            domains: List of tuples (domain_name, start_coord, end_coord)
+            where coordinates refer to amplicon bp and the list contains
+            all of its annotated domains.
+
+        Returns:
+            Subset of domains, containing only those affected by the Insert.
+        """
         domains = []
-        for domain,start,end in DOMAINS:
+        for domain,start,end in domains:
             if self.start <= end and self.end >= start:
                 domains.append(domain)
         return domains
 
     
     def print(self):
-        # --> don't print reads, they only clutter the screen
+        """
+        Pretty print Insert.
+        Leave out supporting reads as they will clutter the screen.
+        """
         pprint.pprint({key: vars(self)[key] for key in vars(self).keys() if not key == 'reads'})
 
     def is_close_to(self, that):
+        """
+        Test whether two Inserts are close and 
+        located within one insert length of each other.
+        
+        Args:
+            that: Insert to compare to.
+
+        Returns:
+            True when they are close, False otherwise.
+        """
         if hasattr(self, 'tandem2_start'):
             return abs(self.tandem2_start - that.tandem2_start) <= self.length
         return abs(self.start - that.start) <= 2 * self.length
     
-    # align two inserts' seq
-    # --> consider similar when al_score >= cutoff
     def is_similar_to(self, that):
+        """
+        Test whether two Inserts' sequences are similar.
+
+        Args:
+            that: Insert to compare to.
+
+        Returns:
+            True when they are similar, False otherwise.
+        """
         min_score = get_min_score(self.seq, that.seq, MIN_SCORE_INSERTS)
         al_score = bio.align.globalcs(self.seq, that.seq, get_alignment_score, COST_GAPOPEN, COST_GAPEXTEND, one_alignment_only=True, score_only=True, penalize_end_gaps=False)
         if al_score >= min_score:
@@ -162,33 +313,82 @@ class Insert(object):
         return False
     
     def should_merge(self, that, condition):
+        """
+        Test whether two Inserts should be merged.
+
+        Args:
+            that (Insert): Insert to potentially merge with.
+            condition (str): Encodes condition to be met for merging,
+                one of 'is-same', 'is-similar', 'is-close',
+                'is-same-trailing' or 'any'.
+
+        Returns:
+            True when Inserts should be merged, False otherwise.
+        """
         if condition == 'is-same':
             return self.seq == that.seq and self.start == that.start
-        if condition == 'is-similar':
+        elif condition == 'is-similar':
             return self.length == that.length and self.start == that.start and self.is_similar_to(that)
-        if condition == 'is-close':
+        elif condition == 'is-close':
             return self.length == that.length and self.is_similar_to(that) and self.is_close_to(that)
-        if condition == 'is-same_trailing':
+        elif condition == 'is-same_trailing':
             return self.trailing and that.trailing and self.trailing_end == that.trailing_end and self.is_similar_to(that)
-        if condition == 'any':
+        elif condition == 'any':
             return ((self.length == that.length and self.is_close_to(that)) or (self.trailing and that.trailing and self.trailing_end == that.trailing_end)) and self.is_similar_to(that)
-        assert False # should never be reached!
+        else:
+            print("\n---Undefined merging condition!---\n") 
+            assert False
     
     
-    # filter based on number of unique supporting reads
     def filter_unique_supp_reads(self):
+        """
+        Test whether Insert is supported by a given number of
+        distinct supporting reads.
+
+        Returns:
+            True when that is the case, False otherwise. 
+        """
         return len(self.reads) >= MIN_UNIQUE_READS
 
-    # filter based on number of total supporting reads
     def filter_total_supp_reads(self):
+        """
+        Test whether Insert is supported by a given minimum number 
+        of total supporting reads.
+
+        Returns:
+            True when that is the case, False otherwise.
+        """
         return self.counts >= MIN_TOTAL_READS
 
     def filter_vaf(self):
+        """
+        Test whether Insert has at least a given minimum VAF.
+        
+        Returns:
+            True when that is the case, False otherwise.
+        """
         return self.vaf >= MIN_VAF
 
 
 class ITD(Insert):
+    """
+    Internal Tandem Duplication.
+    """
     def __init__(self, insert, tandem2_start, offset):
+        """
+        Initialize ITD.
+
+        Args:
+            insert (Insert): Insert that classifies as an ITD.
+            tandem2_start (int): Start coordinate of the second tandem.
+                Like start, this is 0-based and relative to the
+                reference but refers to the actual first WT base of
+                the tandem. For adjacent insert and tandem
+                constellations therefore: | start - tandem2_start | = length
+            offset (int): Number of bases between insert and tandem2
+                start coordinates. For adjacent constellations therefore
+                offset = length.
+        """
         self.seq = insert.seq
         self.length = insert.length
         self.start = insert.start
@@ -203,20 +403,35 @@ class ITD(Insert):
         self.tandem2_start = tandem2_start
         self.offset = offset
 
-    # update length of trailing ITDs to offset instead (should be max potential ITD length)
-    # -> update also insert sequence?
     def fix_trailing_length(self):
+        """
+        For trailing ITDs, change length to offset.
+        This should be the maximum potential ITD length.
+        
+        Consider: Should the insert sequence be updated as well?
+
+        Returns:
+           ITD, changed if trailing, unchanged if not. 
+        """
         if self.trailing:
             self.length = self.offset
             return self
         else:
             return self
         
-    # itds
-    # for trailing itds, set length to offset
-    # for all itds, set start to tandem2_start
-    # and norm start coords to [0,len(REF)[ before printing
     def prep_for_save(self):
+        """
+        Prepare ITD for saving to file.
+
+        Set the insert start coordinate to that of the second tandem.
+        Normalize start coordinate to [0, len(REF)[ and 
+        adjust end coordinate accordingly.
+        For trailing ITDs, change the length to the offset, i.e. 
+        distance between insert and second tandem. 
+        
+        Return:
+            Prepared ITD.
+        """
         to_save = copy.deepcopy(self)
         to_save = to_save.fix_trailing_length()
         to_save.start = to_save.tandem2_start
@@ -226,21 +441,38 @@ class ITD(Insert):
         return to_save
 
 
-# when merging inserts, put them into the same collection
 class InsertCollection(object):
+    """
+    Bundle merged Inserts.
+    """
     def __init__(self, insert):
+        """
+        Initialize InsertCollection.
+
+        Args:
+            inserts: List of inserts.
+            rep (Insert): Single Insert to represent the entire
+                collection. After each merge, will be set to the
+                most abundant one.
+        """
         self.inserts = [insert]
         self.rep = copy.deepcopy(insert)
-        #self.counts = insert.counts
-        #self.reads = list(insert.reads)
     
     def set_representative(self):
-        # most abundant insert may represent the collection
-        # --> how to handle trailing?
-        # --> select more abundant or longer insert?
-        # --> are ever trailing and non-trailing inserts merged? -> result is what?
-        # --> are ever trailing inserts with different trailing_end merged? 
-        # ----> result is what?? (should that be possible?? don't think so...)
+        """
+        Set InsertCollection's most abundant Insert as its representative.
+
+        Consider: 
+            How to handle trailing inserts? Should longest or most
+                abundant insert be selected?
+            Are ever trailing and non-trailing inserts merged? What
+                would the result be?
+            Are ever trailing inserts with different trailing_end merged?
+                What would the result be? Should this even be possible?
+
+        Returns:
+            InsertCollection with set representative. 
+        """
         self.rep = copy.deepcopy(self.inserts[[insert.counts for insert in self.inserts].index(max([insert.counts for insert in self.inserts]))])
         # reads and counts must be summed for the representative -> overwrite these (that's why representative needs to be a copy!)
         self.rep.reads = flatten_list([insert.reads for insert in self.inserts])
@@ -249,11 +481,33 @@ class InsertCollection(object):
         return self
 
     def merge(self, insert):
+        """
+        Merge two InsertCollections.
+
+        Args:
+            insert: InsertCollection to merge with.
+
+        Returns:
+            Merged InsertCollection.
+        """
         self.inserts = self.inserts + insert.inserts
         self = self.set_representative()
         return self
 
     def should_merge(self, that, condition):
+        """
+        Test whether two InsertCollections should be merged.
+
+        Args:
+            that (InsertCollection): InsertCollection to potentially
+                merge with.
+            condition (str): String encoding condition to be fullfilled
+                for merging.
+    
+        Returns:
+            True when condition is met and InsertCollections should be
+            merged, False otherwise.
+        """
         for insert in self.inserts:
             for this in that.inserts:
                 if insert.should_merge(this, condition):
@@ -263,7 +517,7 @@ class InsertCollection(object):
 
 def flatten_list(list_):
     """
-    Turn list of lists into list of all of sublists' elements.
+    Turn list of lists into list of sublists' elements.
 
     Args:
         list_ (list): List to flatten.
