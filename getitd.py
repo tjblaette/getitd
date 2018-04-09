@@ -1418,7 +1418,7 @@ if __name__ == '__main__':
             # offset = 1 for adjacent insert-tandem2
             # offset = insert.length-1 for adjacent tandem2-insert
             # --> (for tandem2-insert: offset = abs((insert_start - insert.length +1) - insert_start))
-            if insert.trailing or (offset == 1 or offset == insert.length - 1):
+            if (offset == 1 or offset == insert.length - 1) or (insert.trailing and (insert.trailing_end == 3 and alignment_start < insert.start) or (insert.trailing_end == 5 and alignment_start > insert.start)):
                 # if by chance insert is completely contained within read in spite of it being trailing
                 # (i.e. insert and tandem have the same length & are adjacent)
                 # --> revert trailing to be able to apply more stringent filters of non-trailing inserts
