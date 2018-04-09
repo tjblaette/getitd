@@ -91,31 +91,21 @@ class Read(object):
         """
         Trim trailing N's at Read's ends.
 
-        Consider:
-            Should filter based on minimum Read length
-            to prevent returning empty Read when one 
-            contains N's only.
-            
-            Rewrite this using str.startswith / endswith?
-
         Returns:
             Trimmed Read.
         """
-        base_is_n = [x in 'nN' for x in self.seq]
-        n_start,n_end = 0,0
-        while base_is_n.pop():
-            n_end = n_end + 1
-        base_is_n.reverse()
-        while base_is_n.pop():
-            n_start = n_start + 1
-        self.seq = self.seq[n_start:self.length - n_end]
-        if self.bqs:
-            self.bqs = self.bqs[n_start:self.length - n_end]
-            assert len(self.seq) == len(self.bqs)
-        if self.index_bqs:
-            self.index_bqs = self.index_bqs[n_start:self.length - n_end]
-            assert len(self.seq) == len(self.index_bqs)
+        while self.seq.endswith('N'):
+            self.seq = self.seq[:-1]
+            if self.bqs:
+                self.bqs = self.bqs[:-1]
+        while self.seq.startswith('N'):
+            self.seq = self.seq[1:]
+            if self.bqs:
+                self.bqs = self.bqs[1:]
+        assert len(self.seq) == len(self.bqs)
         self.length = len(self.seq)
+        if self.length < MIN_READ_LENGTH:
+            return None
         return self
     
 
@@ -1134,6 +1124,7 @@ if __name__ == '__main__':
     parser.add_argument('-known_length', help="file with expected ITD length, one on each line (optional)")
     group.add_argument('-known_vaf', help="file with total expected ITD VAF of all clones (optional)")
     group.add_argument('-known_ar', help="file with total expected ITD allele ratio of all clones vs WT (optional)")
+    parser.add_argument('-min_read_length', help="minimum read length in bp required after N-trimming (default 100)", default="100", type=int)
     parser.add_argument('-filter_reads', help="minimum number of copies of each read required for processing (1 to turn filter off, 2 (default) to discard unique reads)", default="2", type=int)
     parser.add_argument('-filter_ins_unique_reads', help="minimum number of unique reads required to support an insertion for it to be considered 'high confidence' (default 2)", default="2", type=int)
     parser.add_argument('-filter_ins_total_reads', help="minimum number of total reads required to support an insertion for it to be considered 'high confidence' (default 1)", default="1", type=int)
@@ -1164,6 +1155,7 @@ if __name__ == '__main__':
     MIN_SCORE_INSERTS = cmd_args.minscore_inserts
     MIN_SCORE_ALIGNMENTS = cmd_args.minscore_alignments
 
+    MIN_READ_LENGTH = cmd_args.min_read_length
     MIN_READ_COPIES = cmd_args.filter_reads
     MIN_TOTAL_READS = cmd_args.filter_ins_total_reads
     MIN_UNIQUE_READS = cmd_args.filter_ins_unique_reads
@@ -1218,7 +1210,9 @@ if __name__ == '__main__':
         save_stats("Number of total reads with index BQS >= {}: {} ({} %)".format(MIN_BQS, len(reads), len(reads) * 100 / TOTAL_READS), STATS_FILE)
 
     ## TRIM trailing AMBIGUOUS 'N's
-    reads = parallelize(Read.trim_n, reads, NKERN)
+    reads = [x for x in parallelize(Read.trim_n, reads, NKERN) if x is not None]
+    save_stats("Number of total reads remainging after N-trimming: {} ({} %)".format(len(reads), len(reads) * 100 / TOTAL_READS), STATS_FILE)
+    save_stats("Mean read length after N-trimming: {}".format(np.mean([read.length for read in reads])), STATS_FILE)
 
     ## FILTER ON BQS
     if MIN_BQS > 0:
