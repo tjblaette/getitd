@@ -1077,19 +1077,21 @@ def filter_alignment_score(reads):
         if read.al_score is not None and read.al_score >= get_min_score(
         read.seq, REF, MIN_SCORE_ALIGNMENTS)]
     print("Filtering {} / {} low quality alignments with a score < {} % of max".format(
-        len(reads) - len(reads_filtered), len(reads), MIN_SCORE_ALIGNMENTS *100))
+            len(reads) - len(reads_filtered), len(reads), MIN_SCORE_ALIGNMENTS *100))
+    save_stats("Filtering {} / {} low quality alignments with a score < {} % of max".format(
+            len(reads) - len(reads_filtered), len(reads), MIN_SCORE_ALIGNMENTS *100), STATS_FILE)
     return reads_filtered
 
 
-def save_config(file_, cmd_args):
+def save_config(cmd_args, filename):
     """
     Write timestamp and commandline arguments to file.
 
     Args:
-        file_ (str): Name of the file to write to.
         cmd_args (argparse.Namespace): Commandline arguments and values to write.
+        filename (str): Name of the file to write to.
     """
-    with open(os.path.join(OUT_DIR, file_), "w") as f:
+    with open(filename, "w") as f:
         f.write("Commandline_argument\tValue\n")
         f.write("Time\t{}\n".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%d")))
         #for arg in vars(cmd_args):
@@ -1097,6 +1099,17 @@ def save_config(file_, cmd_args):
         for arg in sorted(list(vars(cmd_args).keys())):
             f.write("{}\t{}\n".format(arg, vars(cmd_args)[arg]))
 
+def save_stats(stat, filename):
+    """
+    Write statistics to file.
+
+    Args:
+        stat (str): Statistic to save.
+        filename (str): Name of the file to write to.
+    """
+    print(stat)
+    with open(filename, "a") as f:
+        f.write(stat + "\n")
 
 
 ########## MAIN ####################
@@ -1143,6 +1156,8 @@ if __name__ == '__main__':
     KNOWN_VAF_FILE = cmd_args.known_vaf
     KNOWN_AR_FILE = cmd_args.known_ar
     OUT_DIR = '_'.join([SAMPLE,'minBQS', str(MIN_BQS)])
+    STATS_FILE = os.path.join(OUT_DIR, "stats.tsv")
+    CONFIG_FILE = os.path.join(OUT_DIR, "config.tsv")
 
     COST_MATCH = cmd_args.match
     COST_MISMATCH = cmd_args.mismatch
@@ -1157,8 +1172,6 @@ if __name__ == '__main__':
     MIN_VAF = cmd_args.filter_ins_vaf
 
 
-    print("==== PROCESSING SAMPLE {} ====".format(SAMPLE))
-
     ANNO = read_annotation(ANNO_FILE)
     DOMAINS = get_domains(ANNO)
     REF = read_reference(REF_FILE).upper()
@@ -1167,9 +1180,16 @@ if __name__ == '__main__':
     if not os.path.exists(OUT_DIR):
         os.makedirs(OUT_DIR)
 
-    save_config("config.tsv", cmd_args)
+    save_config(cmd_args, CONFIG_FILE)
 
-    print("-- Reading FASTQ files --")
+    # stats are appended, remove previous output prior to new analysis
+    try:
+        os.remove(STATS_FILE)
+    except OSError:
+        pass
+    save_stats("==== PROCESSING SAMPLE {} ====".format(SAMPLE), STATS_FILE)
+
+    save_stats("-- Reading FASTQ files --", STATS_FILE)
     start_time = timeit.default_timer()
     reads = read_fastq(R1)
 
@@ -1180,7 +1200,8 @@ if __name__ == '__main__':
         reads_rev_rev = parallelize(Read.reverse_complement,reads_rev,NKERN)
         reads = reads + reads_rev_rev
     print("Reading FASTQ files took {} s".format(timeit.default_timer() - start_time))
-    print("Number of total reads: {}".format(len(reads)))
+    save_stats("Number of total reads: {}".format(len(reads)), STATS_FILE)
+    TOTAL_READS = len(reads)
 
     ## IF GIVEN, GET AND FILTER ON INDEX BQS
     start_time = timeit.default_timer()
@@ -1195,8 +1216,8 @@ if __name__ == '__main__':
             merged_indices_bqs = [index1_bqs + index2_bqs for index1_bqs,index2_bqs in zip(indices1_bqs, indices2_bqs)]
             indices_bqs = merged_indices_bqs
         reads = [read for read,index_bqs in zip(reads, indices_bqs) if average_bqs(index_bqs) >= MIN_BQS]
-    print("Reading and filtering index BQS took {} s".format(timeit.default_timer() - start_time))
-    print("Number of total reads with index BQS >= {}: {}".format(MIN_BQS, len(reads)))
+        print("Reading and filtering index BQS took {} s".format(timeit.default_timer() - start_time))
+        save_stats("Number of total reads with index BQS >= {}: {}".format(MIN_BQS, len(reads)), STATS_FILE)
 
     ## TRIM trailing AMBIGUOUS 'N's
     reads = parallelize(Read.trim_n, reads, NKERN)
@@ -1204,24 +1225,24 @@ if __name__ == '__main__':
     ## FILTER ON BQS
     if MIN_BQS > 0:
         reads = [x for x in parallelize(Read.filter_bqs, reads, NKERN) if x is not None]
-    print("Number of total reads with mean BQS >= {}: {}".format(MIN_BQS, len(reads)))
+    save_stats("Number of total reads with mean BQS >= {}: {}".format(MIN_BQS, len(reads)), STATS_FILE)
 
     # get unique reads and counts thereof
     reads = get_unique_reads(reads)
-    print("Number of unique reads with mean BQS >= {}: {}".format(MIN_BQS,len(reads)))
+    save_stats("Number of unique reads with mean BQS >= {}: {}".format(MIN_BQS,len(reads)), STATS_FILE)
 
     # FILTER UNIQUE READS
     # --> keep only those that exist at least twice
     # --> assumption: if it's not reproducible, it's not (true and clinically relevant)
     if MIN_READ_COPIES == 1:
-        print("Turned OFF unique reads filter!")
+        save_stats("Turned OFF unique reads filter!", STATS_FILE)
     else:
         reads = [read for read in reads if read.counts >= MIN_READ_COPIES ]
-        print("Number of unique reads with at least {} copies: {}".format(MIN_READ_COPIES,len(reads)))
-    print("Total reads remaining for analysis: {}".format(sum([read.counts for read in reads])))
+        save_stats("Number of unique reads with at least {} copies: {}".format(MIN_READ_COPIES,len(reads)), STATS_FILE)
+    save_stats("Total reads remaining for analysis: {}".format(sum([read.counts for read in reads])), STATS_FILE)
 
     ## ALIGN TO REF
-    print("\n-- Aligning to Reference --")
+    save_stats("\n-- Aligning to Reference --", STATS_FILE)
     start_time = timeit.default_timer()
     reads = parallelize(Read.align, reads, NKERN)
     print("Alignment took {} s".format(timeit.default_timer() - start_time))
@@ -1247,12 +1268,11 @@ if __name__ == '__main__':
             ) or
                 (read.sense == 1
                 and read.al_seq.count('-', read.al_ref.find(fwrd_primer), read.al_ref.find(fwrd_primer) + len(fwrd_primer)) <= 0))]
-        print("Filtering {} / {} alignments with more than 3 unaligned primer bases".format(
-            len(reads) - len(primers_filtered), len(reads)))
+        save_stats("Filtering {} / {} alignments with more than 3 unaligned primer bases".format( len(reads) - len(primers_filtered), len(reads)), STATS_FILE)
         reads = primers_filtered
 
     # FINAL STATS
-    print("Total reads remaining for analysis: {}".format(sum([read.counts for read in reads])))
+    save_stats("Total reads remaining for analysis: {}".format(sum([read.counts for read in reads])), STATS_FILE)
 
     # PRINT PASSING ALIGNMENTS
     # create output file directory for alignments print-outs
@@ -1262,16 +1282,15 @@ if __name__ == '__main__':
 
     for i,read in enumerate(reads):
         reads[i].al_file = 'needle_{}.txt'.format(i)
-        print_alignment(reads[i], needle_dir,
-            command='bio.align.globalcs', command_seq='read.seq', command_ref='REF')
+        print_alignment(reads[i], needle_dir)
 
     if not reads:
-        print("\nNO READS TO PROCESS!")
+        save_stats("\nNO READS TO PROCESS!", STATS_FILE)
         quit()
 
 
     #######################################
-    print("\n-- Looking for insertions & ITDs --")
+    save_stats("\n-- Looking for insertions & ITDs --", STATS_FILE)
 
     # COLLECT INSERTS, CALC COVERAGE
     inserts = []
@@ -1358,7 +1377,7 @@ if __name__ == '__main__':
                         inserts.append(insert)
 
     print("Collecting inserts took {} s".format(timeit.default_timer() - start_time))
-    print("{} insertions were found".format(len(inserts)))
+    save_stats("{} insertions were found".format(len(inserts)), STATS_FILE)
 
 
     start_time = timeit.default_timer()
@@ -1428,12 +1447,12 @@ if __name__ == '__main__':
     inserts = sorted(inserts, key=Insert.get_seq)
     itds = sorted(itds, key=Insert.get_seq)
     print("Collecting ITDs took {} s".format(timeit.default_timer() - start_time))
-    print("{} ITDs were found".format(len(itds)))
+    save_stats("{} ITDs were found".format(len(itds)), STATS_FILE)
 
 
     ########################################
     # MERGE INSERTS
-    print("\n-- Merging results --")
+    save_stats("\n-- Merging results --", STATS_FILE)
 
     merge_dic = {"insertions": inserts, "itds": itds}
     all_merged = {}
@@ -1449,7 +1468,7 @@ if __name__ == '__main__':
                 ("is-same_trailing","trailing")]:
             to_merge = merge(to_merge, condition)
             all_merged[inserts_type].append(to_merge)
-            print("{} {} remain after merging".format(len(to_merge), inserts_type))
+            save_stats("{} {} remain after merging".format(len(to_merge), inserts_type), STATS_FILE)
             suffix = suffix + condition
             save_to_file([insert.rep for insert in to_merge], inserts_type + "_collapsed-" + suffix + ".tsv")
             suffix = suffix + "_"
@@ -1464,7 +1483,7 @@ if __name__ == '__main__':
 
     ########################################
     # FILTER INSERTS
-    print("\n-- Filtering --")
+    save_stats("\n-- Filtering --", STATS_FILE)
 
     final_filtered = {}
     filter_dic = {
@@ -1477,9 +1496,9 @@ if __name__ == '__main__':
         for filter_type,filter_ in filter_dic.items():
             passed = [filter_(insert) for insert in filtered]
             filtered = [insert for (insert,pass_) in zip(filtered, passed) if pass_]
-            print("Filtered {} / {} {} based on the {}".format(
-                len(passed) - sum(passed), len(passed), inserts_type, filter_type))
-        print("{} {} remain after filtering!".format(len(filtered), inserts_type))
+            save_stats("Filtered {} / {} {} based on the {}".format(
+                len(passed) - sum(passed), len(passed), inserts_type, filter_type), STATS_FILE)
+        save_stats("{} {} remain after filtering!".format(len(filtered), inserts_type), STATS_FILE)
         save_to_file(filtered, inserts_type + "_collapsed-" + suffix + "hc.tsv")
         final_filtered[inserts_type] = filtered
     print("Filtering took {} s".format(timeit.default_timer() - start_time))
