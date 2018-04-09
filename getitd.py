@@ -1076,8 +1076,6 @@ def filter_alignment_score(reads):
         read for read in reads
         if read.al_score is not None and read.al_score >= get_min_score(
         read.seq, REF, MIN_SCORE_ALIGNMENTS)]
-    print("Filtering {} / {} low quality alignments with a score < {} % of max".format(
-            len(reads) - len(reads_filtered), len(reads), MIN_SCORE_ALIGNMENTS *100))
     save_stats("Filtering {} / {} low quality alignments with a score < {} % of max".format(
             len(reads) - len(reads_filtered), len(reads), MIN_SCORE_ALIGNMENTS *100), STATS_FILE)
     return reads_filtered
@@ -1217,7 +1215,7 @@ if __name__ == '__main__':
             indices_bqs = merged_indices_bqs
         reads = [read for read,index_bqs in zip(reads, indices_bqs) if average_bqs(index_bqs) >= MIN_BQS]
         print("Reading and filtering index BQS took {} s".format(timeit.default_timer() - start_time))
-        save_stats("Number of total reads with index BQS >= {}: {}".format(MIN_BQS, len(reads)), STATS_FILE)
+        save_stats("Number of total reads with index BQS >= {}: {} ({} %)".format(MIN_BQS, len(reads), len(reads) * 100 / TOTAL_READS), STATS_FILE)
 
     ## TRIM trailing AMBIGUOUS 'N's
     reads = parallelize(Read.trim_n, reads, NKERN)
@@ -1225,7 +1223,7 @@ if __name__ == '__main__':
     ## FILTER ON BQS
     if MIN_BQS > 0:
         reads = [x for x in parallelize(Read.filter_bqs, reads, NKERN) if x is not None]
-    save_stats("Number of total reads with mean BQS >= {}: {}".format(MIN_BQS, len(reads)), STATS_FILE)
+    save_stats("Number of total reads with mean BQS >= {}: {} ({} %)".format(MIN_BQS, len(reads), len(reads) * 100 / TOTAL_READS), STATS_FILE)
 
     # get unique reads and counts thereof
     reads = get_unique_reads(reads)
@@ -1239,7 +1237,7 @@ if __name__ == '__main__':
     else:
         reads = [read for read in reads if read.counts >= MIN_READ_COPIES ]
         save_stats("Number of unique reads with at least {} copies: {}".format(MIN_READ_COPIES,len(reads)), STATS_FILE)
-    save_stats("Total reads remaining for analysis: {}".format(sum([read.counts for read in reads])), STATS_FILE)
+    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum([read.counts for read in reads]), sum([read.counts for read in reads]) * 100 / TOTAL_READS), STATS_FILE)
 
     ## ALIGN TO REF
     save_stats("\n-- Aligning to Reference --", STATS_FILE)
@@ -1272,7 +1270,7 @@ if __name__ == '__main__':
         reads = primers_filtered
 
     # FINAL STATS
-    save_stats("Total reads remaining for analysis: {}".format(sum([read.counts for read in reads])), STATS_FILE)
+    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum([read.counts for read in reads]), sum([read.counts for read in reads]) * 100 / TOTAL_READS), STATS_FILE)
 
     # PRINT PASSING ALIGNMENTS
     # create output file directory for alignments print-outs
