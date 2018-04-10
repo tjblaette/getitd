@@ -257,11 +257,11 @@ class Insert(object):
         Returns:
             Subset of domains, containing only those affected by the Insert.
         """
-        domains = []
+        annotated = []
         for domain,start,end in domains:
             if self.start <= end and self.end >= start:
-                domains.append(domain)
-        return domains
+                annotated.append(domain)
+        return annotated
 
     
     def print(self):
@@ -850,7 +850,7 @@ def get_domains(anno):
     """
     domains = []
     domain = start = end = None
-    for i,row in ANNO.iterrows():
+    for i,row in anno.iterrows():
         if domain and domain == row["region"]:
             end = end + 1
         else:
