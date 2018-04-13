@@ -1145,8 +1145,8 @@ if __name__ == '__main__':
     KNOWN_VAF_FILE = cmd_args.known_vaf
     KNOWN_AR_FILE = cmd_args.known_ar
     OUT_DIR = '_'.join([SAMPLE,'minBQS', str(MIN_BQS)])
-    STATS_FILE = os.path.join(OUT_DIR, "stats.tsv")
-    CONFIG_FILE = os.path.join(OUT_DIR, "config.tsv")
+    STATS_FILE = os.path.join(OUT_DIR, "stats.txt")
+    CONFIG_FILE = os.path.join(OUT_DIR, "config.txt")
 
     COST_MATCH = cmd_args.match
     COST_MISMATCH = cmd_args.mismatch
