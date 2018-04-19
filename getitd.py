@@ -257,11 +257,11 @@ class Insert(object):
         Returns:
             Subset of domains, containing only those affected by the Insert.
         """
-        domains = []
+        annotated = []
         for domain,start,end in domains:
             if self.start <= end and self.end >= start:
-                domains.append(domain)
-        return domains
+                annotated.append(domain)
+        return annotated
 
     
     def print(self):
@@ -850,7 +850,7 @@ def get_domains(anno):
     """
     domains = []
     domain = start = end = None
-    for i,row in ANNO.iterrows():
+    for i,row in anno.iterrows():
         if domain and domain == row["region"]:
             end = end + 1
         else:
@@ -1145,8 +1145,8 @@ if __name__ == '__main__':
     KNOWN_VAF_FILE = cmd_args.known_vaf
     KNOWN_AR_FILE = cmd_args.known_ar
     OUT_DIR = '_'.join([SAMPLE,'minBQS', str(MIN_BQS)])
-    STATS_FILE = os.path.join(OUT_DIR, "stats.tsv")
-    CONFIG_FILE = os.path.join(OUT_DIR, "config.tsv")
+    STATS_FILE = os.path.join(OUT_DIR, "stats.txt")
+    CONFIG_FILE = os.path.join(OUT_DIR, "config.txt")
 
     COST_MATCH = cmd_args.match
     COST_MISMATCH = cmd_args.mismatch
