@@ -921,6 +921,9 @@ def annotate(df):
         how='left', left_on=['end'], right_on=['amplicon_bp']).drop(['amplicon_bp', 'region'], axis=1)
     df = df.rename(columns={"chr13_bp": "end_chr13_bp", "transcript_bp": "end_transcript_bp", "protein_as": "end_protein_as"})
     df = pd.merge(df, ANNO,
+        how='left', left_on=['insertion_site'], right_on=['amplicon_bp']).drop(['amplicon_bp', 'region'], axis=1)
+    df = df.rename(columns={"chr13_bp": "insertion_site_chr13_bp", "transcript_bp": "insertion_site_transcript_bp", "protein_as": "insertion_site_protein_as"})
+    df = pd.merge(df, ANNO,
         how='left', left_on=['start'], right_on=['amplicon_bp']).drop('amplicon_bp', axis=1)
     df = df.rename(columns={"chr13_bp": "start_chr13_bp", "transcript_bp": "start_transcript_bp", "protein_as": "start_protein_as"})
     return df
@@ -995,9 +998,10 @@ def save_to_file(inserts, filename):
     """
     Write insertions detected to TSV file.
     
-    Add additional columns with sample ID, allelic ratio (MUT : WT) 
-    and counts and alignment filenames of each of the distinct 
-    supporting reads. If annotation was supplied, add that as well. 
+    Add additional columns with sample ID, actual coordinate of the
+    insertion site, allelic ratio (MUT : WT) and counts and alignment 
+    filenames of each of the distinct supporting reads. If annotation 
+    was supplied, add that as well. 
 
     Args:
         inserts ([InsertCollection]): List of inserts to save.
@@ -1010,11 +1014,12 @@ def save_to_file(inserts, filename):
         
         df_ins =  pd.DataFrame(dict_ins)
         df_ins["sample"] = [SAMPLE] * len(inserts)
+        df_ins["insertion_site"] = df_ins["end"] + 1
         df_ins["ar"] = [vaf_to_ar(insert.vaf) for insert in inserts]
         df_ins["counts_each"] = [[read.counts for read in insert.reads] for insert in inserts]
         df_ins["file"] = [[read.al_file for read in insert.reads] for insert in inserts]
         
-        cols = ['sample','length', 'start', 'end', 'vaf', 'ar', 'coverage', 'counts', 'trailing', 'seq']
+        cols = ['sample','length', 'start', 'end', 'insertion_site', 'vaf', 'ar', 'coverage', 'counts', 'trailing', 'seq']
         # print counts_each only when they contain fewer than X elements (i.e. unique reads)
         #cols = cols + [col for col in ['counts_each'] if max([len(x) for x in df_ins[col]]) <= 10]
         if ANNO is not None:
@@ -1023,7 +1028,7 @@ def save_to_file(inserts, filename):
             # (same command as above!)
             df_ins = annotate(df_ins)
             df_ins["region"] = [insert.annotate_domains(DOMAINS) for insert in inserts]
-            cols = cols + ["region", "start_chr13_bp", "start_transcript_bp", "start_protein_as", "end_chr13_bp", "end_transcript_bp", "end_protein_as"]
+            cols = cols + ["region", "start_chr13_bp", "start_transcript_bp", "start_protein_as", "end_chr13_bp", "end_transcript_bp", "end_protein_as", "insertion_site_chr13_bp", "insertion_site_transcript_bp", "insertion_site_protein_as"]
         cols = cols + ['file']
         df_ins[cols].to_csv(os.path.join(OUT_DIR,filename), index=False, float_format='%.2e', sep='\t')
 
