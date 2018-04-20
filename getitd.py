@@ -364,7 +364,7 @@ class ITD(Insert):
     """
     Internal Tandem Duplication.
     """
-    def __init__(self, insert, tandem2_start, offset):
+    def __init__(self, insert, tandem2_start, offset, external_bp):
         """
         Initialize ITD.
 
@@ -378,6 +378,9 @@ class ITD(Insert):
             offset (int): Number of bases between insert and tandem2
                 start coordinates. For adjacent constellations therefore
                 offset = length.
+            external_bp (int): Number of external / non-WT bases inserted
+                before and after the duplicated WT sequence. These are 
+                included in insert.seq and length and must not be added on top!
         """
         self.seq = insert.seq
         self.length = insert.length
@@ -392,6 +395,7 @@ class ITD(Insert):
         
         self.tandem2_start = tandem2_start
         self.offset = offset
+        self.external_bp = external_bp
 
     def fix_trailing_length(self):
         """
@@ -1020,6 +1024,9 @@ def save_to_file(inserts, filename):
         df_ins["file"] = [[read.al_file for read in insert.reads] for insert in inserts]
         
         cols = ['sample','length', 'start', 'end', 'insertion_site', 'vaf', 'ar', 'coverage', 'counts', 'trailing', 'seq']
+        if 'external_bp' in df_ins:
+            cols = cols + ['external_bp']
+
         # print counts_each only when they contain fewer than X elements (i.e. unique reads)
         #cols = cols + [col for col in ['counts_each'] if max([len(x) for x in df_ins[col]]) <= 10]
         if ANNO is not None:
@@ -1436,7 +1443,9 @@ if __name__ == '__main__':
                 itd = ITD(
                     insert,
                     offset=offset,
-                    tandem2_start=alignment_start)
+                    tandem2_start=alignment_start,
+                    external_bp=insert.length - (alignment_end - alignment_start)
+                    )
                 itds.append(itd)
 
     # in case any out-of-frame insert was untrailed: remove it from list of inserts
