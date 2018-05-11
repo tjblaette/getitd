@@ -153,6 +153,24 @@ class Read(object):
                 return rev
         return self
 
+    def get_reference_range_covered(read):
+        """
+        Get most 3' and 5' reference base covered by read.
+        Coordinates are 0-based and relative to the WT reference.
+
+        Args:
+            read (Read): Read for which to get range of WT reference spanned.
+
+        Returns:
+            Updated read.
+        """
+        refn = np.array(list(read.al_ref))
+        readn = np.array(list(read.al_seq))
+        ref_covered_bp = np.where(readn[refn != '-'] != '-')
+
+        read.ref_span = [np.min(ref_covered_bp), np.max(ref_covered_bp)]
+        return read
+
 
 class Insert(object):
     """
@@ -426,6 +444,12 @@ class ITD(Insert):
         Return:
             Prepared ITD.
         """
+        if self.tandem2_start + self.offset > len(REF):
+            print(self.end)
+            print(len(REF))
+            print(self.reads[0].al_seq[self.tandem2_start:self.tandem2_start+self.length])
+            self.print()
+            print(self.reads[0].print())
         to_save = copy.deepcopy(self)
         to_save = to_save.fix_trailing_length()
         to_save.start = to_save.tandem2_start
@@ -898,13 +922,10 @@ def update_coverage(coverage, read):
     Returns:
         Updated coverage.
     """
-    refn = np.array(list(read.al_ref))
-    readn = np.array(list(read.al_seq))
-    wt_ref_covered_bp = np.where(readn[refn != '-'] != '-')
-    wt_ref_covered_range = np.arange(
-        np.min(wt_ref_covered_bp),
-        np.max(wt_ref_covered_bp) + 1) # DO count last index
-    coverage[wt_ref_covered_range] = coverage[wt_ref_covered_range] + read.counts
+    ref_covered_range = np.arange(
+        read.ref_span[0],
+        read.ref_span[1] + 1) # DO count last index
+    coverage[ref_covered_range] = coverage[ref_covered_range] + read.counts
     return coverage
 
 
@@ -1253,6 +1274,7 @@ if __name__ == '__main__':
 
     # FILTER BASED ON ALIGNMENT SCORE (INCL FAILED ALIGNMENTS WITH read.al_score is None!
     reads = filter_alignment_score(reads)
+    reads = parallelize(Read.get_reference_range_covered, reads, NKERN)
 
     # FILTER BASED ON MISALIGNED PRIMERS
     # --> require that primers (26 bp forward / 23 bp reverse) are always aligned with max 3 gaps
@@ -1431,22 +1453,31 @@ if __name__ == '__main__':
             # offset = insert.length-1 for adjacent tandem2-insert
             # --> (for tandem2-insert: offset = abs((insert_start - insert.length +1) - insert_start))
             if (offset == 1 or offset == insert.length - 1) or (insert.trailing and (insert.trailing_end == 3 and alignment_start < insert.start) or (insert.trailing_end == 5 and alignment_start > insert.start)):
-                # if by chance insert is completely contained within read in spite of it being trailing
-                # (i.e. insert and tandem have the same length & are adjacent)
-                # --> revert trailing to be able to apply more stringent filters of non-trailing inserts
-                if insert.trailing and (offset == 1 or offset == insert.length - 1):
-                    insert.trailing = False
-                    print("UNTRAILED: {}".format(vars(read)))
-                    if insert.length % 3 != 0:
-                        print("BUT NOT IN FRAME!!!")
-                        # remove from inserts list (see below loop)
-                itd = ITD(
-                    insert,
-                    offset=offset,
-                    tandem2_start=alignment_start,
-                    external_bp=insert.length - (alignment_end - alignment_start)
-                    )
-                itds.append(itd)
+                # do not allow gaps in tandems of trailing ITDs
+                # -> also filters tandems not covered by read at all
+                #    (can never be the case for non-trailing ITDs anyway)
+                if alignment_start >= insert.reads[0].ref_span[0] or alignment_end <= insert.reads[1].ref_span[1]:
+                #if alignment_start >= insert.reads[0].ref_span[0] and alignment_end <= insert.reads[0].ref_span[1]:
+                    # if by chance insert is completely contained within read in spite of it being trailing
+                    # (i.e. insert and tandem have the same length & are adjacent)
+                    # --> revert trailing to be able to apply more stringent filters of non-trailing inserts
+                    if insert.trailing and (offset == 1 or offset == insert.length - 1):
+                        insert.trailing = False
+                        print("UNTRAILED: {}".format(vars(read)))
+                        if insert.length % 3 != 0:
+                            print("BUT NOT IN FRAME!!!")
+                            # remove from inserts list (see below loop)
+                    itd = ITD(
+                        insert,
+                        offset=offset,
+                        tandem2_start=alignment_start,
+                        external_bp=insert.length - (alignment_end - alignment_start)
+                        )
+                    itds.append(itd)
+                else:
+                    print("ITD's tandem not covered by read")
+                    print(insert.print())
+                    print(insert.reads[0].print())
 
     # in case any out-of-frame insert was untrailed: remove it from list of inserts
     inserts[:] = [insert for insert in inserts if insert.trailing or insert.length % 3 == 0]
