@@ -139,9 +139,10 @@ class Read(object):
             Aligned Read. May be reversed for 454.
         """
         alignment = bio.align.globalcs(self.seq, REF, get_alignment_score,
-            COST_GAPOPEN, COST_GAPEXTEND, penalize_end_gaps=False, one_alignment_only=True)
+            COST_GAPOPEN, COST_GAPEXTEND, penalize_end_gaps=False)
+        #    COST_GAPOPEN, COST_GAPEXTEND, penalize_end_gaps=False, one_alignment_only=True)
         if alignment:
-            self.al_seq, self.al_ref, self.al_score = alignment[0][0:3]
+            self.al_seq, self.al_ref, self.al_score = alignment[-1][0:3]
 
         if TECH == '454':
             rev = self.reverse_complement()
@@ -1444,7 +1445,7 @@ if __name__ == '__main__':
             # how often is there more than one alignment?
             # --> (more than 1 => alignment is ambiguous)
             # --> Can I choose a smart one somehow? Otherwise return only one in the first place...
-            alignment = alignments[0]
+            alignment = alignments[-1]
             alignment_score, alignment_start, alignment_end = alignment[2:5]
             #print(bio.format_alignment(*alignment))
         if alignment_score >= min_score:
