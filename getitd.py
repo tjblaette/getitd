@@ -1040,7 +1040,7 @@ def save_to_file(inserts, filename):
         
         df_ins =  pd.DataFrame(dict_ins)
         df_ins["sample"] = [SAMPLE] * len(inserts)
-        df_ins["insertion_site"] = df_ins["end"] + 1
+        df_ins["insertion_site"] = df_ins["end"] + 3 # insertion site = WT AS after insert --> +3 to make sure the next AS is annotated instead of the current one
         df_ins["ar"] = [vaf_to_ar(insert.vaf) for insert in inserts]
         df_ins["counts_each"] = [[read.counts for read in insert.reads] for insert in inserts]
         df_ins["file"] = [[read.al_file for read in insert.reads] for insert in inserts]
@@ -1057,7 +1057,7 @@ def save_to_file(inserts, filename):
             # (same command as above!)
             df_ins = annotate(df_ins)
             df_ins["region"] = [insert.annotate_domains(DOMAINS) for insert in inserts]
-            cols = cols + ["region", "start_chr13_bp", "start_transcript_bp", "start_protein_as", "end_chr13_bp", "end_transcript_bp", "end_protein_as", "insertion_site_chr13_bp", "insertion_site_transcript_bp", "insertion_site_protein_as"]
+            cols = cols + ["region", "start_chr13_bp", "start_transcript_bp", "start_protein_as", "end_chr13_bp", "end_transcript_bp", "end_protein_as", "insertion_site_protein_as"]
         cols = cols + ['file']
         df_ins[cols].to_csv(os.path.join(OUT_DIR,filename), index=False, float_format='%.2e', sep='\t')
 
