@@ -1449,7 +1449,9 @@ if __name__ == '__main__':
             alignment_score, alignment_start, alignment_end = alignment[2:5]
             #print(bio.format_alignment(*alignment))
         if alignment_score >= min_score:
-            offset = abs(alignment_start - insert.start)
+            #offset = abs(alignment_start - insert.start)
+            tandem2_start = [i for i,bp in enumerate(alignment[0]) if bp != '-'][0]
+            offset = abs(tandem2_start - insert.start)
             # offset = 1 for adjacent insert-tandem2
             # offset = insert.length-1 for adjacent tandem2-insert
             # --> (for tandem2-insert: offset = abs((insert_start - insert.length +1) - insert_start))
@@ -1471,8 +1473,10 @@ if __name__ == '__main__':
                     itd = ITD(
                         insert,
                         offset=offset,
-                        tandem2_start=alignment_start,
-                        external_bp=insert.length - (alignment_end - alignment_start)
+                        tandem2_start=tandem2_start,
+                        #tandem2_start=alignment_start,
+                        external_bp=abs(tandem2_start - alignment_start)
+                        #external_bp=insert.length - (alignment_end - alignment_start)
                         )
                     itds.append(itd)
                 else:
