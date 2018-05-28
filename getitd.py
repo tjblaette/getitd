@@ -1008,16 +1008,25 @@ def merge(inserts, condition):
     Returns:
         InsertCollection of merged insertions.
     """
-    merged = []
-    for insert_collection in inserts:
-        was_merged = False
-        for minsert_collection in merged[::-1]:
-            if minsert_collection.should_merge(insert_collection, condition):
-                minsert_collection = minsert_collection.merge(insert_collection)
-                was_merged = True
-                break
-        if not was_merged:
-            merged.append(insert_collection)
+    still_need_to_merge = True
+    while still_need_to_merge:
+        merged = []
+        still_need_to_merge = False
+        for insert_collection in inserts:
+            was_merged = False
+            for minsert_collection in merged[::-1]:
+                if minsert_collection.should_merge(insert_collection, condition):
+                    if not was_merged:
+                        minsert_collection = minsert_collection.merge(insert_collection)
+                        was_merged = True
+                    else:
+                        if not still_need_to_merge:
+                            print("need another round of merging!")
+                        still_need_to_merge = True
+                        break
+            if not was_merged:
+                merged.append(insert_collection)
+        inserts = merged
     return merged
 
 def save_to_file(inserts, filename):
