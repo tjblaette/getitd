@@ -445,12 +445,6 @@ class ITD(Insert):
         Return:
             Prepared ITD.
         """
-        if self.tandem2_start + self.offset > len(REF):
-            print(self.end)
-            print(len(REF))
-            print(self.reads[0].al_seq[self.tandem2_start:self.tandem2_start+self.length])
-            self.print()
-            print(self.reads[0].print())
         to_save = copy.deepcopy(self)
         to_save = to_save.fix_trailing_length()
         to_save.start = to_save.tandem2_start
