@@ -1062,7 +1062,7 @@ def save_to_file(inserts, filename):
             df_ins["region"] = [insert.annotate_domains(DOMAINS) for insert in inserts]
             cols = cols + ["region", "start_chr13_bp", "start_transcript_bp", "start_protein_as", "end_chr13_bp", "end_transcript_bp", "end_protein_as", "insertion_site_protein_as"]
         cols = cols + ['file']
-        df_ins[cols].to_csv(os.path.join(OUT_DIR,filename), index=False, float_format='%.2e', sep='\t')
+        df_ins[cols].sort_values(by=['length','start','vaf']).to_csv(os.path.join(OUT_DIR,filename), index=False, float_format='%.2e', sep='\t')
 
 def get_unique_reads(reads):
     """
