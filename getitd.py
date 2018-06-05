@@ -1048,7 +1048,7 @@ def save_to_file(inserts, filename):
         df_ins["counts_each"] = [[read.counts for read in insert.reads] for insert in inserts]
         df_ins["file"] = [[read.al_file for read in insert.reads] for insert in inserts]
         
-        cols = ['sample','length', 'start', 'end', 'insertion_site', 'vaf', 'ar', 'coverage', 'counts', 'trailing', 'seq']
+        cols = ['sample','length', 'start', 'end', 'vaf', 'ar', 'coverage', 'counts', 'trailing', 'seq']
         if 'external_bp' in df_ins:
             cols = cols + ['external_bp']
 
