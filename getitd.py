@@ -20,6 +20,7 @@ class Read(object):
     def __init__(
                 self, 
                 seq, 
+                index=None,
                 sense=1, 
                 bqs=None, 
                 index_bqs=None, 
@@ -33,6 +34,9 @@ class Read(object):
 
         Args:
             seq (str): Base pair sequence of the read.
+            index (int): Read index to identify paired reads
+                for paired-end sequencing 
+                --> will have the same index
             sense (int): 1 for forward reads, -1 for reverse.
             bqs (str): Base quality scores of the read.
             index_bqs (str): Base quality scores of the 
@@ -47,6 +51,7 @@ class Read(object):
                 read-to-reference alignment.
         """
         self.seq = seq
+        self.index = index
         self.bqs = bqs
         self.index_bqs = index_bqs
         self.length = len(seq)
@@ -783,6 +788,7 @@ def read_fastq(fastq_file):
         List of Read() objects.
     """
     reads = []
+    read_index = 0
     try:
         with open(fastq_file,'r') as f:
             line = f.readline()
@@ -792,8 +798,9 @@ def read_fastq(fastq_file):
                 read_desc = f.readline()
                 read_bqs = f.readline().rstrip('\n')
                 assert len(read_seq) == len(read_bqs)
-                reads.append(Read(seq=read_seq, bqs=read_bqs, sense=1))
+                reads.append(Read(seq=read_seq, index=read_index, bqs=read_bqs, sense=1))
                 line = f.readline()
+                read_index += 1
     # catch missing file or permissions
     except IOError as e:
         print("---\nCould not read fastq file {}!\n---".format(fastq_file))
