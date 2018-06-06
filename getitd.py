@@ -901,28 +901,6 @@ def integral_insert_realignment(insert_alignment, insert_length):
     insert_idxs = [i for i in range(len(insert_alignment)) if insert_alignment[i] != '-']
     return insert_idxs[-1] - insert_idxs[0] + 1 == insert_length
 
-def update_coverage(coverage, read):
-    """
-    Update reference coverage.
-
-    Add a given read's counts to where it spans the reference.
-    Coordinates are 0-based and relative to the WT reference.
-
-    Args:
-        coverage (np.array): Contains number of reads spanning
-                each reference bp.
-        read (Read): Read whose counts are to be added to coverage
-                where it spans the WT reference.
-
-    Returns:
-        Updated coverage.
-    """
-    ref_covered_range = np.arange(
-        read.ref_span[0],
-        read.ref_span[1] + 1) # DO count last index
-    coverage[ref_covered_range] = coverage[ref_covered_range] + read.counts
-    return coverage
-
 
 def annotate(df):
     """
@@ -1086,6 +1064,7 @@ def get_unique_reads(reads):
     reads = [Read(seq=this_seq, bqs=None, counts=this_count, sense=this_sense)
         for (this_seq,this_sense),this_count in zip(unique_reads, unique_reads_counts)]
     return reads
+
 
 def filter_alignment_score(reads):
     """
@@ -1320,20 +1299,26 @@ if __name__ == '__main__':
 
 
     #######################################
+    # CALCULATE COVERAGE
+    start_time = timeit.default_timer()
+    ref_coverage = []
+    for coord, bp  in enumerate(REF):
+        spanning_reads = [read.counts for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1]]
+        ref_coverage.append(sum(spanning_reads))
+    print(ref_coverage)
+    print("Calculating coverage took {} s".format(timeit.default_timer() - start_time))
+
+
+    #######################################
+    # COLLECT INSERTS, CALC COVERAGE
     save_stats("\n-- Looking for insertions & ITDs --", STATS_FILE)
 
-    # COLLECT INSERTS, CALC COVERAGE
     inserts = []
-    ref_wt = list(REF)
-    ref_coverage = np.zeros(len(REF))
-
     start_time = timeit.default_timer()
     for read in reads:
         readn = np.array(list(read.al_seq))
         refn = np.array(list(read.al_ref))
         assert(len(readn) == len(refn))
-        
-        ref_coverage = update_coverage(ref_coverage, read)
         
         # if read contains insert
         insert_idxs_all = np.where(refn == '-')[0]
@@ -1411,11 +1396,6 @@ if __name__ == '__main__':
 
 
     start_time = timeit.default_timer()
-    # ref_coverage was of type np.float because initialized as np.zeros
-    # --> (which was necessary to add read counts as I did)
-    # --> could change that by using a generator!
-    ref_coverage = ref_coverage.astype(int)
-
     # add coverage to inserts # -> delete timer, move up to insert block above
     for insert in inserts:
         # add coverage
