@@ -1054,7 +1054,9 @@ def get_unique_reads(reads):
     Merge reads with identical read sequences.
     
     Create a Read() object and sum up supporting read counts 
-    in Read.counts for each Read.seq.
+    in Read.counts for each Read.seq, keep reads of different
+    orientation distinct, i.e. create one Read for each combination
+    of Read.seq and Read.sense. 
 
     Args:
         reads ([Read]): Reads to merge, may share the same Read.seq.
@@ -1063,14 +1065,19 @@ def get_unique_reads(reads):
         Merged reads ([Read]), each with a unique Read.seq.
         
     """
-    tmp = collections.Counter([(read.seq,read.sense) for read in reads])
-    unique_reads = list(tmp.keys())
-    unique_reads_counts = list(tmp.values())
-    assert len(unique_reads) == len(unique_reads_counts)
-    assert sum(unique_reads_counts) == len(reads)
-    reads = [Read(seq=this_seq, bqs=None, counts=this_count, sense=this_sense)
-        for (this_seq,this_sense),this_count in zip(unique_reads, unique_reads_counts)]
-    return reads
+    seqs = [read.seq for read in reads]
+    unique_seqs, inverse_indices = np.unique(seqs, return_inverse=True)
+    nreads = np.array(reads)
+    unique_reads = []
+    for inverse_index, seq in enumerate(unique_seqs):
+        list_indices = np.arange(len(inverse_indices))[inverse_indices == inverse_index]
+        list_reads = nreads[list_indices]
+        list_reads_index = [read.index for read in list_reads]
+        list_reads_sense = set([read.sense for read in list_reads])
+        for sense in list_reads_sense:
+            unique_reads.append(
+                    Read(seq=seq, sense=sense, bqs=None, counts=len(list_reads), index=list_reads_index))
+    return unique_reads
 
 
 def filter_alignment_score(reads):
@@ -1243,7 +1250,9 @@ if __name__ == '__main__':
     save_stats("Number of total reads with mean BQS >= {}: {} ({} %)".format(MIN_BQS, len(reads), len(reads) * 100 / TOTAL_READS), STATS_FILE)
 
     # get unique reads and counts thereof
+    start_time = timeit.default_timer()
     reads = get_unique_reads(reads)
+    print("Getting unique reads took {} s".format(timeit.default_timer() - start_time))
     save_stats("Number of unique reads with mean BQS >= {}: {}".format(MIN_BQS,len(reads)), STATS_FILE)
 
     # FILTER UNIQUE READS
