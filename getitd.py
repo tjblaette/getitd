@@ -1070,8 +1070,7 @@ def get_unique_reads(reads):
     nreads = np.array(reads)
     unique_reads = []
     for inverse_index, seq in enumerate(unique_seqs):
-        list_indices = np.arange(len(inverse_indices))[inverse_indices == inverse_index]
-        list_reads = nreads[list_indices]
+        list_reads = nreads[inverse_indices == inverse_index]
         list_reads_index = [read.index for read in list_reads]
         list_reads_sense = set([read.sense for read in list_reads])
         for sense in list_reads_sense:
@@ -1319,14 +1318,14 @@ if __name__ == '__main__':
     start_time = timeit.default_timer()
     ref_coverage = []
     for coord, bp  in enumerate(REF):
-        spanning_reads = [read.counts for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1]]
-        ref_coverage.append(sum(spanning_reads))
-    print(ref_coverage)
+        spanning_reads = [read for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1]]
+        spanning_reads_index = flatten_list([read.index for read in spanning_reads])
+        ref_coverage.append(len(set(spanning_reads_index)))
     print("Calculating coverage took {} s".format(timeit.default_timer() - start_time))
 
 
     #######################################
-    # COLLECT INSERTS, CALC COVERAGE
+    # COLLECT INSERTS
     save_stats("\n-- Looking for insertions & ITDs --", STATS_FILE)
 
     inserts = []
