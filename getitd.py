@@ -1058,6 +1058,9 @@ def get_unique_reads(reads):
     orientation distinct, i.e. create one Read for each combination
     of Read.seq and Read.sense. 
 
+    This is really slow. Come up with something better!
+    Would it help to process forward/reverse reads separately?
+
     Args:
         reads ([Read]): Reads to merge, may share the same Read.seq.
     
@@ -1251,7 +1254,7 @@ if __name__ == '__main__':
     # get unique reads and counts thereof
     start_time = timeit.default_timer()
     reads = get_unique_reads(reads)
-    print("Getting unique reads took {} s".format(timeit.default_timer() - start_time))
+    print("Getting unique reads took {} s\n".format(timeit.default_timer() - start_time))
     save_stats("Number of unique reads with mean BQS >= {}: {}".format(MIN_BQS,len(reads)), STATS_FILE)
 
     # FILTER UNIQUE READS
@@ -1479,8 +1482,11 @@ if __name__ == '__main__':
                     itds.append(itd)
                 else:
                     print("ITD's tandem not covered by read")
-                    print(insert.print())
-                    print(insert.reads[0].print())
+                    insert.print()
+                    insert.reads[0].print()
+                    print(bio.format_alignment(*alignment))
+                    print(alignment_start)
+                    print(alignment_end)
 
     # in case any out-of-frame insert was untrailed: remove it from list of inserts
     inserts[:] = [insert for insert in inserts if insert.trailing or insert.length % 3 == 0]
