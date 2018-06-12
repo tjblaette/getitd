@@ -1458,10 +1458,12 @@ if __name__ == '__main__':
             # --> (for tandem2-insert: offset = abs((insert_start - insert.length +1) - insert_start))
             if (offset == 1 or offset == insert.length - 1) or (insert.trailing and (insert.trailing_end == 3 and alignment_start < insert.start) or (insert.trailing_end == 5 and alignment_start > insert.start)):
                 # do not allow gaps in tandems of trailing ITDs
-                # -> also filters tandems not covered by read at all
+                # -> also filters tandems not covered by read at all 
+                #    such as small trailing inserts by chance also found in some other part of the the reference
                 #    (can never be the case for non-trailing ITDs anyway)
-                if alignment_start >= insert.reads[0].ref_span[0] or alignment_end <= insert.reads[1].ref_span[1]:
-                #if alignment_start >= insert.reads[0].ref_span[0] and alignment_end <= insert.reads[0].ref_span[1]:
+                # --> careful: alignment_end is exclusive coord, i.e. the index of the first bp after the alignment!
+                #if alignment_start >= insert.reads[0].ref_span[0] or alignment_end-1 <= insert.reads[1].ref_span[1]:
+                if alignment_start >= insert.reads[0].ref_span[0] and alignment_end-1 <= insert.reads[0].ref_span[1]:
                     # if by chance insert is completely contained within read in spite of it being trailing
                     # (i.e. insert and tandem have the same length & are adjacent)
                     # --> revert trailing to be able to apply more stringent filters of non-trailing inserts
