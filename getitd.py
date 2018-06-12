@@ -494,7 +494,7 @@ class InsertCollection(object):
         self.rep = copy.deepcopy(self.inserts[[insert.counts for insert in self.inserts].index(max([insert.counts for insert in self.inserts]))])
         # reads and counts must be summed for the representative -> overwrite these (that's why representative needs to be a copy!)
         self.rep.reads = flatten_list([insert.reads for insert in self.inserts])
-        self.rep.counts = sum([insert.counts for insert in self.inserts])
+        self.rep.counts = len(set(flatten_list([read.index for insert in self.inserts for read in insert.reads])))
         self.rep = self.rep.calc_vaf()
         return self
 
