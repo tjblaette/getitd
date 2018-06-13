@@ -81,16 +81,17 @@ class Read(object):
         Returns:
             Reverse complemented Read.
         """
-        self.seq = self.seq.translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1]
+        rev = copy.deepcopy(self)
+        rev.seq = self.seq.translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1]
         if self.bqs:
-            self.bqs = self.bqs[::-1]
+            rev.bqs = self.bqs[::-1]
         if self.index_bqs:
-            self.index_bqs = self.index_bqs[::-1]
+            rev.index_bqs = self.index_bqs[::-1]
         if not self.sense:
-            self.sense = -1
+            rev.sense = -1
         else:
-            self.sense = self.sense * -1
-        return self
+            rev.sense = self.sense * -1
+        return rev
     
     def trim_n(self):
         """
