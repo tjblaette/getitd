@@ -144,17 +144,16 @@ class Read(object):
         """
         alignment = bio.align.globalcs(self.seq, REF, get_alignment_score,
             COST_GAPOPEN, COST_GAPEXTEND, penalize_end_gaps=False)
-        #    COST_GAPOPEN, COST_GAPEXTEND, penalize_end_gaps=False, one_alignment_only=True)
         if alignment:
             self.al_seq, self.al_ref, self.al_score = alignment[-1][0:3]
 
         if TECH == '454':
             rev = self.reverse_complement()
             rev_alignment = bio.align.globalcs(rev.seq, REF, get_alignment_score,
-                COST_GAPOPEN, COST_GAPEXTEND, penalize_end_gaps=False, one_alignment_only=True)
+                COST_GAPOPEN, COST_GAPEXTEND, penalize_end_gaps=False)
             if (rev_alignment and
-                    (self.al_score is None or rev_alignment[0][2] > self.al_score)):
-                rev.al_seq, rev.al_ref, rev.al_score = rev_alignment[0][0:3]
+                    (self.al_score is None or rev_alignment[-1][2] > self.al_score)):
+                rev.al_seq, rev.al_ref, rev.al_score = rev_alignment[-1][0:3]
                 return rev
         return self
 
