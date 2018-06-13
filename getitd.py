@@ -85,8 +85,6 @@ class Read(object):
         rev.seq = self.seq.translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1]
         if self.bqs:
             rev.bqs = self.bqs[::-1]
-        if self.index_bqs:
-            rev.index_bqs = self.index_bqs[::-1]
         if not self.sense:
             rev.sense = -1
         else:
