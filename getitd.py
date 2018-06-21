@@ -226,6 +226,7 @@ class Insert(object):
         if reads is None: # passing mutable objects in def() will have them shared between instances!
             reads = []
         self.reads = reads
+        self.sense = set([read.sense for read in reads])
     
     def get_seq(self):
         """"
@@ -233,6 +234,23 @@ class Insert(object):
         Implemented to sort list of Inserts by their sequence.
         """
         return self.seq
+
+    def set_sense(self):
+        """
+        Get and set Insert's supporting reads' sense.
+        """
+        self.sense = set([read.sense for read in self.reads])
+        return self
+
+    def set_specific_sense(self, sense):
+        """
+        Set Insert's sense manually.
+
+        Args:
+            sense (set): sense to manually set to.
+        """
+        self.sense = sense
+        return self
 
     def calc_vaf(self):
         """
@@ -411,6 +429,7 @@ class ITD(Insert):
         self.trailing = insert.trailing
         self.trailing_end = insert.trailing_end
         self.reads = insert.reads
+        self.sense = insert.sense
         self.counts = insert.counts
         self.coverage = insert.coverage
         self.vaf = insert.vaf
@@ -493,6 +512,7 @@ class InsertCollection(object):
         # reads and counts must be summed for the representative -> overwrite these (that's why representative needs to be a copy!)
         self.rep.reads = flatten_list([insert.reads for insert in self.inserts])
         self.rep.counts = len(set(flatten_list([read.index for insert in self.inserts for read in insert.reads])))
+        self.rep = self.rep.set_sense()
         self.rep = self.rep.calc_vaf()
         return self
 
@@ -1031,7 +1051,7 @@ def save_to_file(inserts, filename):
         df_ins["counts_each"] = [[read.counts for read in insert.reads] for insert in inserts]
         df_ins["file"] = [[read.al_file for read in insert.reads] for insert in inserts]
         
-        cols = ['sample','length', 'start', 'end', 'vaf', 'ar', 'coverage', 'counts', 'trailing', 'seq']
+        cols = ['sample','length', 'start', 'end', 'vaf', 'ar', 'coverage', 'counts', 'trailing', 'seq', 'sense']
         if 'external_bp' in df_ins:
             cols = cols + ['external_bp']
 
@@ -1419,6 +1439,7 @@ if __name__ == '__main__':
         # --> negative start (-> 5' trailing_end) will result in
         #     coverage = ref_coverage[-X] which will silently report incorrect coverage!!
         insert.coverage = ref_coverage[copy.deepcopy(insert).norm_start().start]
+        insert = insert.set_sense()
         insert = insert.calc_vaf()
     print("Annotating coverage took {} s".format(timeit.default_timer() - start_time))
 
