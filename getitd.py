@@ -335,8 +335,8 @@ class Insert(object):
             True when they are close, False otherwise.
         """
         if hasattr(self, 'tandem2_start'):
-            return abs(self.tandem2_start - that.tandem2_start) <= self.length
-        return abs(self.start - that.start) <= 2 * self.length
+            return abs(self.tandem2_start - that.tandem2_start) <= max(self.length, that.length)
+        return abs(self.start - that.start) <= self.length + that.length ## <---- what's the eqivalent for ITDs?? Does this even apply for ITDs? Can trailing ITDs have different length and still describe the same mutation?
     
     def is_similar_to(self, that):
         """
@@ -374,8 +374,8 @@ class Insert(object):
         elif condition == 'is-close':
             return self.length == that.length and self.is_similar_to(that) and self.is_close_to(that)
         elif condition == 'is-same_trailing':
-            return self.trailing and that.trailing and self.trailing_end == that.trailing_end and self.is_similar_to(that)
-        elif condition == 'any':
+            return self.trailing and that.trailing and self.trailing_end == that.trailing_end and self.sense.intersection(that.sense) and self.is_similar_to(that) and self.is_close_to(that)
+        elif condition == 'any':  # <----- fix this one!!!
             return ((self.length == that.length and self.is_close_to(that)) or (self.trailing and that.trailing and self.trailing_end == that.trailing_end)) and self.is_similar_to(that)
         else:
             print("\n---Undefined merging condition!---\n") 
