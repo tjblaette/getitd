@@ -252,6 +252,18 @@ class Insert(object):
         self.sense = sense
         return self
 
+    def set_coverage(self):
+        """
+        Set Insert's coverage based on supporting reads' sense.
+        """
+        if self.sense == {1}:
+            self.coverage = ref_coverage_frwd[copy.deepcopy(self).norm_start().start]
+        elif self.sense == {-1}:
+            self.coverage = ref_coverage_rev[copy.deepcopy(self).norm_start().start]
+        elif self.sense == {1,-1}:
+            self.coverage = ref_coverage[copy.deepcopy(self).norm_start().start]
+        return self
+
     def calc_vaf(self):
         """
         Calculate and set Insert's variant allele frequency (VAF).
@@ -1338,10 +1350,17 @@ if __name__ == '__main__':
     # CALCULATE COVERAGE
     start_time = timeit.default_timer()
     ref_coverage = []
+    ref_coverage_frwd = []
+    ref_coverage_rev = []
     for coord, bp  in enumerate(REF):
         spanning_reads = [read for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1]]
         spanning_reads_index = flatten_list([read.index for read in spanning_reads])
         ref_coverage.append(len(set(spanning_reads_index)))
+        ref_coverage_frwd.append(sum([read.counts for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1] and read.sense == 1]))
+        ref_coverage_rev.append(sum([read.counts for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1] and read.sense == -1]))
+    print(ref_coverage)
+    print(ref_coverage_frwd)
+    print(ref_coverage_rev)
     print("Calculating coverage took {} s".format(timeit.default_timer() - start_time))
 
 
@@ -1438,8 +1457,8 @@ if __name__ == '__main__':
         # --> be sure to normalize start coord to [0,len(REF)[ first
         # --> negative start (-> 5' trailing_end) will result in
         #     coverage = ref_coverage[-X] which will silently report incorrect coverage!!
-        insert.coverage = ref_coverage[copy.deepcopy(insert).norm_start().start]
         insert = insert.set_sense()
+        insert = insert.set_coverage()
         insert = insert.calc_vaf()
     print("Annotating coverage took {} s".format(timeit.default_timer() - start_time))
 
