@@ -505,7 +505,7 @@ class InsertCollection(object):
         self.inserts = [insert]
         self.rep = copy.deepcopy(insert)
     
-    def set_representative(self, update_coverage):
+    def set_representative(self):
         """
         Set InsertCollection's most abundant Insert as its representative.
 
@@ -516,12 +516,7 @@ class InsertCollection(object):
                 would the result be?
             Are ever trailing inserts with different trailing_end merged?
                 What would the result be? Should this even be possible?
-        Args:
-            update_coverage (bool): True when Inserts of different Insert.sense
-                    were merged and thus coverage needs to be recalculated to
-                    consider all respective reads. (Individual insertions'
-                    supporting reads do not change and are "blind" to the
-                    presence of multiple sense values)
+
         Returns:
             InsertCollection with set representative. 
         """
@@ -530,10 +525,7 @@ class InsertCollection(object):
         self.rep.reads = flatten_list([insert.reads for insert in self.inserts])
         self.rep.counts = len(set(flatten_list([read.index for insert in self.inserts for read in insert.reads])))
         self.rep = self.rep.set_sense()
-        if update_coverage:
-            self.rep.coverage = max([copy.deepcopy(insert).set_specific_sense(self.rep.sense).norm_start().set_coverage().coverage for insert in self.inserts])  # <---- how to handle additional Insert.reads.sense after merging?? like this?
-        else:
-            self.rep.coverage = max([insert.coverage for insert in self.inserts])  # <---- how to handle additional Insert.reads.sense after merging??
+        self.rep.coverage = max([insert.coverage for insert in self.inserts])
         self.rep = self.rep.calc_vaf()
         return self
 
@@ -548,10 +540,12 @@ class InsertCollection(object):
             Merged InsertCollection.
         """
         self.inserts = self.inserts + insert.inserts
+        # recalculate coverage when differently oriented reads are merged
         if self.rep.sense != insert.rep.sense:
-            self = self.set_representative(True)
-        else:
-            self = self.set_representative(False)
+            new_sense = self.rep.sense.union(insert.rep.sense)
+            self.inserts = [insert.set_specific_sense(new_sense) for insert in self.inserts]
+            self.inserts = [insert.set_coverage() for insert in self.inserts]
+        self = self.set_representative()
         return self
 
     def should_merge(self, that, condition):
