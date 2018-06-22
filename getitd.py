@@ -12,6 +12,7 @@ import pprint
 import os
 import copy
 
+config = {}
 
 class Read(object):
     """
@@ -91,7 +92,7 @@ class Read(object):
             rev.sense = self.sense * -1
         return rev
     
-    def trim_n(self):
+    def trim_n(self, config=config):
         """
         Trim trailing N's at Read's ends.
 
@@ -108,12 +109,12 @@ class Read(object):
                 self.bqs = self.bqs[1:]
         assert len(self.seq) == len(self.bqs)
         self.length = len(self.seq)
-        if self.length < MIN_READ_LENGTH:
+        if self.length < config["MIN_READ_LENGTH"]:
             return None
         return self
     
 
-    def filter_bqs(self):
+    def filter_bqs(self, config=config):
         """
         Filter Read based on its average BQS.
 
@@ -123,12 +124,12 @@ class Read(object):
             
             When no BQS is set, also return the Read.
         """
-        if not self.bqs or average_bqs(self.bqs) >= MIN_BQS:
-            if not self.index_bqs or average_bqs(self.index_bqs) >= MIN_BQS:
+        if not self.bqs or average_bqs(self.bqs) >= config["MIN_BQS"]:
+            if not self.index_bqs or average_bqs(self.index_bqs) >= config["MIN_BQS"]:
                 return self
         return None
     
-    def align(self):
+    def align(self, config=config):
         """
         Align a Read to the WT reference.
         
@@ -142,15 +143,15 @@ class Read(object):
         Returns:
             Aligned Read. May be reversed for 454.
         """
-        alignment = bio.align.globalcs(self.seq, REF, get_alignment_score,
-            COST_GAPOPEN, COST_GAPEXTEND, penalize_end_gaps=False)
+        alignment = bio.align.globalcs(self.seq, config["REF"], get_alignment_score,
+            config["COST_GAPOPEN"], config["COST_GAPEXTEND"], penalize_end_gaps=False)
         if alignment:
             self.al_seq, self.al_ref, self.al_score = alignment[-1][0:3]
 
-        if TECH == '454':
+        if config["TECH"] == '454':
             rev = self.reverse_complement()
-            rev_alignment = bio.align.globalcs(rev.seq, REF, get_alignment_score,
-                COST_GAPOPEN, COST_GAPEXTEND, penalize_end_gaps=False)
+            rev_alignment = bio.align.globalcs(rev.seq, config["REF"], get_alignment_score,
+                config["COST_GAPOPEN"], config["COST_GAPEXTEND"], penalize_end_gaps=False)
             if (rev_alignment and
                     (self.al_score is None or rev_alignment[-1][2] > self.al_score)):
                 rev.al_seq, rev.al_ref, rev.al_score = rev_alignment[-1][0:3]
@@ -275,14 +276,14 @@ class Insert(object):
         assert self.vaf >= 0 and self.vaf <= 100
         return self
 
-    def norm_start(self):
+    def norm_start(self, config=config):
         """
         Normalize Insert's start coordinate to [0, len(REF)[.
 
         Returns:
             Insert.
         """
-        self.start = min(max(0,self.start), len(REF)-1)
+        self.start = min(max(0,self.start), len(config["REF"])-1)
         return self
 
     def prep_for_save(self):
@@ -338,7 +339,7 @@ class Insert(object):
             return abs(self.tandem2_start - that.tandem2_start) <= max(self.length, that.length)
         return abs(self.start - that.start) <= self.length + that.length ## <---- what's the eqivalent for ITDs?? Does this even apply for ITDs? Can trailing ITDs have different length and still describe the same mutation?
     
-    def is_similar_to(self, that):
+    def is_similar_to(self, that, config=config):
         """
         Test whether two Inserts' sequences are similar.
 
@@ -348,8 +349,8 @@ class Insert(object):
         Returns:
             True when they are similar, False otherwise.
         """
-        min_score = get_min_score(self.seq, that.seq, MIN_SCORE_INSERTS)
-        al_score = bio.align.globalcs(self.seq, that.seq, get_alignment_score, COST_GAPOPEN, COST_GAPEXTEND, one_alignment_only=True, score_only=True, penalize_end_gaps=False)
+        min_score = get_min_score(self.seq, that.seq, config["MIN_SCORE_INSERTS"])
+        al_score = bio.align.globalcs(self.seq, that.seq, get_alignment_score, config["COST_GAPOPEN"], config["COST_GAPEXTEND"], one_alignment_only=True, score_only=True, penalize_end_gaps=False)
         if al_score >= min_score:
             return True
         return False
@@ -382,7 +383,7 @@ class Insert(object):
             assert False
     
     
-    def filter_unique_supp_reads(self):
+    def filter_unique_supp_reads(self, config=config):
         """
         Test whether Insert is supported by a given number of
         distinct supporting reads.
@@ -390,9 +391,9 @@ class Insert(object):
         Returns:
             True when that is the case, False otherwise. 
         """
-        return len(self.reads) >= MIN_UNIQUE_READS
+        return len(self.reads) >= config["MIN_UNIQUE_READS"]
 
-    def filter_total_supp_reads(self):
+    def filter_total_supp_reads(self, config=config):
         """
         Test whether Insert is supported by a given minimum number 
         of total supporting reads.
@@ -400,16 +401,16 @@ class Insert(object):
         Returns:
             True when that is the case, False otherwise.
         """
-        return self.counts >= MIN_TOTAL_READS
+        return self.counts >= config["MIN_TOTAL_READS"]
 
-    def filter_vaf(self):
+    def filter_vaf(self, config=config):
         """
         Test whether Insert has at least a given minimum VAF.
         
         Returns:
             True when that is the case, False otherwise.
         """
-        return self.vaf >= MIN_VAF
+        return self.vaf >= config["MIN_VAF"]
 
 
 class ITD(Insert):
@@ -466,7 +467,7 @@ class ITD(Insert):
         else:
             return self
         
-    def prep_for_save(self):
+    def prep_for_save(self, config=config):
         """
         Prepare ITD for saving to file.
 
@@ -483,7 +484,7 @@ class ITD(Insert):
         to_save = to_save.fix_trailing_length()
         to_save.start = to_save.tandem2_start
         to_save.end = to_save.start + to_save.length - 1
-        assert to_save.end <= len(REF)
+        assert to_save.end <= len(config["REF"])
         to_save = to_save.norm_start()
         return to_save
 
@@ -671,7 +672,7 @@ def print_alignment_seq(seq, seq_coord, pre_width, post_width, f):
     f.write(str(seq_coord) + '\n')
     return seq_coord +1
 
-def print_alignment(read, out_dir):
+def print_alignment(read, out_dir, config=config):
     """
     Print read-to-reference alignment in a nice format, inspired by EMBOSS needle output.
 
@@ -700,8 +701,8 @@ def print_alignment(read, out_dir):
         f.write('#    {},\n'.format(command_seq))
         f.write('#    {},\n'.format(command_ref))
         f.write('#    {},\n'.format(command_score_function))
-        f.write('#    {},\n'.format(COST_GAPOPEN))
-        f.write('#    {})\n'.format(COST_GAPEXTEND))
+        f.write('#    {},\n'.format(config["COST_GAPOPEN"]))
+        f.write('#    {})\n'.format(config["COST_GAPEXTEND"]))
         f.write('# Align_format: srspair\n')
         f.write('# Report_file: {}\n'.format(read.al_file))
         f.write('########################################\n')
@@ -712,8 +713,8 @@ def print_alignment(read, out_dir):
         f.write('# Sample: {}\n'.format(''.join([x for x in read.al_seq if x != '-'])))
         f.write('# Reference: {}\n'.format(''.join([x for x in read.al_ref if x != '-']).lower()))
         f.write('# Matrix: EDNAFULL\n')
-        f.write('# Gap_penalty: {}\n'.format(COST_GAPOPEN))
-        f.write('# Extend_penalty: {}\n'.format(COST_GAPEXTEND))
+        f.write('# Gap_penalty: {}\n'.format(config["COST_GAPOPEN"]))
+        f.write('# Extend_penalty: {}\n'.format(config["COST_GAPEXTEND"]))
         f.write('#\n')
         f.write('# Length: {}\n'.format(al_len))
         identity = '{}/{} ({}%)\n'.format(
@@ -756,7 +757,7 @@ def print_alignment(read, out_dir):
         f.write('#---------------------------------------\n')
 
 
-def get_alignment_score(char1,char2):
+def get_alignment_score(char1,char2, config=config):
     """
     Calculate the alignment score of two aligned bases.
 
@@ -771,11 +772,11 @@ def get_alignment_score(char1,char2):
         Alignment score (float).
     """
     if char1 == char2:
-        return COST_MATCH
+        return config["COST_MATCH"]
     elif char1 == 'Z' or char2 == 'Z':
         return -np.inf
     else:
-        return COST_MISMATCH
+        return config["COST_MISMATCH"]
 
 def get_min_score(seq1, seq2, min_score):
     """
@@ -793,7 +794,7 @@ def get_min_score(seq1, seq2, min_score):
     Returns:
         Minimum required alignment score (float).
     """
-    return min(len(seq1),len(seq2)) * COST_MATCH * min_score
+    return min(len(seq1),len(seq2)) * config["COST_MATCH"] * min_score
 
 
 def parallelize(function, args, cores):
@@ -945,7 +946,7 @@ def integral_insert_realignment(insert_alignment, insert_length):
     return insert_idxs[-1] - insert_idxs[0] + 1 == insert_length
 
 
-def annotate(df):
+def annotate(df, config=config):
     """
     Annotate insertions with chromosomal regions and coordinates.
 
@@ -958,13 +959,13 @@ def annotate(df):
     Returns:
         Annotated df.
     """
-    df = pd.merge(df, ANNO,
+    df = pd.merge(df, config["ANNO"],
         how='left', left_on=['end'], right_on=['amplicon_bp']).drop(['amplicon_bp', 'region'], axis=1)
     df = df.rename(columns={"chr13_bp": "end_chr13_bp", "transcript_bp": "end_transcript_bp", "protein_as": "end_protein_as"})
-    df = pd.merge(df, ANNO,
+    df = pd.merge(df, config["ANNO"],
         how='left', left_on=['insertion_site'], right_on=['amplicon_bp']).drop(['amplicon_bp', 'region'], axis=1)
     df = df.rename(columns={"chr13_bp": "insertion_site_chr13_bp", "transcript_bp": "insertion_site_transcript_bp", "protein_as": "insertion_site_protein_as"})
-    df = pd.merge(df, ANNO,
+    df = pd.merge(df, config["ANNO"],
         how='left', left_on=['start'], right_on=['amplicon_bp']).drop('amplicon_bp', axis=1)
     df = df.rename(columns={"chr13_bp": "start_chr13_bp", "transcript_bp": "start_transcript_bp", "protein_as": "start_protein_as"})
     return df
@@ -1044,7 +1045,7 @@ def merge(inserts, condition):
         inserts = merged
     return merged
 
-def save_to_file(inserts, filename):
+def save_to_file(inserts, filename, config=config):
     """
     Write insertions detected to TSV file.
     
@@ -1063,7 +1064,7 @@ def save_to_file(inserts, filename):
             dict_ins[key] = tuple(vars(insert)[key] for insert in [insert.prep_for_save() for insert in inserts])
         
         df_ins =  pd.DataFrame(dict_ins)
-        df_ins["sample"] = [SAMPLE] * len(inserts)
+        df_ins["sample"] = [config["SAMPLE"]] * len(inserts)
         df_ins["insertion_site"] = df_ins["end"] + 3 # insertion site = WT AS after insert --> +3 to make sure the next AS is annotated instead of the current one
         df_ins["ar"] = [vaf_to_ar(insert.vaf) for insert in inserts]
         df_ins["counts_each"] = [[read.counts for read in insert.reads] for insert in inserts]
@@ -1075,15 +1076,15 @@ def save_to_file(inserts, filename):
 
         # print counts_each only when they contain fewer than X elements (i.e. unique reads)
         #cols = cols + [col for col in ['counts_each'] if max([len(x) for x in df_ins[col]]) <= 10]
-        if ANNO is not None:
+        if config["ANNO"] is not None:
             # if annotation file exists,
             # overwrite with annotated df
             # (same command as above!)
             df_ins = annotate(df_ins)
-            df_ins["region"] = [insert.annotate_domains(DOMAINS) for insert in inserts]
+            df_ins["region"] = [insert.annotate_domains(config["DOMAINS"]) for insert in inserts]
             cols = cols + ["region", "start_chr13_bp", "start_transcript_bp", "start_protein_as", "end_chr13_bp", "end_transcript_bp", "end_protein_as", "insertion_site_protein_as"]
         cols = cols + ['file']
-        df_ins[cols].sort_values(by=['length','start','vaf']).to_csv(os.path.join(OUT_DIR,filename), index=False, float_format='%.2e', sep='\t')
+        df_ins[cols].sort_values(by=['length','start','vaf']).to_csv(os.path.join(config["OUT_DIR"],filename), index=False, float_format='%.2e', sep='\t')
 
 def get_unique_reads(reads):
     """
@@ -1118,7 +1119,7 @@ def get_unique_reads(reads):
     return unique_reads
 
 
-def filter_alignment_score(reads):
+def filter_alignment_score(reads, config=config):
     """
     Filter reads based on alignment score.
 
@@ -1133,9 +1134,9 @@ def filter_alignment_score(reads):
     reads_filtered = [
         read for read in reads
         if read.al_score is not None and read.al_score >= get_min_score(
-        read.seq, REF, MIN_SCORE_ALIGNMENTS)]
+                read.seq, config["REF"], config["MIN_SCORE_ALIGNMENTS"])]
     save_stats("Filtering {} / {} low quality alignments with a score < {} % of max".format(
-            len(reads) - len(reads_filtered), len(reads), MIN_SCORE_ALIGNMENTS *100), STATS_FILE)
+            len(reads) - len(reads_filtered), len(reads), config["MIN_SCORE_ALIGNMENTS"] *100), config["STATS_FILE"])
     return reads_filtered
 
 
@@ -1199,124 +1200,124 @@ if __name__ == '__main__':
     parser.add_argument('-filter_ins_vaf', help="minimum variant allele frequency (VAF) required for an insertion to be considered 'high confidence' (default 0.001)", default="0.001", type=float)
     cmd_args = parser.parse_args()
 
-    R1 = cmd_args.fastq1
-    R2 = cmd_args.fastq2
-    I1 = cmd_args.index1
-    I2 = cmd_args.index2
-    SAMPLE = cmd_args.sampleID
-    MIN_BQS = cmd_args.minBQS
-    REF_FILE = cmd_args.reference
-    ANNO_FILE = cmd_args.anno
-    TECH = cmd_args.technology
-    NKERN = cmd_args.nkern
-    KNOWN_LENGTH_FILE = cmd_args.known_length
-    KNOWN_VAF_FILE = cmd_args.known_vaf
-    KNOWN_AR_FILE = cmd_args.known_ar
-    OUT_DIR = '_'.join([SAMPLE,'minBQS', str(MIN_BQS)])
-    STATS_FILE = os.path.join(OUT_DIR, "stats.txt")
-    CONFIG_FILE = os.path.join(OUT_DIR, "config.txt")
+    config["R1"] = cmd_args.fastq1
+    config["R2"] = cmd_args.fastq2
+    config["I1"] = cmd_args.index1
+    config["I2"] = cmd_args.index2
+    config["SAMPLE"] = cmd_args.sampleID
+    config["MIN_BQS"] = cmd_args.minBQS
+    config["REF_FILE"] = cmd_args.reference
+    config["ANNO_FILE"] = cmd_args.anno
+    config["TECH"] = cmd_args.technology
+    config["NKERN"] = cmd_args.nkern
+    config["KNOWN_LENGTH_FILE"] = cmd_args.known_length
+    config["KNOWN_VAF_FILE"] = cmd_args.known_vaf
+    config["KNOWN_AR_FILE"] = cmd_args.known_ar
+    config["OUT_DIR"] = '_'.join([config["SAMPLE"],'minBQS', str(config["MIN_BQS"])])
+    config["STATS_FILE"] = os.path.join(config["OUT_DIR"], "stats.txt")
+    config["CONFIG_FILE"] = os.path.join(config["OUT_DIR"], "config.txt")
 
-    COST_MATCH = cmd_args.match
-    COST_MISMATCH = cmd_args.mismatch
-    COST_GAPOPEN = cmd_args.gap_open
-    COST_GAPEXTEND = cmd_args.gap_extend
-    MIN_SCORE_INSERTS = cmd_args.minscore_inserts
-    MIN_SCORE_ALIGNMENTS = cmd_args.minscore_alignments
+    config["COST_MATCH"] = cmd_args.match
+    config["COST_MISMATCH"] = cmd_args.mismatch
+    config["COST_GAPOPEN"] = cmd_args.gap_open
+    config["COST_GAPEXTEND"] = cmd_args.gap_extend
+    config["MIN_SCORE_INSERTS"] = cmd_args.minscore_inserts
+    config["MIN_SCORE_ALIGNMENTS"] = cmd_args.minscore_alignments
 
-    MIN_READ_LENGTH = cmd_args.min_read_length
-    MIN_READ_COPIES = cmd_args.filter_reads
-    MIN_TOTAL_READS = cmd_args.filter_ins_total_reads
-    MIN_UNIQUE_READS = cmd_args.filter_ins_unique_reads
-    MIN_VAF = cmd_args.filter_ins_vaf
+    config["MIN_READ_LENGTH"] = cmd_args.min_read_length
+    config["MIN_READ_COPIES"] = cmd_args.filter_reads
+    config["MIN_TOTAL_READS"] = cmd_args.filter_ins_total_reads
+    config["MIN_UNIQUE_READS"] = cmd_args.filter_ins_unique_reads
+    config["MIN_VAF"] = cmd_args.filter_ins_vaf
 
 
-    ANNO = read_annotation(ANNO_FILE)
-    DOMAINS = get_domains(ANNO)
-    REF = read_reference(REF_FILE).upper()
+    config["ANNO"] = read_annotation(config["ANNO_FILE"])
+    config["DOMAINS"] = get_domains(config["ANNO"])
+    config["REF"] = read_reference(config["REF_FILE"]).upper()
 
     ## CREATE OUTPUT FOLDER
-    if not os.path.exists(OUT_DIR):
-        os.makedirs(OUT_DIR)
+    if not os.path.exists(config["OUT_DIR"]):
+        os.makedirs(config["OUT_DIR"])
 
-    save_config(cmd_args, CONFIG_FILE)
+    save_config(cmd_args, config["CONFIG_FILE"])
 
     # stats are appended, remove previous output prior to new analysis
     try:
-        os.remove(STATS_FILE)
+        os.remove(config["STATS_FILE"])
     except OSError:
         pass
-    save_stats("==== PROCESSING SAMPLE {} ====".format(SAMPLE), STATS_FILE)
+    save_stats("==== PROCESSING SAMPLE {} ====".format(config["SAMPLE"]), config["STATS_FILE"])
 
-    save_stats("-- Reading FASTQ files --", STATS_FILE)
+    save_stats("-- Reading FASTQ files --", config["STATS_FILE"])
     start_time = timeit.default_timer()
-    reads = read_fastq(R1)
+    reads = read_fastq(config["R1"])
 
     # IF IT EXISTS:
     # --> reverse-complement R2 reads so that all reads can be aligned to the same reference
-    if R2:
-        reads_rev = read_fastq(R2)
-        reads_rev_rev = parallelize(Read.reverse_complement,reads_rev,NKERN)
+    if config["R2"]:
+        reads_rev = read_fastq(config["R2"])
+        reads_rev_rev = parallelize(Read.reverse_complement, reads_rev, config["NKERN"])
         reads = reads + reads_rev_rev
     print("Reading FASTQ files took {} s".format(timeit.default_timer() - start_time))
-    save_stats("Number of total reads: {}".format(len(reads)), STATS_FILE)
+    save_stats("Number of total reads: {}".format(len(reads)), config["STATS_FILE"])
     TOTAL_READS = len(reads)
 
     ## IF GIVEN, GET AND FILTER ON INDEX BQS
     start_time = timeit.default_timer()
-    if I1 or I2:
-        if I1:
-            indices1_bqs = read_index_bqs(I1)
+    if config["I1"] or config["I2"]:
+        if config["I1"]:
+            indices1_bqs = read_index_bqs(config["I1"])
             indices_bqs = indices1_bqs
-        if I2:
-            indices2_bqs = read_index_bqs(I2)
+        if config["I2"]:
+            indices2_bqs = read_index_bqs(config["I2"])
             indices_bqs = indices2_bqs
-        if I1 and I2:
+        if config["I1"] and config["I2"]:
             merged_indices_bqs = [index1_bqs + index2_bqs for index1_bqs,index2_bqs in zip(indices1_bqs, indices2_bqs)]
             indices_bqs = merged_indices_bqs
-        reads = [read for read,index_bqs in zip(reads, indices_bqs) if average_bqs(index_bqs) >= MIN_BQS]
+        reads = [read for read,index_bqs in zip(reads, indices_bqs) if average_bqs(index_bqs) >= config["MIN_BQS"]]
         print("Reading and filtering index BQS took {} s".format(timeit.default_timer() - start_time))
-        save_stats("Number of total reads with index BQS >= {}: {} ({} %)".format(MIN_BQS, len(reads), len(reads) * 100 / TOTAL_READS), STATS_FILE)
+        save_stats("Number of total reads with index BQS >= {}: {} ({} %)".format(config["MIN_BQS"], len(reads), len(reads) * 100 / TOTAL_READS), config["STATS_FILE"])
 
     ## TRIM trailing AMBIGUOUS 'N's
-    reads = [x for x in parallelize(Read.trim_n, reads, NKERN) if x is not None]
-    save_stats("Number of total reads remainging after N-trimming: {} ({} %)".format(len(reads), len(reads) * 100 / TOTAL_READS), STATS_FILE)
-    save_stats("Mean read length after N-trimming: {}".format(np.mean([read.length for read in reads])), STATS_FILE)
+    reads = [x for x in parallelize(Read.trim_n, reads, config["NKERN"]) if x is not None]
+    save_stats("Number of total reads remainging after N-trimming: {} ({} %)".format(len(reads), len(reads) * 100 / TOTAL_READS), config["STATS_FILE"])
+    save_stats("Mean read length after N-trimming: {}".format(np.mean([read.length for read in reads])), config["STATS_FILE"])
 
     ## FILTER ON BQS
-    if MIN_BQS > 0:
-        reads = [x for x in parallelize(Read.filter_bqs, reads, NKERN) if x is not None]
-    save_stats("Number of total reads with mean BQS >= {}: {} ({} %)".format(MIN_BQS, len(reads), len(reads) * 100 / TOTAL_READS), STATS_FILE)
+    if config["MIN_BQS"] > 0:
+        reads = [x for x in parallelize(Read.filter_bqs, reads, config["NKERN"]) if x is not None]
+    save_stats("Number of total reads with mean BQS >= {}: {} ({} %)".format(config["MIN_BQS"], len(reads), len(reads) * 100 / TOTAL_READS), config["STATS_FILE"])
 
     # get unique reads and counts thereof
     start_time = timeit.default_timer()
     reads = get_unique_reads(reads)
     print("Getting unique reads took {} s\n".format(timeit.default_timer() - start_time))
-    save_stats("Number of unique reads with mean BQS >= {}: {}".format(MIN_BQS,len(reads)), STATS_FILE)
+    save_stats("Number of unique reads with mean BQS >= {}: {}".format(config["MIN_BQS"],len(reads)), config["STATS_FILE"])
 
     # FILTER UNIQUE READS
     # --> keep only those that exist at least twice
     # --> assumption: if it's not reproducible, it's not (true and clinically relevant)
-    if MIN_READ_COPIES == 1:
-        save_stats("Turned OFF unique reads filter!", STATS_FILE)
+    if config["MIN_READ_COPIES"] == 1:
+        save_stats("Turned OFF unique reads filter!", config["STATS_FILE"])
     else:
-        reads = [read for read in reads if read.counts >= MIN_READ_COPIES ]
-        save_stats("Number of unique reads with at least {} copies: {}".format(MIN_READ_COPIES,len(reads)), STATS_FILE)
-    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum([read.counts for read in reads]), sum([read.counts for read in reads]) * 100 / TOTAL_READS), STATS_FILE)
+        reads = [read for read in reads if read.counts >= config["MIN_READ_COPIES"] ]
+        save_stats("Number of unique reads with at least {} copies: {}".format(config["MIN_READ_COPIES"],len(reads)), config["STATS_FILE"])
+    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum([read.counts for read in reads]), sum([read.counts for read in reads]) * 100 / TOTAL_READS), config["STATS_FILE"])
 
     ## ALIGN TO REF
-    save_stats("\n-- Aligning to Reference --", STATS_FILE)
+    save_stats("\n-- Aligning to Reference --", config["STATS_FILE"])
     start_time = timeit.default_timer()
-    reads = parallelize(Read.align, reads, NKERN)
+    reads = parallelize(Read.align, reads, config["NKERN"])
     print("Alignment took {} s".format(timeit.default_timer() - start_time))
 
     # FILTER BASED ON ALIGNMENT SCORE (INCL FAILED ALIGNMENTS WITH read.al_score is None!
     reads = filter_alignment_score(reads)
-    reads = parallelize(Read.get_reference_range_covered, reads, NKERN)
+    reads = parallelize(Read.get_reference_range_covered, reads, config["NKERN"])
 
     # FILTER BASED ON MISALIGNED PRIMERS
     # --> require that primers (26 bp forward / 23 bp reverse) are always aligned with max 3 gaps
     # --> only works for this specific MRD project! --> 454 has different and multiple primers (2 PCRs!)
-    if TECH == "Illumina":
+    if config["TECH"] == "Illumina":
         rev_primer = 'GGTTGCCGTCAAAATGCTGAAAG'
         fwrd_primer = 'GCAATTTAGGTATGAAAGCCAGCTAC'
         primers_filtered = [read for read in reads if (
@@ -1331,15 +1332,15 @@ if __name__ == '__main__':
             ) or
                 (read.sense == 1
                 and read.al_seq.count('-', read.al_ref.find(fwrd_primer), read.al_ref.find(fwrd_primer) + len(fwrd_primer)) <= 0))]
-        save_stats("Filtering {} / {} alignments with more than 3 unaligned primer bases".format( len(reads) - len(primers_filtered), len(reads)), STATS_FILE)
+        save_stats("Filtering {} / {} alignments with more than 3 unaligned primer bases".format( len(reads) - len(primers_filtered), len(reads)), config["STATS_FILE"])
         reads = primers_filtered
 
     # FINAL STATS
-    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum([read.counts for read in reads]), sum([read.counts for read in reads]) * 100 / TOTAL_READS), STATS_FILE)
+    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum([read.counts for read in reads]), sum([read.counts for read in reads]) * 100 / TOTAL_READS), config["STATS_FILE"])
 
     # PRINT PASSING ALIGNMENTS
     # create output file directory for alignments print-outs
-    needle_dir = os.path.join(OUT_DIR,'out_needle')
+    needle_dir = os.path.join(config["OUT_DIR"],'out_needle')
     if not os.path.exists(needle_dir):
         os.makedirs(needle_dir)
 
@@ -1348,7 +1349,7 @@ if __name__ == '__main__':
         print_alignment(reads[i], needle_dir)
 
     if not reads:
-        save_stats("\nNO READS TO PROCESS!", STATS_FILE)
+        save_stats("\nNO READS TO PROCESS!", config["STATS_FILE"])
         quit()
 
 
@@ -1358,7 +1359,7 @@ if __name__ == '__main__':
     ref_coverage = []
     ref_coverage_frwd = []
     ref_coverage_rev = []
-    for coord, bp  in enumerate(REF):
+    for coord, bp  in enumerate(config["REF"]):
         spanning_reads = [read for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1]]
         spanning_reads_index = flatten_list([read.index for read in spanning_reads])
         ref_coverage.append(len(set(spanning_reads_index)))
@@ -1372,7 +1373,7 @@ if __name__ == '__main__':
 
     #######################################
     # COLLECT INSERTS
-    save_stats("\n-- Looking for insertions & ITDs --", STATS_FILE)
+    save_stats("\n-- Looking for insertions & ITDs --", config["STATS_FILE"])
 
     inserts = []
     start_time = timeit.default_timer()
@@ -1453,7 +1454,7 @@ if __name__ == '__main__':
                         inserts.append(insert)
 
     print("Collecting inserts took {} s".format(timeit.default_timer() - start_time))
-    save_stats("{} insertions were found".format(len(inserts)), STATS_FILE)
+    save_stats("{} insertions were found".format(len(inserts)), config["STATS_FILE"])
 
 
     start_time = timeit.default_timer()
@@ -1476,11 +1477,11 @@ if __name__ == '__main__':
     itds = []
     start_time = timeit.default_timer()
     for insert in inserts:
-        min_score = get_min_score(insert.seq, REF, MIN_SCORE_ALIGNMENTS)
+        min_score = get_min_score(insert.seq, config["REF"], config["MIN_SCORE_ALIGNMENTS"])
         
         # arguments: seq1, seq2, match-score, mismatch-score, gapopen-score, gapextend-score
         # output: list of optimal alignments, each a list of seq1, seq2, score, start-idx, end-idx
-        alignments = bio.align.localcs(insert.seq, REF, get_alignment_score, COST_GAPOPEN, COST_GAPEXTEND)
+        alignments = bio.align.localcs(insert.seq, config["REF"], get_alignment_score, config["COST_GAPOPEN"], config["COST_GAPEXTEND"])
         
         # filter alignments where insert cannot be realigned in one piece
         alignments = [al for al in alignments if integral_insert_realignment(al[0],insert.length)]
@@ -1539,12 +1540,12 @@ if __name__ == '__main__':
     inserts = sorted(inserts, key=Insert.get_seq)
     itds = sorted(itds, key=Insert.get_seq)
     print("Collecting ITDs took {} s".format(timeit.default_timer() - start_time))
-    save_stats("{} ITDs were found".format(len(itds)), STATS_FILE)
+    save_stats("{} ITDs were found".format(len(itds)), config["STATS_FILE"])
 
 
     ########################################
     # MERGE INSERTS
-    save_stats("\n-- Merging results --", STATS_FILE)
+    save_stats("\n-- Merging results --", config["STATS_FILE"])
 
     merge_dic = {"insertions": inserts, "itds": itds}
     all_merged = {}
@@ -1560,7 +1561,7 @@ if __name__ == '__main__':
                 ("is-same_trailing","trailing")]:
             to_merge = merge(to_merge, condition)
             all_merged[inserts_type].append(to_merge)
-            save_stats("{} {} remain after merging".format(len(to_merge), inserts_type), STATS_FILE)
+            save_stats("{} {} remain after merging".format(len(to_merge), inserts_type), config["STATS_FILE"])
             suffix = suffix + condition
             save_to_file([insert.rep for insert in to_merge], inserts_type + "_collapsed-" + suffix + ".tsv")
             suffix = suffix + "_"
@@ -1575,7 +1576,7 @@ if __name__ == '__main__':
 
     ########################################
     # FILTER INSERTS
-    save_stats("\n-- Filtering --", STATS_FILE)
+    save_stats("\n-- Filtering --", config["STATS_FILE"])
 
     final_filtered = {}
     filter_dic = {
@@ -1589,8 +1590,8 @@ if __name__ == '__main__':
             passed = [filter_(insert) for insert in filtered]
             filtered = [insert for (insert,pass_) in zip(filtered, passed) if pass_]
             save_stats("Filtered {} / {} {} based on the {}".format(
-                len(passed) - sum(passed), len(passed), inserts_type, filter_type), STATS_FILE)
-        save_stats("{} {} remain after filtering!".format(len(filtered), inserts_type), STATS_FILE)
+                len(passed) - sum(passed), len(passed), inserts_type, filter_type), config["STATS_FILE"])
+        save_stats("{} {} remain after filtering!".format(len(filtered), inserts_type), config["STATS_FILE"])
         save_to_file(filtered, inserts_type + "_collapsed-" + suffix + "hc.tsv")
         final_filtered[inserts_type] = filtered
     print("Filtering took {} s".format(timeit.default_timer() - start_time))
