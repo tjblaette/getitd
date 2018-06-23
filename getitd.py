@@ -181,8 +181,8 @@ class Read(object):
             List of collected Insert objects.
         """
         inserts = []
-        readn = np.array(list(read.al_seq))
-        refn = np.array(list(read.al_ref))
+        readn = np.array(list(self.al_seq))
+        refn = np.array(list(self.al_ref))
         assert(len(readn) == len(refn))
         
         # if read contains insert
@@ -220,11 +220,11 @@ class Read(object):
                     insert_start = insert_idxs[0]
                     insert_end = insert_idxs[-1]
                     insert = Insert(
-                        seq=read.al_seq[insert_start:insert_end+1],
+                        seq=self.al_seq[insert_start:insert_end+1],
                         start=insert_start,
                         end=insert_end,
-                        reads=[read],
-                        counts=read.counts)
+                        reads=[self],
+                        counts=self.counts)
                     assert insert.length == len(insert_idxs)
                     
                     if all(readn[0:insert.start] == '-'):
@@ -239,7 +239,7 @@ class Read(object):
                     #       (trailing_end would be set respectively but as insertions will in fact be fully contained
                     #       within the insert, trailing will be False nontheless)
                     # should I discard reads where the primer is not mapped? See lbseq:/media/data/tabl/laura*/mail/primer_unmapped.txt
-                    insert.trailing = (read.sense == 1 and insert.trailing_end == 3) or (read.sense == -1 and insert.trailing_end == 5)
+                    insert.trailing = (self.sense == 1 and insert.trailing_end == 3) or (self.sense == -1 and insert.trailing_end == 5)
                     
                     if insert.trailing or insert.length % 3 == 0:
                         # change insert.start coord
@@ -358,14 +358,14 @@ class Insert(object):
         return self
 
     def get_itd(self, config=config):
-        min_score = get_min_score(insert.seq, config["REF"], config["MIN_SCORE_ALIGNMENTS"])
+        min_score = get_min_score(self.seq, config["REF"], config["MIN_SCORE_ALIGNMENTS"])
         
         # arguments: seq1, seq2, match-score, mismatch-score, gapopen-score, gapextend-score
         # output: list of optimal alignments, each a list of seq1, seq2, score, start-idx, end-idx
-        alignments = bio.align.localcs(insert.seq, config["REF"], get_alignment_score, config["COST_GAPOPEN"], config["COST_GAPEXTEND"])
+        alignments = bio.align.localcs(self.seq, config["REF"], get_alignment_score, config["COST_GAPOPEN"], config["COST_GAPEXTEND"])
         
         # filter alignments where insert cannot be realigned in one piece
-        alignments = [al for al in alignments if integral_insert_realignment(al[0],insert.length)]
+        alignments = [al for al in alignments if integral_insert_realignment(al[0],self.length)]
         if not alignments:
             alignment_score = -1
         else:
@@ -377,37 +377,37 @@ class Insert(object):
             #print(bio.format_alignment(*alignment))
         if alignment_score >= min_score:
             tandem2_start = [i for i,bp in enumerate(alignment[0]) if bp != '-'][0]
-            offset = abs(tandem2_start - insert.start)
+            offset = abs(tandem2_start - self.start)
             # offset = 1 for adjacent insert-tandem2
             # offset = insert.length-1 for adjacent tandem2-insert
             # --> (for tandem2-insert: offset = abs((insert_start - insert.length +1) - insert_start))
-            if (offset == 1 or offset == insert.length - 1) or (insert.trailing and (insert.trailing_end == 3 and alignment_start < insert.start) or (insert.trailing_end == 5 and alignment_start > insert.start)):
+            if (offset == 1 or offset == self.length - 1) or (self.trailing and (self.trailing_end == 3 and alignment_start < self.start) or (self.trailing_end == 5 and alignment_start > self.start)):
                 # do not allow gaps in tandems of trailing ITDs
                 # -> also filters tandems not covered by read at all 
                 #    such as small trailing inserts by chance also found in some other part of the the reference
                 #    (can never be the case for non-trailing ITDs anyway)
                 # --> careful: alignment_end is exclusive coord, i.e. the index of the first bp after the alignment!
-                #if alignment_start >= insert.reads[0].ref_span[0] or alignment_end-1 <= insert.reads[1].ref_span[1]:
-                if alignment_start >= insert.reads[0].ref_span[0] and alignment_end-1 <= insert.reads[0].ref_span[1]:
+                #if alignment_start >= self.reads[0].ref_span[0] or alignment_end-1 <= self.reads[1].ref_span[1]:
+                if alignment_start >= self.reads[0].ref_span[0] and alignment_end-1 <= self.reads[0].ref_span[1]:
                     # if by chance insert is completely contained within read in spite of it being trailing
                     # (i.e. insert and tandem have the same length & are adjacent)
                     # --> revert trailing to be able to apply more stringent filters of non-trailing inserts
-                    if insert.trailing and (offset == 1 or offset == insert.length - 1):
-                        insert.trailing = False
+                    if self.trailing and (offset == 1 or offset == self.length - 1):
+                        self.trailing = False
                         print("UNTRAILED: {}".format(vars(read)))
-                        if insert.length % 3 != 0:
+                        if self.length % 3 != 0:
                             print("BUT NOT IN FRAME!!!")
                             return None
                     return ITD(
-                        insert,
+                        self,
                         offset=offset,
                         tandem2_start=tandem2_start,
                         external_bp=abs(tandem2_start - alignment_start)
                         )
                 else:
                     print("ITD's tandem not covered by read")
-                    insert.print()
-                    insert.reads[0].print()
+                    self.print()
+                    self.reads[0].print()
                     print(bio.format_alignment(*alignment))
                     print(alignment_start)
                     print(alignment_end)
