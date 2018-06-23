@@ -158,23 +158,20 @@ class Read(object):
                 return rev
         return self
 
-    def get_reference_range_covered(read):
+    def get_reference_range_covered(self):
         """
-        Get most 3' and 5' reference base covered by read.
+        Get most 3' and 5' reference base covered by Read.
         Coordinates are 0-based and relative to the WT reference.
-
-        Args:
-            read (Read): Read for which to get range of WT reference spanned.
 
         Returns:
             Updated read.
         """
-        refn = np.array(list(read.al_ref))
-        readn = np.array(list(read.al_seq))
+        refn = np.array(list(self.al_ref))
+        readn = np.array(list(self.al_seq))
         ref_covered_bp = np.where(readn[refn != '-'] != '-')
 
-        read.ref_span = [np.min(ref_covered_bp), np.max(ref_covered_bp)]
-        return read
+        self.ref_span = [np.min(ref_covered_bp), np.max(ref_covered_bp)]
+        return self
 
 
 class Insert(object):
