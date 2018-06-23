@@ -357,6 +357,63 @@ class Insert(object):
         assert self.vaf >= 0 and self.vaf <= 100
         return self
 
+    def get_itd(self, config=config):
+        min_score = get_min_score(insert.seq, config["REF"], config["MIN_SCORE_ALIGNMENTS"])
+        
+        # arguments: seq1, seq2, match-score, mismatch-score, gapopen-score, gapextend-score
+        # output: list of optimal alignments, each a list of seq1, seq2, score, start-idx, end-idx
+        alignments = bio.align.localcs(insert.seq, config["REF"], get_alignment_score, config["COST_GAPOPEN"], config["COST_GAPEXTEND"])
+        
+        # filter alignments where insert cannot be realigned in one piece
+        alignments = [al for al in alignments if integral_insert_realignment(al[0],insert.length)]
+        if not alignments:
+            alignment_score = -1
+        else:
+            # how often is there more than one alignment?
+            # --> (more than 1 => alignment is ambiguous)
+            # --> Can I choose a smart one somehow? Otherwise return only one in the first place...
+            alignment = alignments[-1]
+            alignment_score, alignment_start, alignment_end = alignment[2:5]
+            #print(bio.format_alignment(*alignment))
+        if alignment_score >= min_score:
+            tandem2_start = [i for i,bp in enumerate(alignment[0]) if bp != '-'][0]
+            offset = abs(tandem2_start - insert.start)
+            # offset = 1 for adjacent insert-tandem2
+            # offset = insert.length-1 for adjacent tandem2-insert
+            # --> (for tandem2-insert: offset = abs((insert_start - insert.length +1) - insert_start))
+            if (offset == 1 or offset == insert.length - 1) or (insert.trailing and (insert.trailing_end == 3 and alignment_start < insert.start) or (insert.trailing_end == 5 and alignment_start > insert.start)):
+                # do not allow gaps in tandems of trailing ITDs
+                # -> also filters tandems not covered by read at all 
+                #    such as small trailing inserts by chance also found in some other part of the the reference
+                #    (can never be the case for non-trailing ITDs anyway)
+                # --> careful: alignment_end is exclusive coord, i.e. the index of the first bp after the alignment!
+                #if alignment_start >= insert.reads[0].ref_span[0] or alignment_end-1 <= insert.reads[1].ref_span[1]:
+                if alignment_start >= insert.reads[0].ref_span[0] and alignment_end-1 <= insert.reads[0].ref_span[1]:
+                    # if by chance insert is completely contained within read in spite of it being trailing
+                    # (i.e. insert and tandem have the same length & are adjacent)
+                    # --> revert trailing to be able to apply more stringent filters of non-trailing inserts
+                    if insert.trailing and (offset == 1 or offset == insert.length - 1):
+                        insert.trailing = False
+                        print("UNTRAILED: {}".format(vars(read)))
+                        if insert.length % 3 != 0:
+                            print("BUT NOT IN FRAME!!!")
+                            return None
+                    return ITD(
+                        insert,
+                        offset=offset,
+                        tandem2_start=tandem2_start,
+                        external_bp=abs(tandem2_start - alignment_start)
+                        )
+                else:
+                    print("ITD's tandem not covered by read")
+                    insert.print()
+                    insert.reads[0].print()
+                    print(bio.format_alignment(*alignment))
+                    print(alignment_start)
+                    print(alignment_end)
+        return None
+
+
     def norm_start(self, config=config):
         """
         Normalize Insert's start coordinate to [0, len(REF)[.
@@ -1479,73 +1536,16 @@ if __name__ == '__main__':
     print("Annotating coverage took {} s".format(timeit.default_timer() - start_time))
 
 
-    # CHECK WHETHER INSERTIONS ARE ITDs -> place in method later and apply at each step of filtering?
-    # Should I do exact searching before doing insert-ref alignment as I used to in the previous script?
+    #######################################
+    # COLLECT ITDs
     # --> put this in a method and use parallelize to speed things up!
     # --> (can I also do that for reads above when there are possibly multiple inserts per read?) -> yes: return [inserts found] per itd, remove None, flatten list
     itds = []
     start_time = timeit.default_timer()
     for insert in inserts:
-        min_score = get_min_score(insert.seq, config["REF"], config["MIN_SCORE_ALIGNMENTS"])
-        
-        # arguments: seq1, seq2, match-score, mismatch-score, gapopen-score, gapextend-score
-        # output: list of optimal alignments, each a list of seq1, seq2, score, start-idx, end-idx
-        alignments = bio.align.localcs(insert.seq, config["REF"], get_alignment_score, config["COST_GAPOPEN"], config["COST_GAPEXTEND"])
-        
-        # filter alignments where insert cannot be realigned in one piece
-        alignments = [al for al in alignments if integral_insert_realignment(al[0],insert.length)]
-        if not alignments:
-            alignment_score = -1
-        else:
-            # how often is there more than one alignment?
-            # --> (more than 1 => alignment is ambiguous)
-            # --> Can I choose a smart one somehow? Otherwise return only one in the first place...
-            alignment = alignments[-1]
-            alignment_score, alignment_start, alignment_end = alignment[2:5]
-            #print(bio.format_alignment(*alignment))
-        if alignment_score >= min_score:
-            #offset = abs(alignment_start - insert.start)
-            tandem2_start = [i for i,bp in enumerate(alignment[0]) if bp != '-'][0]
-            offset = abs(tandem2_start - insert.start)
-            # offset = 1 for adjacent insert-tandem2
-            # offset = insert.length-1 for adjacent tandem2-insert
-            # --> (for tandem2-insert: offset = abs((insert_start - insert.length +1) - insert_start))
-            if (offset == 1 or offset == insert.length - 1) or (insert.trailing and (insert.trailing_end == 3 and alignment_start < insert.start) or (insert.trailing_end == 5 and alignment_start > insert.start)):
-                # do not allow gaps in tandems of trailing ITDs
-                # -> also filters tandems not covered by read at all 
-                #    such as small trailing inserts by chance also found in some other part of the the reference
-                #    (can never be the case for non-trailing ITDs anyway)
-                # --> careful: alignment_end is exclusive coord, i.e. the index of the first bp after the alignment!
-                #if alignment_start >= insert.reads[0].ref_span[0] or alignment_end-1 <= insert.reads[1].ref_span[1]:
-                if alignment_start >= insert.reads[0].ref_span[0] and alignment_end-1 <= insert.reads[0].ref_span[1]:
-                    # if by chance insert is completely contained within read in spite of it being trailing
-                    # (i.e. insert and tandem have the same length & are adjacent)
-                    # --> revert trailing to be able to apply more stringent filters of non-trailing inserts
-                    if insert.trailing and (offset == 1 or offset == insert.length - 1):
-                        insert.trailing = False
-                        print("UNTRAILED: {}".format(vars(read)))
-                        if insert.length % 3 != 0:
-                            print("BUT NOT IN FRAME!!!")
-                            # remove from inserts list (see below loop)
-                    itd = ITD(
-                        insert,
-                        offset=offset,
-                        tandem2_start=tandem2_start,
-                        #tandem2_start=alignment_start,
-                        external_bp=abs(tandem2_start - alignment_start)
-                        #external_bp=insert.length - (alignment_end - alignment_start)
-                        )
-                    itds.append(itd)
-                else:
-                    print("ITD's tandem not covered by read")
-                    insert.print()
-                    insert.reads[0].print()
-                    print(bio.format_alignment(*alignment))
-                    print(alignment_start)
-                    print(alignment_end)
-
-    # in case any out-of-frame insert was untrailed: remove it from list of inserts
-    inserts[:] = [insert for insert in inserts if insert.trailing or insert.length % 3 == 0]
+        itds.append(insert.get_itd(config))
+    itds = [itd for itd in itds if itd is not None]
+    
     inserts = sorted(inserts, key=Insert.get_seq)
     itds = sorted(itds, key=Insert.get_seq)
     print("Collecting ITDs took {} s".format(timeit.default_timer() - start_time))
