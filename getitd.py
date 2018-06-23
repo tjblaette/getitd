@@ -173,6 +173,90 @@ class Read(object):
         self.ref_span = [np.min(ref_covered_bp), np.max(ref_covered_bp)]
         return self
 
+    def get_inserts(self):
+        """
+        Collect all inserts contained within a given Read.
+
+        Returns:
+            List of collected Insert objects.
+        """
+        inserts = []
+        readn = np.array(list(read.al_seq))
+        refn = np.array(list(read.al_ref))
+        assert(len(readn) == len(refn))
+        
+        # if read contains insert
+        insert_idxs_all = np.where(refn == '-')[0]
+        if len(insert_idxs_all) > 0:
+            # two gaps should never align at the same pos!
+            assert('-' not in readn[insert_idxs_all])
+            
+            # get indeces of individual inserts
+            insert_idxs_list = []
+            insert_idxs= []
+            i_prev = None
+            for i_this in insert_idxs_all:
+                #start saving first/continue saving next insert index
+                if i_prev is None or i_prev == i_this -1:
+                    insert_idxs.append(i_this)
+                    i_prev = i_this
+                #save current insert_idxs and open up a new one for the next insert
+                else:
+                    insert_idxs_list.append(insert_idxs)
+                    insert_idxs = [i_this]
+                    i_prev = i_this
+            # save last insert as well
+            insert_idxs_list.append(insert_idxs)
+            assert np.all(np.concatenate(insert_idxs_list) == insert_idxs_all)
+           
+            # analyze largest insert per read only
+            # --> assume no two true inserts occur within the same read
+            # --> assume the smaller one is more likely to be the false positive (not always true though!)
+            #insert_idxs_list = [insert_idxs_list[[len(ins) for ins in insert_idxs_list].index(max([len(ins) for ins in insert_idxs_list]))]]
+            # --> could try to discard all reads with multiple inserts!  (might be more accurate)
+            # --> would have to discard all mini-inserts (< 6 bp) first to allow alignment/minor sequencing errors
+            for insert_idxs in insert_idxs_list:
+                if len(insert_idxs) >= 6 and "N" not in readn[insert_idxs]:
+                    insert_start = insert_idxs[0]
+                    insert_end = insert_idxs[-1]
+                    insert = Insert(
+                        seq=read.al_seq[insert_start:insert_end+1],
+                        start=insert_start,
+                        end=insert_end,
+                        reads=[read],
+                        counts=read.counts)
+                    assert insert.length == len(insert_idxs)
+                    
+                    if all(readn[0:insert.start] == '-'):
+                        insert.trailing_end = 5
+                    elif all(readn[insert.end+1:] == '-'):
+                        insert.trailing_end = 3
+                    else:
+                        insert.trailing_end = 0
+                    # inserts are considered trailing when it is unclear whether they were covered completely or not
+                    # --> because primers guarantee that amplicon starts and ends with WT ref bases,
+                    #       forward reads cannot have 5' and reverse reads cannot have 3' trailing insertions
+                    #       (trailing_end would be set respectively but as insertions will in fact be fully contained
+                    #       within the insert, trailing will be False nontheless)
+                    # should I discard reads where the primer is not mapped? See lbseq:/media/data/tabl/laura*/mail/primer_unmapped.txt
+                    insert.trailing = (read.sense == 1 and insert.trailing_end == 3) or (read.sense == -1 and insert.trailing_end == 5)
+                    
+                    if insert.trailing or insert.length % 3 == 0:
+                        # change insert.start coord
+                        #   from: 1st insert/gap bp in read-ref alignment
+                        #   to: preceding bp in WT ref sequence
+                        #   --> -sum(preceding gaps) -1
+                        insert.start = insert.start - sum(refn[0:insert.start] == '-') -1
+                        # distinguish insertions starting before WT base 0 (5' insertion) and those starting right after base 0 (0 would then be preceding WT base)
+                        #   --> later negative/ 5' coords are reset to 0 to hide counterintuitive coords (should I set them to -1???)
+                        if insert.start == 0:
+                            insert.start = -insert.length
+                        insert.end = insert.start + insert.length - 1
+
+                        # having passed all filters, save insert
+                        inserts.append(insert)
+        return inserts
+
 
 class Insert(object):
     """
@@ -1375,80 +1459,8 @@ if __name__ == '__main__':
     inserts = []
     start_time = timeit.default_timer()
     for read in reads:
-        readn = np.array(list(read.al_seq))
-        refn = np.array(list(read.al_ref))
-        assert(len(readn) == len(refn))
-        
-        # if read contains insert
-        insert_idxs_all = np.where(refn == '-')[0]
-        if len(insert_idxs_all) > 0:
-            # two gaps should never align at the same pos!
-            assert('-' not in readn[insert_idxs_all])
-            
-            # get indeces of individual inserts
-            insert_idxs_list = []
-            insert_idxs= []
-            i_prev = None
-            for i_this in insert_idxs_all:
-                #start saving first/continue saving next insert index
-                if i_prev is None or i_prev == i_this -1:
-                    insert_idxs.append(i_this)
-                    i_prev = i_this
-                #save current insert_idxs and open up a new one for the next insert
-                else:
-                    insert_idxs_list.append(insert_idxs)
-                    insert_idxs = [i_this]
-                    i_prev = i_this
-            # save last insert as well
-            insert_idxs_list.append(insert_idxs)
-            assert np.all(np.concatenate(insert_idxs_list) == insert_idxs_all)
-           
-            # analyze largest insert per read only
-            # --> assume no two true inserts occur within the same read
-            # --> assume the smaller one is more likely to be the false positive (not always true though!)
-            #insert_idxs_list = [insert_idxs_list[[len(ins) for ins in insert_idxs_list].index(max([len(ins) for ins in insert_idxs_list]))]]
-            # --> could try to discard all reads with multiple inserts!  (might be more accurate)
-            # --> would have to discard all mini-inserts (< 6 bp) first to allow alignment/minor sequencing errors
-            for insert_idxs in insert_idxs_list:
-                if len(insert_idxs) >= 6 and "N" not in readn[insert_idxs]:
-                    insert_start = insert_idxs[0]
-                    insert_end = insert_idxs[-1]
-                    insert = Insert(
-                        seq=read.al_seq[insert_start:insert_end+1],
-                        start=insert_start,
-                        end=insert_end,
-                        reads=[read],
-                        counts=read.counts)
-                    assert insert.length == len(insert_idxs)
-                    
-                    if all(readn[0:insert.start] == '-'):
-                        insert.trailing_end = 5
-                    elif all(readn[insert.end+1:] == '-'):
-                        insert.trailing_end = 3
-                    else:
-                        insert.trailing_end = 0
-                    # inserts are considered trailing when it is unclear whether they were covered completely or not
-                    # --> because primers guarantee that amplicon starts and ends with WT ref bases,
-                    #       forward reads cannot have 5' and reverse reads cannot have 3' trailing insertions
-                    #       (trailing_end would be set respectively but as insertions will in fact be fully contained
-                    #       within the insert, trailing will be False nontheless)
-                    # should I discard reads where the primer is not mapped? See lbseq:/media/data/tabl/laura*/mail/primer_unmapped.txt
-                    insert.trailing = (read.sense == 1 and insert.trailing_end == 3) or (read.sense == -1 and insert.trailing_end == 5)
-                    
-                    if insert.trailing or insert.length % 3 == 0:
-                        # change insert.start coord
-                        #   from: 1st insert/gap bp in read-ref alignment
-                        #   to: preceding bp in WT ref sequence
-                        #   --> -sum(preceding gaps) -1
-                        insert.start = insert.start - sum(refn[0:insert.start] == '-') -1
-                        # distinguish insertions starting before WT base 0 (5' insertion) and those starting right after base 0 (0 would then be preceding WT base)
-                        #   --> later negative/ 5' coords are reset to 0 to hide counterintuitive coords (should I set them to -1???)
-                        if insert.start == 0:
-                            insert.start = -insert.length
-                        insert.end = insert.start + insert.length - 1
-                        
-                        # having passed all filters, save insert
-                        inserts.append(insert)
+        inserts.append(read.get_inserts()) 
+    inserts = flatten_list([insert for insert in inserts if insert is not None])
 
     print("Collecting inserts took {} s".format(timeit.default_timer() - start_time))
     save_stats("{} insertions were found".format(len(inserts)), config["STATS_FILE"])
