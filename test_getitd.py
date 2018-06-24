@@ -436,3 +436,11 @@ def test_1610_76_21bp():
     assert itd is not None
 
 
+def test_pl21_126bp():
+    read = Read(seq="ACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTTCAAATCGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATT").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    itd = insert.get_itd()
+    assert itd is not None
+    assert abs(itd.fix_trailing_length().length - 126) <= 3
