@@ -428,12 +428,16 @@ class Insert(object):
         """
         Prepare Insert for saving to file by normalizing start
         coordinates to [0, len(REF)[.
+        Convert coordinates from 0- to 1-based to match
+        needle output files and annotation table.
         
         Returns:
             Prepared Insert. 
         """
         to_save = copy.deepcopy(self)
         to_save = to_save.norm_start()
+        to_save.start += 1
+        to_save.end += 1
         return to_save
 
     def annotate_domains(self, domains):
@@ -612,6 +616,8 @@ class ITD(Insert):
         Set the insert start coordinate to that of the second tandem.
         Normalize start coordinate to [0, len(REF)[ and 
         adjust end coordinate accordingly.
+        Convert coordinates from 0- to 1-based to match
+        needle output files and annotation table.
         For trailing ITDs, change the length to the offset, i.e. 
         distance between insert and second tandem. 
         
@@ -624,6 +630,8 @@ class ITD(Insert):
         to_save.end = to_save.start + to_save.length - 1
         assert to_save.end <= len(config["REF"])
         to_save = to_save.norm_start()
+        to_save.start += 1
+        to_save.end += 1
         return to_save
 
 
