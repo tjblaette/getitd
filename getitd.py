@@ -1211,7 +1211,7 @@ def save_to_file(inserts, filename, config=config):
         
         df_ins =  pd.DataFrame(dict_ins)
         df_ins["sample"] = [config["SAMPLE"]] * len(inserts)
-        df_ins["insertion_site"] = df_ins["end"] + 3 # insertion site = WT AS after insert --> +3 to make sure the next AS is annotated instead of the current one
+        df_ins["insertion_site"] = df_ins["end"] + 1 # insertion site = WT AS after insert --> +3 to make sure the next AS is annotated instead of the current one
         df_ins["ar"] = [vaf_to_ar(insert.vaf) for insert in inserts]
         df_ins["counts_each"] = [[read.counts for read in insert.reads] for insert in inserts]
         df_ins["file"] = [[read.al_file for read in insert.reads] for insert in inserts]
