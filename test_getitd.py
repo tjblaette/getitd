@@ -9,7 +9,9 @@ config["NKERN"] = 14
 
 config["COST_MATCH"] = 5
 config["COST_MISMATCH"] = -10
+config["COST_MISMATCH"] = -15
 config["COST_GAPOPEN"] = -20
+config["COST_GAPOPEN"] = -36
 config["COST_GAPEXTEND"] = -0.5
 config["MIN_SCORE_INSERTS"] = 0.5
 config["MIN_SCORE_ALIGNMENTS"] = 0.5
@@ -167,9 +169,12 @@ def test_1610_9263_78bp():
 
 def test_1610_9181_174():
     read = Read(seq="AACATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAGGTACTAGGATCACCTTCTGATT").align().get_reference_range_covered()
+    read.print()
     inserts = read.get_inserts()
+    print(inserts)
     assert len(inserts) == 1
     insert = inserts[0]
+    insert.print()
     assert (insert.length - 174) <= 6
     itd = insert.get_itd()
     assert (itd.fix_trailing_length().length - 174 <= 6)
@@ -439,8 +444,209 @@ def test_1610_76_21bp():
 def test_pl21_126bp():
     read = Read(seq="ACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTTCAAATCGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATT").align().get_reference_range_covered()
     inserts = read.get_inserts()
+    print(inserts)
     assert len(inserts) == 1
     insert = inserts[0]
+    insert.print()
     itd = insert.get_itd()
+    itd.print()
     assert itd is not None
     assert abs(itd.fix_trailing_length().length - 126) <= 3
+
+
+def test_1610_109_75bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGGTGACCGGCTCGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGGTTCTGCAGCATTTCTTT").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 75
+    itd = insert.get_itd()
+    assert itd is not None
+
+
+def test_1610_115_24bp():
+    read = Read(seq="ACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGACTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGA").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 24
+    itd = insert.get_itd()
+    assert itd is not None
+
+def test_1610_115_24bp_02():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGG").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 24
+    itd = insert.get_itd()
+    assert itd is not None
+
+
+def test_1610_133_66bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAATGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGA").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 66
+    itd = insert.get_itd()
+    assert itd is not None
+
+
+def test_1610_15_21bp():
+    read = Read(seq="ACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAGG").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 21
+    itd = insert.get_itd()
+    assert itd is not None
+
+
+def test_1610_164_21bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAG").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 21
+    itd = insert.get_itd()
+    assert itd is not None
+
+
+def test_1610_164_99bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGACGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGC").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 99
+    itd = insert.get_itd()
+    assert itd is not None
+
+
+def test_1610_17_39bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCA").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 39
+    itd = insert.get_itd()
+    assert itd is not None
+
+
+def test_1610_197_39bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCA").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 39
+    itd = insert.get_itd()
+    assert itd is not None
+
+
+def test_1610_197_66bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAATGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGA").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 66
+    itd = insert.get_itd()
+    assert itd is not None
+
+
+def test_1610_209_54bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAA").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 54
+    itd = insert.get_itd()
+    assert itd is not None
+
+
+def test_1610_21_57bp():
+    read = Read(seq="ACAATTTAGGNATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAAATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAA").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 57
+    itd = insert.get_itd()
+    assert itd is not None
+
+def test_1610_21_57bp_02():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTA").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 57
+    itd = insert.get_itd()
+    assert itd is not None
+
+
+def test_1610_224_48bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGGGGAATTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACG").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 48
+    itd = insert.get_itd()
+    assert itd is not None
+
+
+def test_1610_240_75bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTT").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 75
+    itd = insert.get_itd()
+    assert itd is not None
+
+
+def test_1610_281_54bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATAGGAGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAA").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 54
+    itd = insert.get_itd()
+    assert itd is not None
+
+
+def test_1610_49_45bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTAC").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 45
+    itd = insert.get_itd()
+    assert itd is not None
+
+
+def test_1610_52_54bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAA").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 54
+    itd = insert.get_itd()
+    assert itd is not None
+
+
+def test_1610_6_54bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAAGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAA").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 54
+    itd = insert.get_itd()
+    assert itd is not None
+
+
+def test_1610_86_45bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCCGACCGGAAAAATGGTCGGTCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTAC").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 45
+    itd = insert.get_itd()
+    assert itd is not None
