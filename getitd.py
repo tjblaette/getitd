@@ -317,6 +317,14 @@ class Insert(object):
         """
         return self.seq
 
+    def set_insertion_site(self):
+        """
+        Get and set Insertion's insertion_site, i.e. the WT bp
+        following the insert.
+        """
+        self.insertion_site = self.end + 1
+        return self
+
     def set_sense(self):
         """
         Get and set Insert's supporting reads' sense.
@@ -442,6 +450,29 @@ class Insert(object):
         to_save.start += 1
         to_save.end = to_save.start
         return to_save
+
+    def annotate(self, coord, to_annotate, config=config):
+        """
+        Add specific annotation to Insertion.
+
+        Args:
+            coord (str): Name of the Insertion's attribute to be
+                    annotated, i.e. self.coord is the coordinate
+                    that will be annotated and one of {"start", "end",
+                    "insertion_site"}
+            to_annotate (str): Name of the annotation to add, must
+                    be one of {"region", "chr13_bp", "transcript_bp",
+                    "protein_as"}.
+            config (dict): Dictionary where config["ANNO"] contains
+                    pandas DataFrame with annotation to retrieve.
+        Returns:
+            Annotated Insertion.
+        """
+        anno = config["ANNO"]
+        annotated = anno.loc[anno["amplicon_bp"] == getattr(self, coord), to_annotate].values[0]
+        setattr(self, coord + "_" + to_annotate, annotated)
+        return self
+
 
     def annotate_domains(self, domains):
         """
@@ -1116,31 +1147,6 @@ def integral_insert_realignment(insert_alignment, insert_length):
     return insert_idxs[-1] - insert_idxs[0] + 1 == insert_length
 
 
-def annotate(df, config=config):
-    """
-    Annotate insertions with chromosomal regions and coordinates.
-
-    Add genomic, transcriptomic and proteomic coordinates and
-    genomic region (exonic, intronic, splicing).
-
-    Args:
-        df (pd.DataFrame): DataFrame with insertions.
-
-    Returns:
-        Annotated df.
-    """
-    df = pd.merge(df, config["ANNO"],
-        how='left', left_on=['end'], right_on=['amplicon_bp']).drop(['amplicon_bp', 'region'], axis=1)
-    df = df.rename(columns={"chr13_bp": "end_chr13_bp", "transcript_bp": "end_transcript_bp", "protein_as": "end_protein_as"})
-    df = pd.merge(df, config["ANNO"],
-        how='left', left_on=['insertion_site'], right_on=['amplicon_bp']).drop(['amplicon_bp', 'region'], axis=1)
-    df = df.rename(columns={"chr13_bp": "insertion_site_chr13_bp", "transcript_bp": "insertion_site_transcript_bp", "protein_as": "insertion_site_protein_as"})
-    df = pd.merge(df, config["ANNO"],
-        how='left', left_on=['start'], right_on=['amplicon_bp']).drop('amplicon_bp', axis=1)
-    df = df.rename(columns={"chr13_bp": "start_chr13_bp", "transcript_bp": "start_transcript_bp", "protein_as": "start_protein_as"})
-    return df
-
-
 def ar_to_vaf(ar):
     """
     Convert AR to VAF.
@@ -1229,31 +1235,30 @@ def save_to_file(inserts, filename, config=config):
         filename (str): Name of the file, will be saved in specified OUT_DIR.
     """
     if inserts:
-        dict_ins = {}
-        for key in vars(inserts[0]):
-            dict_ins[key] = tuple(vars(insert)[key] for insert in [insert.prep_for_save() for insert in inserts])
-        
-        df_ins =  pd.DataFrame(dict_ins)
-        df_ins["sample"] = [config["SAMPLE"]] * len(inserts)
-        df_ins["insertion_site"] = df_ins["end"] + 1 # insertion site = WT AS after insert --> +3 to make sure the next AS is annotated instead of the current one
-        df_ins["ar"] = [vaf_to_ar(insert.vaf) for insert in inserts]
-        df_ins["counts_each"] = [[read.counts for read in insert.reads] for insert in inserts]
-        df_ins["file"] = [[read.al_file for read in insert.reads] for insert in inserts]
-        
-        cols = ['sample','length', 'start', 'end', 'vaf', 'ar', 'coverage', 'counts', 'trailing', 'seq', 'sense']
-        if 'external_bp' in df_ins:
-            cols = cols + ['external_bp']
-
-        # print counts_each only when they contain fewer than X elements (i.e. unique reads)
-        #cols = cols + [col for col in ['counts_each'] if max([len(x) for x in df_ins[col]]) <= 10]
+        to_save = [insert.prep_for_save() for insert in inserts]
         if config["ANNO"] is not None:
-            # if annotation file exists,
-            # overwrite with annotated df
-            # (same command as above!)
-            df_ins = annotate(df_ins)
-            df_ins["region"] = [insert.annotate_domains(config["DOMAINS"]) for insert in inserts]
-            cols = cols + ["region", "start_chr13_bp", "start_transcript_bp", "start_protein_as", "end_chr13_bp", "end_transcript_bp", "end_protein_as", "insertion_site_protein_as"]
-        cols = cols + ['file']
+            for insert in to_save:
+                insert = insert.set_insertion_site()
+                insert.region = insert.annotate_domains(config["DOMAINS"])
+                for to_annotate in ["start", "end", "insertion_site"]:
+                    for coord in ["chr13_bp", "transcript_bp", "protein_as"]:
+                        insert = insert.annotate(to_annotate, coord)
+                cols = ["region", "start_chr13_bp", "start_transcript_bp", "start_protein_as", "end_chr13_bp", "end_transcript_bp", "end_protein_as", "insertion_site_protein_as"]
+
+        dict_ins = {}
+        for key in vars(to_save[0]):
+            dict_ins[key] = tuple(vars(insert)[key] for insert in to_save)
+
+        df_ins =  pd.DataFrame(dict_ins)
+        df_ins["sample"] = [config["SAMPLE"]] * len(to_save)
+        df_ins["ar"] = [vaf_to_ar(insert.vaf) for insert in to_save]
+        df_ins["counts_each"] = [[read.counts for read in insert.reads] for insert in to_save]
+        df_ins["file"] = [[read.al_file for read in insert.reads] for insert in to_save]
+
+        if 'external_bp' in df_ins:
+            cols = ['external_bp'] + cols
+
+        cols = ['sample','length', 'start', 'vaf', 'ar', 'coverage', 'counts', 'trailing', 'seq', 'sense'] + cols + ['file']
         df_ins[cols].sort_values(by=['length','start','vaf']).to_csv(os.path.join(config["OUT_DIR"],filename), index=False, float_format='%.2e', sep='\t')
 
 def get_unique_reads(reads):
@@ -1636,5 +1641,3 @@ if __name__ == '__main__':
         save_to_file(filtered, inserts_type + "_collapsed-" + suffix + "hc.tsv")
         final_filtered[inserts_type] = filtered
     print("Filtering took {} s".format(timeit.default_timer() - start_time))
-
-
