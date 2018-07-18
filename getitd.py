@@ -461,8 +461,7 @@ class Insert(object):
                     that will be annotated and one of {"start", "end",
                     "insertion_site"}
             to_annotate (str): Name of the annotation to add, must
-                    be one of {"region", "chr13_bp", "transcript_bp",
-                    "protein_as"}.
+                    be one of {"chr13_bp", "transcript_bp", "protein_as"}.
             config (dict): Dictionary where config["ANNO"] contains
                     pandas DataFrame with annotation to retrieve.
         Returns:
@@ -493,7 +492,8 @@ class Insert(object):
         for domain,start,end in domains:
             if self.start <= end and self.start + 1 >= start:
                 annotated.append(domain)
-        return annotated
+        self.domains = annotated
+        return self
 
     
     def print(self):
@@ -662,7 +662,8 @@ class ITD(Insert):
         for domain,start,end in domains:
             if self.start <= end and self.end >= start:
                 annotated.append(domain)
-        return annotated
+        self.domains = annotated
+        return self
 
     def prep_for_save(self, config=config):
         """
@@ -1239,11 +1240,11 @@ def save_to_file(inserts, filename, config=config):
         if config["ANNO"] is not None:
             for insert in to_save:
                 insert = insert.set_insertion_site()
-                insert.region = insert.annotate_domains(config["DOMAINS"])
+                insert = insert.annotate_domains(config["DOMAINS"])
                 for to_annotate in ["start", "end", "insertion_site"]:
                     for coord in ["chr13_bp", "transcript_bp", "protein_as"]:
                         insert = insert.annotate(to_annotate, coord)
-                cols = ["region", "start_chr13_bp", "start_transcript_bp", "start_protein_as", "end_chr13_bp", "end_transcript_bp", "end_protein_as", "insertion_site_protein_as"]
+                cols = ["domains", "start_chr13_bp", "start_transcript_bp", "start_protein_as", "end_chr13_bp", "end_transcript_bp", "end_protein_as", "insertion_site_protein_as"]
 
         dict_ins = {}
         for key in vars(to_save[0]):
