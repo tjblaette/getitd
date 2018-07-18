@@ -1541,9 +1541,6 @@ if __name__ == '__main__':
         ref_coverage.append(len(set(spanning_reads_index)))
         ref_coverage_frwd.append(sum([read.counts for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1] and read.sense == 1]))
         ref_coverage_rev.append(sum([read.counts for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1] and read.sense == -1]))
-    print(ref_coverage)
-    print(ref_coverage_frwd)
-    print(ref_coverage_rev)
     print("Calculating coverage took {} s".format(timeit.default_timer() - start_time))
 
 
