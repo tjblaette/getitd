@@ -328,3 +328,4 @@ amplicon_bp	region	chr13_bp	transcript_bp	protein_as
 327	exon15_TKD1_3primeOfBeta2Sheet	28608026	1940	647
 328	exon15_TKD1_3primeOfBeta2Sheet	28608025	1941	647
 329	exon15_TKD1_3primeOfBeta2Sheet	28608024	1942	648
+330	intron15_spliceDonor	28608023	.	.
