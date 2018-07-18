@@ -430,6 +430,9 @@ class Insert(object):
         coordinates to [0, len(REF)[.
         Convert coordinates from 0- to 1-based to match
         needle output files and annotation table.
+        Set end coordinate equal to start -> insertion_site
+        will be the WT base after the insertion, i.e. start +1
+        (start + length has no meaning for non-ITD insertions)
         
         Returns:
             Prepared Insert. 
@@ -437,12 +440,14 @@ class Insert(object):
         to_save = copy.deepcopy(self)
         to_save = to_save.norm_start()
         to_save.start += 1
-        to_save.end += 1
+        to_save.end = to_save.start
         return to_save
 
     def annotate_domains(self, domains):
         """
-        Get annotated domains of the Insert's sequence.
+        Get annotated domains of Insert's flanking bp.
+        --> self.start is WT base preceding insert
+        --> self.start +1 is WT base after insert
 
         Args:
             domains: List of tuples (domain_name, start_coord, end_coord)
@@ -450,11 +455,12 @@ class Insert(object):
             all of its annotated domains.
 
         Returns:
-            Subset of domains, containing only those affected by the Insert.
+            Subset of domains, containing only those of the Insert's
+            flanking base pairs.
         """
         annotated = []
         for domain,start,end in domains:
-            if self.start <= end and self.end >= start:
+            if self.start <= end and self.start + 1 >= start:
                 annotated.append(domain)
         return annotated
 
@@ -609,6 +615,24 @@ class ITD(Insert):
         else:
             return self
         
+    def annotate_domains(self, domains):
+        """
+        Get annotated domains of the ITD's WT tandem.
+
+        Args:
+            domains: List of tuples (domain_name, start_coord, end_coord)
+            where coordinates refer to amplicon bp and the list contains
+            all of its annotated domains.
+
+        Returns:
+            Subset of domains, containing only those duplicated by the ITD.
+        """
+        annotated = []
+        for domain,start,end in domains:
+            if self.start <= end and self.end >= start:
+                annotated.append(domain)
+        return annotated
+
     def prep_for_save(self, config=config):
         """
         Prepare ITD for saving to file.
