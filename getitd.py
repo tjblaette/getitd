@@ -1394,9 +1394,9 @@ if __name__ == '__main__':
     config["CONFIG_FILE"] = os.path.join(config["OUT_DIR"], "config.txt")
 
     config["COST_MATCH"] = cmd_args.match
-    config["COST_MISMATCH"] = cmd_args.mismatch
-    config["COST_GAPOPEN"] = cmd_args.gap_open
-    config["COST_GAPEXTEND"] = cmd_args.gap_extend
+    config["COST_MISMATCH"] = -abs(cmd_args.mismatch)
+    config["COST_GAPOPEN"] = -abs(cmd_args.gap_open)
+    config["COST_GAPEXTEND"] = -abs(cmd_args.gap_extend)
     config["MIN_SCORE_INSERTS"] = cmd_args.minscore_inserts
     config["MIN_SCORE_ALIGNMENTS"] = cmd_args.minscore_alignments
 
