@@ -12,6 +12,7 @@ config["COST_MISMATCH"] = -10
 config["COST_MISMATCH"] = -15
 config["COST_GAPOPEN"] = -20
 config["COST_GAPOPEN"] = -36
+#config["COST_GAPOPEN"] = -41
 config["COST_GAPEXTEND"] = -0.5
 config["MIN_SCORE_INSERTS"] = 0.5
 config["MIN_SCORE_ALIGNMENTS"] = 0.5
@@ -191,8 +192,28 @@ def test_1610_9263_78bp():
 
 
 
-def test_1610_9181_174():
+def test_1610_9181_174bp():
     read = Read(seq="AACATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAGGTACTAGGATCACCTTCTGATT").align().get_reference_range_covered()
+    read.print()
+    inserts = read.get_inserts()
+    print(inserts)
+    assert len(inserts) == 1
+    insert = inserts[0]
+    insert.print()
+    assert (insert.length - 174) <= 6
+    itd = insert.get_itd()
+    assert (itd.fix_trailing_length().length - 174 <= 6)
+    assert itd is not None
+    itd = itd.prep_for_save()
+    itd.set_insertion_site()
+    itd.annotate("insertion_site", "protein_as", config)
+    assert itd.insertion_site_protein_as == "618" or itd.insertion_site_protein_as == "619"
+    itd.annotate_domains(config["DOMAINS"])
+    assert itd.domains[-1] == "exon15_TKD1_nucleotideBindingLoop"
+
+
+def test_1610_9181_174bp_02():
+    read = Read(seq="GCAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAGGTACTAGGATCACCTTCTGATT").align().get_reference_range_covered()
     read.print()
     inserts = read.get_inserts()
     print(inserts)
@@ -598,6 +619,9 @@ def test_pl21_126bp():
     insert.print()
     itd = insert.get_itd()
     itd.print()
+    itd = itd.prep_for_save()
+    itd.print()
+    itd.reads[0].print()
     assert itd is not None
     assert abs(itd.fix_trailing_length().length - 126) <= 3
 
