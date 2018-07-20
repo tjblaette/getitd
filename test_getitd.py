@@ -144,6 +144,12 @@ def test_molm_21bp():
     assert insert.length == 21
     itd = insert.get_itd()
     assert itd is not None
+    itd = itd.prep_for_save()
+    itd.set_insertion_site()
+    itd.annotate("insertion_site", "protein_as", config)
+    assert itd.insertion_site_protein_as in ["598", "599"]
+    itd.annotate_domains(config["DOMAINS"])
+    assert itd.domains[-1] == "exon14_JMD_zipperMotif"
 
 
 def test_molm_21bp_02():
@@ -154,6 +160,12 @@ def test_molm_21bp_02():
     assert insert.length == 21
     itd = insert.get_itd()
     assert itd is not None
+    itd = itd.prep_for_save()
+    itd.set_insertion_site()
+    itd.annotate("insertion_site", "protein_as", config)
+    assert itd.insertion_site_protein_as in ["598", "599"]
+    itd.annotate_domains(config["DOMAINS"])
+    assert itd.domains[-1] == "exon14_JMD_zipperMotif"
 
 
 
