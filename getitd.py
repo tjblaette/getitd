@@ -169,8 +169,15 @@ class Read(object):
         refn = np.array(list(self.al_ref))
         readn = np.array(list(self.al_seq))
         ref_covered_bp = np.where(readn[refn != '-'] != '-')
-
         self.ref_span = [np.min(ref_covered_bp), np.max(ref_covered_bp)]
+
+        # extend ref_span for trailing inserts
+        if refn[-1] == '-':
+            assert readn[-1] != '-'
+            self.ref_span[-1] = len(refn) -1
+        if refn[0] == '-':
+            assert readn[0] != '-'
+            self.ref_span[0] = 0
         return self
 
     def get_inserts(self):
