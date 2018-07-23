@@ -1241,10 +1241,14 @@ def save_to_file(inserts, filename, config=config):
             for insert in to_save:
                 insert = insert.set_insertion_site()
                 insert = insert.annotate_domains(config["DOMAINS"])
+                cols = ["domains"]
                 for to_annotate in ["start", "end", "insertion_site"]:
                     for coord in ["chr13_bp", "transcript_bp", "protein_as"]:
                         insert = insert.annotate(to_annotate, coord)
-                cols = ["domains", "start_chr13_bp", "start_transcript_bp", "start_protein_as", "end_chr13_bp", "end_transcript_bp", "end_protein_as", "insertion_site_protein_as"]
+                        cols.append(to_annotate + "_" + coord)
+                insert = insert.annotate("insertion_site", "region")
+                cols.append("insertion_site_domain") # rename in df...
+                #cols = ["domains", "start_chr13_bp", "start_transcript_bp", "start_protein_as", "end_chr13_bp", "end_transcript_bp", "end_protein_as", "insertion_site_protein_as"]
 
         dict_ins = {}
         for key in vars(to_save[0]):
@@ -1260,6 +1264,7 @@ def save_to_file(inserts, filename, config=config):
             cols = ['external_bp'] + cols
 
         cols = ['sample','length', 'start', 'vaf', 'ar', 'coverage', 'counts', 'trailing', 'seq', 'sense'] + cols + ['file']
+        df_ins = df_ins.rename(index=str, columns={"insertion_site_region": "insertion_site_domain"})
         df_ins[cols].sort_values(by=['length','start','vaf']).to_csv(os.path.join(config["OUT_DIR"],filename), index=False, float_format='%.2e', sep='\t')
 
 def get_unique_reads(reads):
