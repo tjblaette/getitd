@@ -420,7 +420,7 @@ class Insert(object):
                         external_bp=abs(tandem2_start - alignment_start)
                         )
                 else:
-                    print("ITD's tandem not covered by read")
+                    print("ITD's tandem not covered by read and therefore discarded")
                     self.print()
                     self.reads[0].print()
                     print(bio.format_alignment(*alignment))
