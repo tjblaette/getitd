@@ -99,14 +99,12 @@ class Read(object):
         Returns:
             Trimmed Read.
         """
-        while self.seq.endswith('N'):
-            self.seq = self.seq[:-1]
-            if self.bqs:
-                self.bqs = self.bqs[:-1]
-        while self.seq.startswith('N'):
-            self.seq = self.seq[1:]
-            if self.bqs:
-                self.bqs = self.bqs[1:]
+        self.seq = self.seq.rstrip('N')
+        if self.bqs:
+            self.bqs = self.bqs[:len(self.seq)]
+        self.seq = self.seq.lstrip('N')
+        if self.bqs:
+            self.bqs = self.bqs[::-1][:len(self.seq)][::-1]
         assert len(self.seq) == len(self.bqs)
         self.length = len(self.seq)
         if self.length < config["MIN_READ_LENGTH"]:
@@ -195,9 +193,6 @@ class Read(object):
         # if read contains insert
         insert_idxs_all = np.where(refn == '-')[0]
         if len(insert_idxs_all) > 0:
-            # two gaps should never align at the same pos!
-            assert('-' not in readn[insert_idxs_all])
-            
             # get indeces of individual inserts
             insert_idxs_list = []
             insert_idxs= []
@@ -207,21 +202,13 @@ class Read(object):
                 if i_prev is None or i_prev == i_this -1:
                     insert_idxs.append(i_this)
                     i_prev = i_this
-                #save current insert_idxs and open up a new one for the next insert
                 else:
                     insert_idxs_list.append(insert_idxs)
                     insert_idxs = [i_this]
                     i_prev = i_this
-            # save last insert as well
             insert_idxs_list.append(insert_idxs)
             assert np.all(np.concatenate(insert_idxs_list) == insert_idxs_all)
            
-            # analyze largest insert per read only
-            # --> assume no two true inserts occur within the same read
-            # --> assume the smaller one is more likely to be the false positive (not always true though!)
-            #insert_idxs_list = [insert_idxs_list[[len(ins) for ins in insert_idxs_list].index(max([len(ins) for ins in insert_idxs_list]))]]
-            # --> could try to discard all reads with multiple inserts!  (might be more accurate)
-            # --> would have to discard all mini-inserts (< 6 bp) first to allow alignment/minor sequencing errors
             for insert_idxs in insert_idxs_list:
                 if len(insert_idxs) >= 6 and "N" not in readn[insert_idxs]:
                     insert_start = insert_idxs[0]
@@ -259,8 +246,6 @@ class Read(object):
                         if insert.start == 0:
                             insert.start = -insert.length
                         insert.end = insert.start + insert.length - 1
-
-                        # having passed all filters, save insert
                         inserts.append(insert)
         return inserts
 
@@ -373,24 +358,16 @@ class Insert(object):
         return self
 
     def get_itd(self, config=config):
-        min_score = get_min_score(self.seq, config["REF"], config["MIN_SCORE_ALIGNMENTS"])
-        
-        # arguments: seq1, seq2, match-score, mismatch-score, gapopen-score, gapextend-score
-        # output: list of optimal alignments, each a list of seq1, seq2, score, start-idx, end-idx
         alignments = bio.align.localcs(self.seq, config["REF"], get_alignment_score, config["COST_GAPOPEN"], config["COST_GAPEXTEND"])
-        
-        # filter alignments where insert cannot be realigned in one piece
         alignments = [al for al in alignments if integral_insert_realignment(al[0],self.length)]
         if not alignments:
-            alignment_score = -1
-        else:
-            # how often is there more than one alignment?
-            # --> (more than 1 => alignment is ambiguous)
-            # --> Can I choose a smart one somehow? Otherwise return only one in the first place...
-            alignment = alignments[-1]
-            alignment_score, alignment_start, alignment_end = alignment[2:5]
-            #print(bio.format_alignment(*alignment))
-        if alignment_score >= min_score:
+            return None
+        # bio.align arguments: seq1, seq2, match-score, mismatch-score, gapopen-score, gapextend-score
+        # output: list of optimal alignments, each a list of seq1, seq2, score, start-idx, end-idx
+        # to print: print(bio.format_alignment(*alignment))
+        alignment = alignments[-1]
+        alignment_score, alignment_start, alignment_end = alignment[2:5]
+        if alignment_score >= get_min_score(self.seq, config["REF"], config["MIN_SCORE_ALIGNMENTS"]):
             tandem2_start = [i for i,bp in enumerate(alignment[0]) if bp != '-'][0]
             offset = abs(tandem2_start - self.start)
             # offset = 1 for adjacent insert-tandem2
@@ -402,7 +379,6 @@ class Insert(object):
                 #    such as small trailing inserts by chance also found in some other part of the the reference
                 #    (can never be the case for non-trailing ITDs anyway)
                 # --> careful: alignment_end is exclusive coord, i.e. the index of the first bp after the alignment!
-                #if alignment_start >= self.reads[0].ref_span[0] or alignment_end-1 <= self.reads[1].ref_span[1]:
                 if alignment_start >= self.reads[0].ref_span[0] and alignment_end-1 <= self.reads[0].ref_span[1]:
                     # if by chance insert is completely contained within read in spite of it being trailing
                     # (i.e. insert and tandem have the same length & are adjacent)
@@ -562,11 +538,7 @@ class Insert(object):
             return self.length == that.length and self.is_similar_to(that) and self.is_close_to(that)
         elif condition == 'is-same_trailing':
             return self.trailing and that.trailing and self.trailing_end == that.trailing_end and self.sense.intersection(that.sense) and self.is_similar_to(that) and self.is_close_to(that)
-        elif condition == 'any':  # <----- fix this one!!!
-            return ((self.length == that.length and self.is_close_to(that)) or (self.trailing and that.trailing and self.trailing_end == that.trailing_end)) and self.is_similar_to(that)
-        else:
-            print("\n---Undefined merging condition!---\n") 
-            assert False
+        assert False
     
     
     def filter_unique_supp_reads(self, config=config):
@@ -750,11 +722,9 @@ class InsertCollection(object):
             Merged InsertCollection.
         """
         self.inserts = self.inserts + insert.inserts
-        # recalculate coverage when differently oriented reads are merged
         if self.rep.sense != insert.rep.sense:
             new_sense = self.rep.sense.union(insert.rep.sense)
-            self.inserts = [insert.set_specific_sense(new_sense) for insert in self.inserts]
-            self.inserts = [insert.set_coverage() for insert in self.inserts]
+            self.inserts = [insert.set_specific_sense(new_sense).set_coverage() for insert in self.inserts]
         self = self.set_representative()
         return self
 
@@ -1210,20 +1180,16 @@ def merge(inserts, condition):
     """
     still_need_to_merge = True
     while still_need_to_merge:
-        merged = []
         still_need_to_merge = False
+        merged = []
         for insert_collection in inserts:
             was_merged = False
             for minsert_collection in merged[::-1]:
                 if minsert_collection.should_merge(insert_collection, condition):
-                    if not was_merged:
-                        minsert_collection = minsert_collection.merge(insert_collection)
-                        was_merged = True
-                    else:
-                        if not still_need_to_merge:
-                            print("need another round of merging!")
-                        still_need_to_merge = True
-                        break
+                    minsert_collection = minsert_collection.merge(insert_collection)
+                    was_merged = True
+                    still_need_to_merge = True
+                    break
             if not was_merged:
                 merged.append(insert_collection)
         inserts = merged
@@ -1339,8 +1305,6 @@ def save_config(cmd_args, filename):
     with open(filename, "w") as f:
         f.write("Commandline_argument\tValue\n")
         f.write("Time\t{}\n".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%d")))
-        #for arg in vars(cmd_args):
-        # write arguments in alphabetical order
         for arg in sorted(list(vars(cmd_args).keys())):
             f.write("{}\t{}\n".format(arg, vars(cmd_args)[arg]))
 
@@ -1359,7 +1323,6 @@ def save_stats(stat, filename):
 
 ########## MAIN ####################
 if __name__ == '__main__':
-    # prevent neg nkern/minBQS?
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group()
     parser.add_argument("fastq1", help="FASTQ file of forward reads (REQUIRED)")
