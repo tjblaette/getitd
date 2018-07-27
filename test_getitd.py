@@ -617,6 +617,62 @@ def test_1610_76_21bp_02():
     assert itd.insertion_site_protein_as in ["601", "602"]
 
 
+##############################
+##  RUN 3
+
+def test_1610_145_27bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCA").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 27
+    itd = insert.get_itd()
+    assert itd is not None
+    itd = itd.prep_for_save()
+    itd.set_insertion_site()
+    itd.annotate("insertion_site", "protein_as", config)
+    assert itd.insertion_site_protein_as == "608"
+
+
+def test_1610_42_27bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATCCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCA").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 27
+    itd = insert.get_itd()
+    assert itd is not None
+    itd = itd.prep_for_save()
+    itd.set_insertion_site()
+    itd.annotate("insertion_site", "protein_as", config)
+    assert itd.insertion_site_protein_as == "599"
+
+def test_1610_54_36bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTT").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 36
+    itd = insert.get_itd()
+    assert itd is not None
+    itd = itd.prep_for_save()
+    itd.set_insertion_site()
+    itd.annotate("insertion_site", "protein_as", config)
+    assert itd.insertion_site_protein_as in ["608", "609"]
+
+def test_1610_89_45bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGACCTCCTCGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTAC").align().get_reference_range_covered()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.length == 45
+    itd = insert.get_itd()
+    assert itd is not None
+    itd = itd.prep_for_save()
+    itd.set_insertion_site()
+    itd.annotate("insertion_site", "protein_as", config)
+    assert itd.insertion_site_protein_as == "598"
+
 
 
 ##############################
