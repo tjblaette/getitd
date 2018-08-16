@@ -504,6 +504,20 @@ def test_1610_264_198bp_02():
     itd.annotate("insertion_site", "protein_as", config)
     assert itd.insertion_site_protein_as in ["614", "615"]
 
+def test_1610_264_198bp_03():
+    read = Read(seq="AGCAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAGGCACTAGGGACCGGCGCCTTA").align().get_ref_span()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    assert insert.trailing == True
+    itd = insert.get_itd()
+    assert itd is not None
+    assert abs(itd.fix_trailing_length().length - 198) <= 6
+    itd = itd.prep_for_save()
+    itd.set_insertion_site()
+    itd.annotate("insertion_site", "protein_as", config)
+    assert itd.insertion_site_protein_as in ["614", "615"]
+
 
 def test_1610_38_42bp():
     read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAACCTTTTCCACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGAACTCA").align().get_ref_span()
@@ -680,6 +694,27 @@ def test_1610_89_45bp():
 
 def test_pl21_126bp():
     read = Read(seq="ACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTTCAAATCGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATT").align().get_ref_span()
+    read.print()
+    read.al_file = "pl21.txt"
+    print_alignment(read, ".")
+    inserts = read.get_inserts()
+    print(inserts)
+    assert len(inserts) == 1
+    insert = inserts[0]
+    insert.print()
+    itd = insert.get_itd()
+    itd.print()
+    itd = itd.prep_for_save()
+    itd.print()
+    itd.reads[0].print()
+    assert itd is not None
+    assert abs(itd.fix_trailing_length().length - 126) <= 3
+
+def maybe_test_pl21_126bp_artificial():
+    read = Read(seq="ACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTTCAAATCGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTXXXXXXGGAGTTTCCAAGAGAAAATT").align().get_ref_span()
+    read.print()
+    read.al_file = "pl21_artificial.txt"
+    print_alignment(read, ".")
     inserts = read.get_inserts()
     print(inserts)
     assert len(inserts) == 1
@@ -751,6 +786,19 @@ def test_1610_15_21bp():
     itd.set_insertion_site()
     itd.annotate("insertion_site", "protein_as", config)
     assert itd.insertion_site_protein_as == "596"
+
+def test_1610_15_180bp():
+    read = Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGCTCCTCAGATAATGAGTACTTCTAC").align().get_ref_span()
+    inserts = read.get_inserts()
+    assert len(inserts) == 1
+    insert = inserts[0]
+    itd = insert.get_itd()
+    assert itd is not None
+    itd = itd.prep_for_save()
+    itd.set_insertion_site()
+    itd.annotate("insertion_site", "protein_as", config)
+    assert abs(itd.length - 180) <= 1
+    assert itd.insertion_site_protein_as == "613"
 
 
 def test_1610_164_21bp():
