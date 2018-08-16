@@ -1,6 +1,7 @@
 import Bio.pairwise2 as bio
 import timeit
 import collections
+import itertools
 import datetime
 import multiprocessing
 import argparse
@@ -156,7 +157,7 @@ class Read(object):
                 return rev
         return self
 
-    def get_reference_range_covered(self):
+    def get_ref_span(self):
         """
         Get most 3' and 5' reference base covered by Read.
         Coordinates are 0-based and relative to the WT reference.
@@ -178,6 +179,45 @@ class Read(object):
             self.ref_span[0] = 0
         return self
 
+    def reorder_trailing_inserts(self):
+        """
+        Change the alignment of
+
+        Ref     ----xxxxxxXXXXXXXX
+        Sample  xxxx------XXXXXXXX
+
+        to
+
+        Ref     xxxx------XXXXXXXX
+        Sample  ----xxxxxxXXXXXXXX
+
+        and analoguously treat 3' trailing inserts to guarantee
+        that reference seq is more terminal than sample insert.
+        This is required to guarantee correct ref_span calculation:
+        ref_span (i.e. reference coordinates spanned by sample read)
+        corresponds to most terminal reference coordinates that
+        reside within sample read alignment. In the above example,
+        the 5' ref_span is fixed from 0 to 4 to reflect that
+        the first four reference bases are not really part of the
+        sample read.
+        """
+        if self.al_ref[0] == '-':
+            insert_idxs = get_gaps(self.al_ref)
+            if self.al_seq[insert_idxs[0][-1] + 1] == '-':
+                del_idxs = get_gaps(self.al_seq)
+                self.print()
+                print(insert_idxs)
+                print(del_idxs)
+                self.al_seq = self.al_seq[del_idxs[0][0] : del_idxs[0][-1] + 1] \
+                        + self.al_seq[insert_idxs[0][0] : insert_idxs[0][-1] + 1] \
+                        + self.al_seq[del_idxs[0][-1] + 1 : ]
+                self.al_ref = self.al_ref[del_idxs[0][0] : del_idxs[0][-1] + 1] \
+                        + self.al_ref[insert_idxs[0][0] : insert_idxs[0][-1] + 1] \
+                        + self.al_ref[del_idxs[0][-1] + 1 : ]
+                self.print()
+        return self
+
+
     def get_inserts(self):
         """
         Collect all inserts contained within a given Read.
@@ -186,29 +226,17 @@ class Read(object):
             List of collected Insert objects.
         """
         inserts = []
-        readn = np.array(list(self.al_seq))
-        refn = np.array(list(self.al_ref))
-        assert(len(readn) == len(refn))
         
         # if read contains insert
-        insert_idxs_all = np.where(refn == '-')[0]
-        if len(insert_idxs_all) > 0:
-            # get indeces of individual inserts
-            insert_idxs_list = []
-            insert_idxs= []
-            i_prev = None
-            for i_this in insert_idxs_all:
-                #start saving first/continue saving next insert index
-                if i_prev is None or i_prev == i_this -1:
-                    insert_idxs.append(i_this)
-                    i_prev = i_this
-                else:
-                    insert_idxs_list.append(insert_idxs)
-                    insert_idxs = [i_this]
-                    i_prev = i_this
-            insert_idxs_list.append(insert_idxs)
-            assert np.all(np.concatenate(insert_idxs_list) == insert_idxs_all)
+        if '-' in self.al_ref:
+            readn = np.array(list(self.al_seq))
+            refn = np.array(list(self.al_ref))
+            assert(len(readn) == len(refn))
+
+            # collect all inserts' alignment coords
+            insert_idxs_list = get_gaps(self.al_ref)
            
+            # check & process each insert found
             for insert_idxs in insert_idxs_list:
                 if len(insert_idxs) >= 6 and "N" not in readn[insert_idxs]:
                     insert_start = insert_idxs[0]
@@ -760,6 +788,31 @@ def flatten_list(list_):
         Flattened list.
     """
     return [item for sublist in list_ for item in sublist]
+
+def get_gaps(seq):
+    """
+    Extract gap indices from alignment string.
+
+    Args:
+        seq (str): Alignment string of one of the aligned
+                sequences.
+
+    Returns:
+        List of lists, each containing indices of consecutive gaps.
+
+    """
+    gap_idxs_sep = []
+
+    if '-' in seq:
+        seqn = np.array(list(seq))
+        gap_idxs_all = np.where(seqn == '-')[0]
+        # x = i,e from enumerate(), lambda return diff between e and i, groupby breaks up
+        #   list whenever this difference changes (changes between non-consecutive indices)
+        for key, group in itertools.groupby(enumerate(gap_idxs_all), lambda x: x[1]-x[0]):
+            gap_idxs_sep.append([e for i,e in group])
+        assert np.all(np.concatenate(gap_idxs_sep) == gap_idxs_all)
+    return gap_idxs_sep
+
 
 def average_bqs(bqs):
     """
@@ -1463,7 +1516,6 @@ if __name__ == '__main__':
 
     # FILTER BASED ON ALIGNMENT SCORE (INCL FAILED ALIGNMENTS WITH read.al_score is None!
     reads = filter_alignment_score(reads)
-    reads = parallelize(Read.get_reference_range_covered, reads, config["NKERN"])
 
     # FILTER BASED ON MISALIGNED PRIMERS
     # --> require that primers (26 bp forward / 23 bp reverse) are always aligned with max 3 gaps
@@ -1488,6 +1540,10 @@ if __name__ == '__main__':
 
     # FINAL STATS
     save_stats("Total reads remaining for analysis: {} ({} %)".format(sum([read.counts for read in reads]), sum([read.counts for read in reads]) * 100 / TOTAL_READS), config["STATS_FILE"])
+
+    # REORDER TRAILING INSERTS TO GUARANTEE REF SEQ MORE TRAILING THAN INSERT SEQ AND CORRECT REF_SPAN
+    reads = parallelize(Read.reorder_trailing_inserts, reads, config["NKERN"])
+    reads = parallelize(Read.get_ref_span, reads, config["NKERN"])
 
     # PRINT PASSING ALIGNMENTS
     # create output file directory for alignments print-outs
