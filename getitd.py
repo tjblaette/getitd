@@ -1520,28 +1520,33 @@ if __name__ == '__main__':
     reads = parallelize(Read.align, reads, config["NKERN"])
     print("Alignment took {} s".format(timeit.default_timer() - start_time))
 
-    # FILTER BASED ON ALIGNMENT SCORE (INCL FAILED ALIGNMENTS WITH read.al_score is None!
+    # FILTER BASED ON ALIGNMENT SCORE (INCL FAILED ALIGNMENTS WITH read.al_score is None)
     reads = filter_alignment_score(reads)
 
-    # FILTER BASED ON MISALIGNED PRIMERS
-    # --> require that primers (26 bp forward / 23 bp reverse) are always aligned with max 3 gaps
+    # FILTER BASED ON UNALIGNED PRIMERS
+    # --> require that primers are always aligned without gaps / indels
+    # --> do allow mismatches
     # --> only works for this specific MRD project! --> 454 has different and multiple primers (2 PCRs!)
     if config["TECH"] == "Illumina":
         rev_primer = 'GGTTGCCGTCAAAATGCTGAAAG'
         fwrd_primer = 'GCAATTTAGGTATGAAAGCCAGCTAC'
         primers_filtered = [read for read in reads if (
-            (read.sense == -1
-            and read.al_seq.count('-', read.al_ref.find(rev_primer), read.al_ref.find(rev_primer) + len(rev_primer)) <= 0
-            ) or
+                (read.sense == -1
+                and rev_primer in read.al_ref
+                and read.al_seq.count('-', read.al_ref.find(rev_primer), read.al_ref.find(rev_primer) + len(rev_primer)) <= 0
+                ) or
                 (read.sense == 1
+                and fwrd_primer in read.al_ref
                 and read.al_seq.count('-', read.al_ref.find(fwrd_primer), read.al_ref.find(fwrd_primer) + len(fwrd_primer)) <= 0))]
         primer_fail = [read for read in reads if not ( ### keep this for initial testing only!!!
-            (read.sense == -1
-            and read.al_seq.count('-', read.al_ref.find(rev_primer), read.al_ref.find(rev_primer) + len(rev_primer)) <= 0
-            ) or
+                (read.sense == -1
+                and rev_primer in read.al_ref
+                and read.al_seq.count('-', read.al_ref.find(rev_primer), read.al_ref.find(rev_primer) + len(rev_primer)) <= 0
+                ) or
                 (read.sense == 1
+                and fwrd_primer in read.al_ref
                 and read.al_seq.count('-', read.al_ref.find(fwrd_primer), read.al_ref.find(fwrd_primer) + len(fwrd_primer)) <= 0))]
-        save_stats("Filtering {} / {} alignments with more than 3 unaligned primer bases".format( len(reads) - len(primers_filtered), len(reads)), config["STATS_FILE"])
+        save_stats("Filtering {} / {} alignments with indels in primer bases".format( len(reads) - len(primers_filtered), len(reads)), config["STATS_FILE"])
         reads = primers_filtered
 
     # FINAL STATS
