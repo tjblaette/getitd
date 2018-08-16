@@ -8,9 +8,7 @@ config["TECH"] = "ILLUMINA"
 config["NKERN"] = 14
 
 config["COST_MATCH"] = 5
-config["COST_MISMATCH"] = -10
 config["COST_MISMATCH"] = -15
-config["COST_GAPOPEN"] = -20
 config["COST_GAPOPEN"] = -36
 #config["COST_GAPOPEN"] = -41
 config["COST_GAPEXTEND"] = -0.5
@@ -112,23 +110,23 @@ def test_align_ref():
     read_aligned = Read.align(read, config=config) 
     assert read_aligned.al_seq == config["REF"]
     assert read_aligned.al_ref == config["REF"]
-    assert read_aligned.al_score == len(config["REF"]) * config["COST_MATCH"]
+    assert read_aligned.al_score == get_min_score(read.seq, config["REF"], 1)
 
 def test_align_wt_R1():
     read = Read(config["REF"][0:250])
     read_aligned = Read.align(read, config=config) 
     assert read_aligned.al_seq == read.seq + "-" * (len(config["REF"]) - read.length)
     assert read_aligned.al_ref == config["REF"]
-    assert read_aligned.al_score == read.length * config["COST_MATCH"]
+    assert read_aligned.al_score == get_min_score(read.seq, config["REF"], 1)
 
 
 def test_align_wt_R1_with_5prime_insert():
-    insert = "AA"
+    insert = "AAAA"
     read = Read(seq = insert + config["REF"][0:(250 - len(insert))])
     read_aligned = Read.align(read, config=config) 
     assert read_aligned.al_seq == read.seq + "-" * (len(config["REF"]) - read.length + len(insert))
-    assert read_aligned.al_ref == "--" + config["REF"]
-    assert read_aligned.al_score == (len(read.seq) - len(insert)) * config["COST_MATCH"]
+    assert read_aligned.al_ref == "-" * len(insert) + config["REF"]
+    assert read_aligned.al_score == get_min_score(read.seq[len(insert):], config["REF"], 1)
 
 
 
