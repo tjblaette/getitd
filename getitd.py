@@ -407,7 +407,7 @@ class Insert(object):
                 #    such as small trailing inserts by chance also found in some other part of the the reference
                 #    (can never be the case for non-trailing ITDs anyway)
                 # --> careful: alignment_end is exclusive coord, i.e. the index of the first bp after the alignment!
-                if alignment_start >= self.reads[0].ref_span[0] and alignment_end-1 <= self.reads[0].ref_span[1]:
+                if alignment_start >= self.reads[0].ref_span[0] and alignment_end-1 <= self.reads[0].ref_span[1] and tandem2_start + offset <= self.reads[0].ref_span[1]:
                     # if by chance insert is completely contained within read in spite of it being trailing
                     # (i.e. insert and tandem have the same length & are adjacent)
                     # --> revert trailing to be able to apply more stringent filters of non-trailing inserts
@@ -424,6 +424,8 @@ class Insert(object):
                         external_bp=abs(tandem2_start - alignment_start)
                         )
                 else:
+                    if tandem2_start + offset > self.reads[0].ref_span[1]:
+                        print("Too long!")
                     print("ITD's tandem not covered by read and therefore discarded")
                     self.print()
                     self.reads[0].print()
@@ -691,6 +693,10 @@ class ITD(Insert):
         to_save = to_save.fix_trailing_length()
         to_save.start = to_save.tandem2_start
         to_save.end = to_save.start + to_save.length - 1
+        if to_save.end > len(config["REF"]):
+            self.print()
+            self.reads[0].print()
+            to_save.print()
         assert to_save.end <= len(config["REF"])
         to_save = to_save.norm_start()
         to_save.start += 1
