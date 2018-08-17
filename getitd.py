@@ -1599,6 +1599,24 @@ if __name__ == '__main__':
     print("Collecting inserts took {} s".format(timeit.default_timer() - start_time))
     save_stats("{} insertions were found".format(len(inserts)), config["STATS_FILE"])
 
+    # filter inserts that are actually adapter sequences
+    # (instead of trimming adapters in advance)
+    if config["TECH"] == "Illumina":
+        start_time = timeit.default_timer()
+
+        fwrd_adapter = "TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA"
+        rev_adapter = "AGACAGAGAATATGTGTAGAGGCTCGGGTGCTCTG".translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1]
+        adapter_inserts = [insert for insert in inserts if insert.trailing and ((insert.trailing_end == 5 and insert.is_similar_to(Insert(seq=fwrd_adapter[-insert.length:], start=0, end=0, counts=0))) or (insert.trailing_end == 3 and insert.is_similar_to(Insert(seq=rev_adapter[-insert.length:], start=0, end=0, counts=0))))]
+        non_adapter_inserts = [insert for insert in inserts if not insert.trailing or (insert.trailing_end == 5 and not insert.is_similar_to(Insert(seq=fwrd_adapter[-insert.length:], start=0, end=0, counts=0))) or (insert.trailing_end == 3 and not insert.is_similar_to(Insert(seq=rev_adapter[-insert.length:], start=0, end=0, counts=0)))]
+        if adapter_inserts:
+            print(fwrd_adapter)
+            print(rev_adapter)
+        for insert in adapter_inserts:
+            insert.print()
+        print("Filtering inserts for adapter sequences took {} s".format(timeit.default_timer() - start_time))
+        save_stats("{}/{} insertions were part of adapters and filtered".format(len(inserts) - len(non_adapter_inserts), len(inserts)), config["STATS_FILE"])
+        inserts = non_adapter_inserts
+
 
     start_time = timeit.default_timer()
     # add coverage to inserts # -> delete timer, move up to insert block above
