@@ -14,7 +14,7 @@ python3
 
 ## Installation (Linux / Ubuntu)
 ```
-pip install numpy pandas biopython
+pip3 install numpy pandas biopython
 ```
 
 ## Input
@@ -23,11 +23,7 @@ pip install numpy pandas biopython
 - Sample ID / Output folder prefix  
 
 ###### Optional:
--
--
--
-
-For a complete list of available commandline arguments, run
+For a complete list of available commandline arguments and their default values, run
 ```
 python3 getitd.py --help
 ```
@@ -40,9 +36,9 @@ Inside, all generated output files reside:
 - out\_needle/ contains individual alignment files, needle\_\*.txt, of all the different reads processed
 - itds\_collapsed-is-same\_is-similar\_is-close\_is-same-trailing\_hc.tsv contains filtered high-confidence (hc) ITDs, fully merged
 - itds\_collapsed-is-same\_is-similar\_is-close\_is-same-trailing.tsv contains all ITDs, fully merged
-- itds\_collapsed-is-same\_is-similar\_is-close.tsv contains all ITDs, having merged those of the same length with identical or similar tandem sequences and close start coordinates (within one tandem length)
-- itds\_collapsed-is-same\_is-similar.tsv contains all ITDs, having merged those of the same length and tandem sequence
-- itds\_collapsed-is-same.tsv contains all ITDs, having merged those that share the same length, tandem sequence and start coordinates
+- itds\_collapsed-is-same\_is-similar\_is-close.tsv contains all ITDs, having merged those of the same insertion length, nearby insertion sites (within one tandem length) and similar insert sequences 
+- itds\_collapsed-is-same\_is-similar.tsv contains all ITDs, having merged those of the same insertion length and site and similar insert sequences
+- itds\_collapsed-is-same.tsv contains all ITDs, having merged those that share the same insertion length, site and sequence
 - insertions\*.tsv files are analogous to ITD files but list all insertions, regardless of whether these are also ITDs or not
 
 ##### On stdout
@@ -50,42 +46,91 @@ At each filtering step, the number of reads and insertions passing the specified
 Currently, also the computation time of various steps is printed, but presumably this will change in the future. 
 
 ## Example
-Start analysis of provided example test files:
+To analyze the provided test data:
 ```
-cd test
-python3 ../getitd.py test_R1.fastq test_R2.fastq test
+python3 ./getitd.py test/test_R1.fastq test/test_R2.fastq test
 ```
 
 Expected output:  
-![test/test_output.png](test/test_output.png)
+```console
+==== PROCESSING SAMPLE test ====
+-- Reading FASTQ files --
+Reading FASTQ files took 0.15001007914543152 s
+Number of total reads: 5000
+Number of total reads remainging after N-trimming: 5000 (100.0 %)
+Mean read length after N-trimming: 251.0
+Number of total reads with mean BQS >= 30: 4544 (90.88 %)
+Getting unique reads took 0.04079139232635498 s
+
+Number of unique reads with mean BQS >= 30: 987
+Number of unique reads with at least 2 copies: 170
+Total reads remaining for analysis: 3727 (74.54 %)
+
+-- Aligning to Reference --
+Alignment took 1.0301645826548338 s
+Filtering 0 / 170 low quality alignments with a score < 50.0 % of max
+Filtering 22 / 170 alignments with indels in primer bases
+Total reads remaining for analysis: 3654 (73.08 %)
+Calculating coverage took 0.11887545138597488 s
+
+-- Looking for insertions & ITDs --
+Collecting inserts took 0.020746199414134026 s
+43 insertions were found
+Filtering inserts for adapter sequences took 2.495385706424713e-05 s
+0/43 insertions were part of adapters and filtered
+Annotating coverage took 0.005261320620775223 s
+Collecting ITDs took 0.3815697953104973 s
+43 ITDs were found
+
+-- Merging results --
+3 insertions remain after merging
+2 insertions remain after merging
+1 insertions remain after merging
+1 insertions remain after merging
+3 itds remain after merging
+2 itds remain after merging
+1 itds remain after merging
+1 itds remain after merging
+Merging took 0.5721261408179998 s
+
+-- Filtering --
+Filtered 0 / 1 insertions based on the vaf
+Filtered 0 / 1 insertions based on the number of unique supporting reads
+Filtered 0 / 1 insertions based on the number of total supporting reads
+1 insertions remain after filtering!
+Filtered 0 / 1 itds based on the vaf
+Filtered 0 / 1 itds based on the number of unique supporting reads
+Filtered 0 / 1 itds based on the number of total supporting reads
+1 itds remain after filtering!
+Filtering took 0.03359447047114372 s
+```
 
 ## How it works
 1. Read in FASTQ files
     - Read in forward reads and BQS (R1)
     - Read in and reverse complement reverse reads and BQS (R2)
-    - from now on, treat all as forward reads
+    - Trim trailing ambiguous N bases on all reads
 2. Filter reads for minimum average base quality score (BQS)
-    - Discard reads that do not pass this filter
+    - Discard low quality reads
 3. Filter unique reads
-    - Discard reads present only once  
-    - Assumption: true / clinically relevant sequences will be there at least twice
-4. Align each read to the WT amplicon reference sequence
-    - Uses Needlemann-Wunsch alignment algorithm
+    - Assume that true & clinically relevant sequences will be present at least twice and discard unique reads
+4. Align each read to the WT amplicon reference sequence using Needlemann-Wunsch alignment algorithm
 5. Filter alignments, require
     - at least 50 % of the maximum possible alignment score
-    - error-free alignment to primer sequence
-6. Collect insertions within passing reads, require
+    - gap-free alignment to the primer sequence (when these are given)
+6. Collect insertions within passing alignments, require
     - insert length of at least 6 bp
-    - in-frame insert (length divisible by 3)
     - absence of ambiguous "N" bases within the actual insert sequence
-    - 3' or 5' trailing inserts not fully spanned by the sequenced reads are not required to be in-frame, since their exact length is not actually known
-7. Collect ITDs within passing insertions, require
-    - insert sequence can be realigned to WT amplicon sequence, again with at least 50 % of the maximum possible alignment score
-8. Merge insertions and ITDs independently (considering reads to describe the same event and adding up supporting counts), require
-    - that they are actually the same: insert length, coordinates and sequence are identical
-    - that they are similar: insert length and coordinates are the same, sequences are similar
-    - that they are close: insert length is the same, sequences are similar and coordinates are within one insert length of each other
-    - close trailing inserts are considered the same regardless of their (estimated) length
+    - in-frame insert (length divisible by 3) for inserts fully contained within a read
+    - 3' or 5' trailing inserts not fully spanned by the sequenced reads are not required to be in-frame, since their exact length is not actually known then
+7. Collect ITDs from passing insertions, require
+    - insert sequence can be realigned to the WT amplicon sequence, again with at least 50 % of the maximum possible alignment score
+    - for 3' and 5' trailing inserts that insert sequence is not an adapter artefact
+8. Merge total insertions and ITDs independently (considering reads to describe the same event and adding up supporting counts), require
+    - that they are actually the same: insert length, site and sequence are identical
+    - that they are similar: insert length and site are the same, sequences are similar
+    - that they are close: insert length is the same, sequences are similar and sites are within one insert length of each other
+    - close trailing inserts with similar sequences are considered the same regardless of their (estimated) lengths
 9. Filter insertions and ITDs independently, require
     - at least two different supporting reads
-    - a minimum variant allele frequency (VAF) of 0.001 %
+    - a minimum variant allele frequency (VAF) of 0.006 %
