@@ -430,8 +430,8 @@ class Insert(object):
                     self.print()
                     self.reads[0].print()
                     print(bio.format_alignment(*alignment))
-                    print(alignment_start)
-                    print(alignment_end)
+                    print("alignment_start: {}".format(alignment_start))
+                    print("alignment_end: {}".format(alignment_end))
         return None
 
 
@@ -1032,7 +1032,9 @@ def get_min_score(seq1, seq2, min_score):
     Returns:
         Minimum required alignment score (float).
     """
-    return min(len(seq1),len(seq2)) * config["COST_MATCH"] * min_score
+    return (min(len(seq1),len(seq2)) * config["COST_MATCH"]) * min_score
+    # min score with penalize_trailing_gaps=True:
+    #return (min(len(seq1),len(seq2)) * config["COST_MATCH"] + (abs(len(seq1) - len(seq2)) -1) * config["COST_GAPEXTEND"] + config["COST_GAPOPEN"]) * min_score
 
 
 def parallelize(function, args, cores):
