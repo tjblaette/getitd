@@ -210,9 +210,9 @@ def test_1610_9181_174bp():
     assert len(inserts) == 1
     insert = inserts[0]
     insert.print()
-    assert (insert.length - 174) <= 6
+    assert (insert.length - 174) <= 4
     itd = insert.get_itd()
-    assert (itd.fix_trailing_length().length - 174 <= 6)
+    assert (itd.fix_trailing_length().length - 174 <= 4)
     assert itd is not None
     itd = itd.prep_for_save()
     itd.set_insertion_site()
@@ -230,9 +230,9 @@ def test_1610_9181_174bp_02():
     assert len(inserts) == 1
     insert = inserts[0]
     insert.print()
-    assert (insert.length - 174) <= 6
+    assert (insert.length - 174) <= 4
     itd = insert.get_itd()
-    assert (itd.fix_trailing_length().length - 174 <= 6)
+    assert (itd.fix_trailing_length().length - 174 <= 4)
     assert itd is not None
     itd = itd.prep_for_save()
     itd.set_insertion_site()
@@ -482,7 +482,7 @@ def test_1610_264_198bp():
     insert = inserts[0]
     itd = insert.get_itd()
     assert itd is not None
-    assert abs(itd.fix_trailing_length().length - 198) <= 6
+    assert abs(itd.fix_trailing_length().length - 198) <= 1
     itd = itd.prep_for_save()
     itd.set_insertion_site()
     itd.annotate("insertion_site", "protein_as", config)
@@ -496,7 +496,7 @@ def test_1610_264_198bp_02():
     insert = inserts[0]
     itd = insert.get_itd()
     assert itd is not None
-    assert abs(itd.fix_trailing_length().length - 198) <= 6
+    assert abs(itd.fix_trailing_length().length - 198) <= 1
     itd = itd.prep_for_save()
     itd.set_insertion_site()
     itd.annotate("insertion_site", "protein_as", config)
@@ -510,7 +510,7 @@ def test_1610_264_198bp_03():
     assert insert.trailing == True
     itd = insert.get_itd()
     assert itd is not None
-    assert abs(itd.fix_trailing_length().length - 198) <= 6
+    assert abs(itd.fix_trailing_length().length - 198) <= 1
     itd = itd.prep_for_save()
     itd.set_insertion_site()
     itd.annotate("insertion_site", "protein_as", config)
@@ -706,7 +706,7 @@ def test_pl21_126bp():
     itd.print()
     itd.reads[0].print()
     assert itd is not None
-    assert abs(itd.fix_trailing_length().length - 126) <= 3
+    assert abs(itd.fix_trailing_length().length - 126) <= 1
 
 def maybe_test_pl21_126bp_artificial():
     read = Read(seq="ACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTTCAAATCGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTXXXXXXGGAGTTTCCAAGAGAAAATT").align().get_ref_span()
@@ -724,7 +724,7 @@ def maybe_test_pl21_126bp_artificial():
     itd.print()
     itd.reads[0].print()
     assert itd is not None
-    assert abs(itd.fix_trailing_length().length - 126) <= 3
+    assert abs(itd.fix_trailing_length().length - 126) <= 1
 
 
 ##############################
