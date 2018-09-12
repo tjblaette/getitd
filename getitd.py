@@ -1071,9 +1071,9 @@ def read_fastq(fastq_file):
             line = f.readline()
             while line:
                 read_id = line
-                read_seq = f.readline().rstrip('\n')
+                read_seq = f.readline().rstrip(os.linesep)
                 read_desc = f.readline()
-                read_bqs = f.readline().rstrip('\n')
+                read_bqs = f.readline().rstrip(os.linesep)
                 assert len(read_seq) == len(read_bqs)
                 reads.append(Read(seq=read_seq, index=read_index, bqs=read_bqs, sense=1))
                 line = f.readline()
@@ -1098,7 +1098,7 @@ def read_index_bqs(index_file):
         with open(index_file, "r") as f:
             all_lines = f.readlines()
             index_bqs = all_lines[3::4]
-            index_bqs = [bqs.rstrip('\n') for bqs in index_bqs]
+            index_bqs = [bqs.rstrip(os.linesep) for bqs in index_bqs]
         return index_bqs
     except IOError as e:
         print("---\nCould not read index file {}!\n---".format(index_file))
