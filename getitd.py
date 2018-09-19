@@ -902,13 +902,14 @@ def print_alignment_seq(seq, seq_coord, pre_width, post_width, f):
     Return:
        Start coordinate of the next part of this alignment to be printed.
     """
+    seq_coord += int(len(seq) > seq.count('-'))
     f.write(' ' * (pre_width - get_number_of_digits(seq_coord) +1))
     f.write(str(seq_coord) + ' ')
     f.write(seq)
-    seq_coord = seq_coord + len(seq) - seq.count('-') -1
+    seq_coord = seq_coord + len(seq) - seq.count('-') -1 +int(len(seq) == seq.count('-'))
     f.write(' ' * (post_width - get_number_of_digits(seq_coord)))
     f.write(str(seq_coord) + '\n')
-    return seq_coord +1
+    return seq_coord
 
 def print_alignment(read, out_dir, config=config):
     """
@@ -982,8 +983,8 @@ def print_alignment(read, out_dir, config=config):
                 al[i:i+width],
                 read.al_ref[i:i+width])
                 for i in range(0, al_len, width)]
-        seq_coord = 1
-        ref_coord = 1
+        seq_coord = 0
+        ref_coord = 0
         for s, a, r in alignment_chunks:
             seq_coord = print_alignment_seq(s, seq_coord,pre_width,post_width,f)
             print_alignment_connection(a, pre_width, f)
