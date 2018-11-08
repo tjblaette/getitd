@@ -13,7 +13,61 @@ import pprint
 import os
 import copy
 
-config = {}
+
+def save_config(config, filename):
+    """
+    Write timestamp and commandline arguments to file.
+
+    Args:
+        config (dict): Config parameters and values to write.
+        filename (str): Name of the file to write to.
+    """
+    with open(filename, "w") as f:
+        f.write("Commandline_argument\tValue\n")
+        f.write("Time\t{}\n".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%d")))
+        for param in sorted(config.keys()):
+            if param not in ["ANNO", "DOMAINS"]:
+                f.write("{}\t{}\n".format(param, config[param]))
+
+def load_config(filename):
+    """
+    Load config parameters from file.
+
+    Args:
+        filename (str): Name of the file to read config from.
+    Returns:
+        Dictionary with config parameter - value pairs.
+    """
+    config = {}
+    with open(filename, "r") as f:
+        for line in f:
+            key, val = line.strip("\n").split("\t")
+            try:
+                config[key] = float(val)
+            except:
+                config[key] = val
+    return config
+
+
+
+# child processes spawned on Windows by multiprocessing do not
+# receive variables set in __main__ of parent process
+# -->  they cannot access config {} values set in __main__
+# --> to circumvent this, __main__ saves config and children
+#     spawned by multiprocessing load it from file
+if __name__ == '__mp_main__':
+    try:
+        current_dir = os.getcwd()
+        config = load_config(os.path.join(current_dir, "config.txt"))
+    except OSError:
+        print("NO CONFIG FOUND")
+else:
+    # mimic Windows style process spawning on Linux:
+    # multiprocessing.set_start_method("spawn")
+    config = {}
+
+
+
 
 class Read(object):
     """
@@ -1356,20 +1410,6 @@ def filter_alignment_score(reads, config=config):
     return reads_filtered
 
 
-def save_config(cmd_args, filename):
-    """
-    Write timestamp and commandline arguments to file.
-
-    Args:
-        cmd_args (argparse.Namespace): Commandline arguments and values to write.
-        filename (str): Name of the file to write to.
-    """
-    with open(filename, "w") as f:
-        f.write("Commandline_argument\tValue\n")
-        f.write("Time\t{}\n".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%d")))
-        for arg in sorted(list(vars(cmd_args).keys())):
-            f.write("{}\t{}\n".format(arg, vars(cmd_args)[arg]))
-
 def save_stats(stat, filename):
     """
     Write statistics to file.
@@ -1448,11 +1488,20 @@ if __name__ == '__main__':
     config["DOMAINS"] = get_domains(config["ANNO"])
     config["REF"] = read_reference(config["REF_FILE"]).upper()
 
+    ## MAKE ALL INPUT & OUTPUT FILE / FOLDER NAMES ABSOLUTE PATHS
+    for path in ["R1", "R2", "I1", "I2", "REF_FILE", "ANNO_FILE", "KNOWN_LENGTH_FILE", "KNOWN_VAF_FILE", "KNOWN_AR_FILE", "OUT_DIR", "STATS_FILE", "CONFIG_FILE"]:
+        if config[path] and not os.path.isabs(config[path]):
+            config[path] = os.path.join(os.getcwd(), config[path])
+
     ## CREATE OUTPUT FOLDER
     if not os.path.exists(config["OUT_DIR"]):
         os.makedirs(config["OUT_DIR"])
 
-    save_config(cmd_args, config["CONFIG_FILE"])
+    ## CHANGE TO OUTPUT FOLDER
+    #  this is required for parallel child processes to retrieve
+    #  the correct config.txt file later on
+    os.chdir(config["OUT_DIR"])
+    save_config(config, config["CONFIG_FILE"])
 
     # stats are appended, remove previous output prior to new analysis
     try:
