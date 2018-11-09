@@ -13,9 +13,25 @@ python3
 - biopython
 
 ## Setup (Linux / Ubuntu & MacOS)
+To install the necessary python3 modules, open the commandline and enter:
 ```
 pip3 install --user numpy pandas biopython
 ```
+##### For convenience: Change to the folder containing the _getitd.py_ program and _anno_ subfolder
+Commands provided in this manual assume that you are working from within the folder that contains the _getitd.py_ script. Your current folder is shown at the beginning of the commandline. To go up in the folder hierarchy, enter:
+```
+cd ..
+```
+To enter a certain subfolder, type:
+```
+cd EXAMPLE
+```
+(Replace _EXAMPLE_ with the name of the folder you are trying to enter.)
+
+Repeat these two steps to reach the desired destination.
+
+
+Alternatively, provide full or relative paths to all files, including the _getitd.py_ script, input FASTQ files and reference and annotation files, whenever you use getITD. 
 
 ## Setup (Windows)
 #### Python3
