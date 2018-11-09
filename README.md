@@ -18,16 +18,55 @@ pip3 install --user numpy pandas biopython
 ```
 
 ## Setup (Windows)
-If necessary, download and install the latest python3 from https://www.python.org/downloads/windows/. Be sure to check the box to add it to your PATH. 
+### Python3
+If necessary, download and install the latest python3 from https://www.python.org/downloads/windows/. Be sure to check the box to add it to your PATH. Check that python works by opening the Windows commandline (cmd), typing
+```
+py -3
+```
+and pressing ENTER. If python3 was correctly installed and added to your PATH, this will open the python interpreter. Exit by typing 
+```
+exit()
+```
+and pressing ENTER.
 
-Download and install Visual Studio C++ Build tools from https://visualstudio.microsoft.com/visual-cpp-build-tools. Select the following options in addition to the defaults:
+### Visual Studio C++ Build Tools
+Download and install Visual Studio C++ Build tools from https://visualstudio.microsoft.com/visual-cpp-build-tools (click _Download Build Tools_, scroll down to _All Downloads_ and select _Build Tools for Visual Studio_ under _Tools for Visual Studio_). 
+
+For installation, select the following options in addition to the defaults:
 - "C++/CLI support"
 - "VC++ 2015.3 v14.00 (v140) toolset for desktop"
 
-Open the Windows commandline (cmd) and install required python modules:
+### If applicable: Set proxy
+In case you are working behind a firewall, set the appropriate proxy server (ask your IT administrator if you do not know which one this is) by entering the following commands in the Windws commandline (cmd):
+```
+set https_proxy=your.proxy.server:your_port
+set http_proxy=your.proxy.server:your_port
+```
+
+### Install python3 modules:
+Open the Windows commandline (cmd) and install the required python3 modules:
 ```
 pip3 install --user pandas numpy biopython
 ```
+If this command fails with a connection error such as the one shown below, you are working behind a firewall and first need to set the correct proxy server as described above under _Set proxy_):
+```
+Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.VerifiedHTTPSConnection object at 0x00000218168F2A90>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it')': /simple/pandas/
+```
+### For convenience: Change to the folder containing the _getitd.py_ program and _anno_ subfolder
+Commands provided in this manual assume that you are working from within the folder that contains the _getitd.py_ script. Your current folder is shown at the beginning of the commandline. To go up in the folder hierarchy, enter:
+```
+cd ..
+```
+To enter a certain subfolder, type:
+```
+cd EXAMPLE
+```
+(Replace _EXAMPLE_ with the name of the folder you are trying to enter.)
+
+Repeat these two steps to reach the desired destination.
+
+
+Alternatively, provide full or relative paths to all files, including the _getitd.py_ script, input FASTQ files and reference and annotation files, whenever you use getITD. 
 
 ## Input
 ###### Required:
