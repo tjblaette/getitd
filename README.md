@@ -12,9 +12,21 @@ python3
 - numpy
 - biopython
 
-## Installation (Linux / Ubuntu)
+## Setup (Linux / Ubuntu & MacOS)
 ```
-pip3 install numpy pandas biopython
+pip3 install --user numpy pandas biopython
+```
+
+## Setup (Windows)
+If necessary, download and install the latest python3 from https://www.python.org/downloads/windows/. Be sure to check the box to add it to your PATH. 
+
+Download and install Visual Studio C++ Build tools from https://visualstudio.microsoft.com/visual-cpp-build-tools. Select the following options in addition to the defaults:
+- "C++/CLI support"
+- "VC++ 2015.3 v14.00 (v140) toolset for desktop"
+
+Open the Windows commandline (cmd) and install required python modules:
+```
+pip3 install --user pandas numpy biopython
 ```
 
 ## Input
@@ -23,9 +35,13 @@ pip3 install numpy pandas biopython
 - Sample ID / Output folder prefix  
 
 ###### Optional:
-For a complete list of available commandline arguments and their default values, run
+For a complete list of available commandline arguments and their default values, change to the getitd folder and, on Linux & MacOS, run
 ```
 python3 getitd.py --help
+```
+On Windows, run
+```
+py -3 getitd.py --help
 ```
 
 ## Output 
@@ -46,9 +62,13 @@ At each filtering step, the number of reads and insertions passing the specified
 Currently, also the computation time of various steps is printed, but presumably this will change in the future. 
 
 ## Example
-To analyze the provided test data:
+To analyze the provided test data, change to the getitd folder and, on Linux / MacOS, run:
 ```
-python3 ./getitd.py test/test_R1.fastq test/test_R2.fastq test
+python3 getitd.py test/test_R1.fastq test/test_R2.fastq test
+```
+On Windows, run:
+```
+py -3 getitd.py test/test_R1.fastq test/test_R2.fastq test
 ```
 
 Expected output:  
