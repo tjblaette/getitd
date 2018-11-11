@@ -417,7 +417,7 @@ class Insert(object):
         self.sense = sense
         return self
 
-    def set_coverage(self):
+    def set_coverage(self, ref_coverage, ref_coverage_frwd, ref_coverage_rev):
         """
         Set Insert's coverage based on supporting reads' sense.
         """
@@ -1623,12 +1623,7 @@ def get_hc_inserts(inserts, type_, suffix="", config=config):
 
     return filtered
 
-
-
-########## MAIN ####################
-if __name__ == '__main__':
-
-    config = parse_config_from_cmdline(config)
+def main(config=config):
     config["ANNO"] = read_annotation(config["ANNO_FILE"])
     config["DOMAINS"] = get_domains(config["ANNO"])
     config["REF"] = read_reference(config["REF_FILE"]).upper()
@@ -1760,7 +1755,7 @@ if __name__ == '__main__':
         # --> negative start (-> 5' trailing_end) will result in
         #     coverage = ref_coverage[-X] which will silently report incorrect coverage!!
         insert = insert.set_sense()
-        insert = insert.set_coverage()
+        insert = insert.set_coverage(ref_coverage, ref_coverage_frwd, ref_coverage_rev)
         insert = insert.calc_vaf()
     print("Annotating coverage took {} s".format(timeit.default_timer() - start_time))
 
@@ -1799,3 +1794,10 @@ if __name__ == '__main__':
     for type_, inserts_ in merged_ins_and_itds.items():
         filtered_ins_and_itds[type_] = get_hc_inserts(inserts_, type_, "_collapsed-is-same_is-similar_is-close_is-same_trailing_hc", config)
     print("Filtering took {} s".format(timeit.default_timer() - start_time))
+
+
+########## MAIN ####################
+if __name__ == '__main__':
+
+    config = parse_config_from_cmdline(config)
+    main(config)
