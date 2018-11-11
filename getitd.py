@@ -1482,9 +1482,6 @@ def parse_config_from_cmdline(config=config):
     config["ANNO_FILE"] = cmd_args.anno
     config["TECH"] = cmd_args.technology
     config["NKERN"] = cmd_args.nkern
-    config["OUT_DIR"] = '_'.join([config["SAMPLE"],'minBQS', str(config["MIN_BQS"])])
-    config["STATS_FILE"] = os.path.join(config["OUT_DIR"], "stats.txt")
-    config["CONFIG_FILE"] = os.path.join(config["OUT_DIR"], "config.txt")
 
     config["COST_MATCH"] = cmd_args.match
     config["COST_MISMATCH"] = -abs(cmd_args.mismatch)
@@ -1630,6 +1627,11 @@ def make_file_path_absolute(file_):
 
 def main(config=config):
 
+    # PROCESS INPUTS
+    config["OUT_DIR"] = '_'.join([config["SAMPLE"], "getitd"])
+    config["STATS_FILE"] = os.path.join(config["OUT_DIR"], "stats.txt")
+    config["CONFIG_FILE"] = os.path.join(config["OUT_DIR"], "config.txt")
+
     # make all input & output file / folder names absolute paths
     for file_ in ["R1", "R2", "REF_FILE", "ANNO_FILE", "OUT_DIR", "STATS_FILE", "CONFIG_FILE"]:
         if config[file_]:
@@ -1655,7 +1657,7 @@ def main(config=config):
         os.remove(config["STATS_FILE"])
     except OSError:
         pass
-    save_stats("==== PROCESSING SAMPLE {} ====".format(config["SAMPLE"]), config["STATS_FILE"])
+    save_stats("\n==== PROCESSING SAMPLE {} ====".format(config["SAMPLE"]), config["STATS_FILE"])
 
     ## READ FASTQ FILES
     reads = get_reads(config)
@@ -1805,6 +1807,12 @@ def main(config=config):
     for type_, inserts_ in merged_ins_and_itds.items():
         filtered_ins_and_itds[type_] = get_hc_inserts(inserts_, type_, "_collapsed-is-same_is-similar_is-close_is-same_trailing_hc", config)
     print("Filtering took {} s".format(timeit.default_timer() - start_time))
+
+
+    ########################################
+    # CHANGE BACK TO ORIGINAL / PARENT DIRECTORY
+    os.chdir("..")
+
 
 
 ########## MAIN ####################
