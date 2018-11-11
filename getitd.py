@@ -1499,10 +1499,6 @@ def parse_config_from_cmdline(config=config):
     config["MIN_UNIQUE_READS"] = cmd_args.filter_ins_unique_reads
     config["MIN_VAF"] = cmd_args.filter_ins_vaf
 
-    # make all input & output file / folder names absolute paths
-    for path in ["R1", "R2", "REF_FILE", "ANNO_FILE", "OUT_DIR", "STATS_FILE", "CONFIG_FILE"]:
-        if config[path] and not os.path.isabs(config[path]):
-            config[path] = os.path.join(os.getcwd(), config[path])
     return config
 
 
@@ -1627,7 +1623,18 @@ def get_hc_inserts(inserts, type_, suffix="", config=config):
 
     return filtered
 
+def make_file_path_absolute(file_):
+    if not os.path.isabs(file_):
+        file_ = os.path.join(os.getcwd(), file_)
+    return file_
+
 def main(config=config):
+
+    # make all input & output file / folder names absolute paths
+    for file_ in ["R1", "R2", "REF_FILE", "ANNO_FILE", "OUT_DIR", "STATS_FILE", "CONFIG_FILE"]:
+        if config[file_]:
+            config[file_] = make_file_path_absolute(config[file_])
+
     config["ANNO"] = read_annotation(config["ANNO_FILE"])
     config["DOMAINS"] = get_domains(config["ANNO"])
     config["REF"] = read_reference(config["REF_FILE"]).upper()
