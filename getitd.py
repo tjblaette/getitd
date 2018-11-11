@@ -35,6 +35,7 @@ def load_config(filename):
 
     Args:
         filename (str): Name of the file to read config from.
+
     Returns:
         Dictionary with config parameter - value pairs.
     """
@@ -440,6 +441,16 @@ class Insert(object):
         return self
 
     def get_itd(self, config=config):
+        """
+        Check whether Insert qualifies as an ITD.
+
+        Args:
+            config (dict): Dict containing analysis parameters.
+
+        Returns:
+            ITD if the Insert qualifies as one.
+            None otherwise.
+        """
         alignments = bio.align.localcs(self.seq, config["REF"], get_alignment_score, config["COST_GAPOPEN"], config["COST_GAPEXTEND"])
         alignments = [al for al in alignments if integral_insert_realignment(al[0],self.length)]
         if not alignments:
@@ -1390,6 +1401,29 @@ def filter_alignment_score(reads, config=config):
             len(reads) - len(reads_filtered), len(reads), config["MIN_SCORE_ALIGNMENTS"] *100), config["STATS_FILE"])
     return reads_filtered
 
+def filter_alignments_with_gaps_in_primers(reads):
+    """
+    Filter reads that are not aligned fully to at least one primer.
+
+    Args:
+        reads: List of Read objects to filter
+
+    Returns:
+        List of passing reads
+    """
+    rev_primer = 'GGTTGCCGTCAAAATGCTGAAAG'
+    fwrd_primer = 'GCAATTTAGGTATGAAAGCCAGCTAC'
+    filtered = [read for read in reads if (
+            (read.sense == -1
+            and rev_primer in read.al_ref
+            and read.al_seq.count('-', read.al_ref.find(rev_primer), read.al_ref.find(rev_primer) + len(rev_primer)) <= 0
+            ) or
+            (read.sense == 1
+            and fwrd_primer in read.al_ref
+            and read.al_seq.count('-', read.al_ref.find(fwrd_primer), read.al_ref.find(fwrd_primer) + len(fwrd_primer)) <= 0))]
+    save_stats("Filtering {} / {} alignments with indels in primer bases".format( len(reads) - len(filtered), len(reads)), config["STATS_FILE"])
+    return filtered
+
 
 def save_stats(stat, filename):
     """
@@ -1403,9 +1437,16 @@ def save_stats(stat, filename):
     with open(filename, "a") as f:
         f.write(stat + "\n")
 
+def parse_config_from_cmdline(config=config):
+    """
+    Get analysis parameters from commandline.
 
-########## MAIN ####################
-if __name__ == '__main__':
+    Args: 
+        config (dict): Dict to save parameters to
+
+    Returns:
+        Filled config dict
+    """
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group()
     parser.add_argument("fastq1", help="FASTQ file of forward reads (REQUIRED)")
@@ -1454,33 +1495,23 @@ if __name__ == '__main__':
     config["MIN_UNIQUE_READS"] = cmd_args.filter_ins_unique_reads
     config["MIN_VAF"] = cmd_args.filter_ins_vaf
 
-
-    config["ANNO"] = read_annotation(config["ANNO_FILE"])
-    config["DOMAINS"] = get_domains(config["ANNO"])
-    config["REF"] = read_reference(config["REF_FILE"]).upper()
-
-    ## MAKE ALL INPUT & OUTPUT FILE / FOLDER NAMES ABSOLUTE PATHS
-    for path in ["R1", "R2", "I1", "I2", "REF_FILE", "ANNO_FILE", "OUT_DIR", "STATS_FILE", "CONFIG_FILE"]:
+    # make all input & output file / folder names absolute paths
+    for path in ["R1", "R2", "REF_FILE", "ANNO_FILE", "OUT_DIR", "STATS_FILE", "CONFIG_FILE"]:
         if config[path] and not os.path.isabs(config[path]):
             config[path] = os.path.join(os.getcwd(), config[path])
+    return config
 
-    ## CREATE OUTPUT FOLDER
-    if not os.path.exists(config["OUT_DIR"]):
-        os.makedirs(config["OUT_DIR"])
 
-    ## CHANGE TO OUTPUT FOLDER
-    #  this is required for parallel child processes to retrieve
-    #  the correct config.txt file later on
-    os.chdir(config["OUT_DIR"])
-    save_config(config, config["CONFIG_FILE"])
+def get_reads(config=config):
+    """
+    Read in FASTQ files.
 
-    # stats are appended, remove previous output prior to new analysis
-    try:
-        os.remove(config["STATS_FILE"])
-    except OSError:
-        pass
-    save_stats("==== PROCESSING SAMPLE {} ====".format(config["SAMPLE"]), config["STATS_FILE"])
+    Args:
+        config (dict): Dict containing analysis parameters.
 
+    Returns:
+        List of Read objects, one for each read from input FASTQ files.
+    """
     save_stats("-- Reading FASTQ files --", config["STATS_FILE"])
     start_time = timeit.default_timer()
     reads = read_fastq(config["R1"])
@@ -1493,19 +1524,147 @@ if __name__ == '__main__':
         reads = reads + reads_rev_rev
     print("Reading FASTQ files took {} s".format(timeit.default_timer() - start_time))
     save_stats("Number of total reads: {}".format(len(reads)), config["STATS_FILE"])
-    TOTAL_READS = len(reads)
+    return reads
+
+
+def filter_sequencing_adapter_artefacts(inserts):
+    """
+    Filter Inserts to remove false positives originating from
+    sequencing adapters partially contained within the read.
+    (Alternatively, one could trim reads in advance but using
+    the generated alignment instead should ensure that really
+    no unnecessary sequence is removed.)
+
+    Args:
+        inserts: List of Inserts to filter.
+
+    Returns:
+        List of passing Inserts.
+    """
+    fwrd_adapter = "TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA"
+    rev_adapter = "AGACAGAGAATATGTGTAGAGGCTCGGGTGCTCTG".translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1]
+    non_adapter_inserts = [insert for insert in inserts if
+            not insert.trailing 
+            or (insert.trailing_end == 5 and not insert.is_similar_to(Insert(seq=fwrd_adapter[-insert.length:], start=0, end=0, counts=0))) 
+            or (insert.trailing_end == 3 and not insert.is_similar_to(Insert(seq=rev_adapter[-insert.length:], start=0, end=0, counts=0)))
+            ]
+
+    save_stats("{}/{} insertions were part of adapters and filtered".format(len(inserts) - len(non_adapter_inserts), len(inserts)), config["STATS_FILE"])
+    return non_adapter_inserts
+
+
+def get_merged_inserts(inserts, type_, config):
+    """
+    Merge Inserts based on different conditions.
+    
+    Args:
+        inserts: List of Inserts to merge.
+        type_ (str): "insertions" or "itds",
+                     description for output files.
+        config (dict): Dict containing analysis parameters.
+
+    Returns:
+        List of merged Inserts.
+    """
+    save_stats("\n-- Merging {} --".format(type_), config["STATS_FILE"])
+
+    merged = []
+    # turn Insert objects into InsertCollection to keep merging methods simple and not have to distinguish between the two
+    to_merge = [InsertCollection(insert) for insert in inserts]
+    suffix = ""
+    for condition in [
+            "is-same",
+            "is-similar",
+            "is-close",
+            "is-same_trailing"]:
+        to_merge = merge(to_merge, condition)
+        merged.append(to_merge)
+        save_stats("{} {} remain after merging".format(len(to_merge), type_), config["STATS_FILE"])
+        suffix = suffix + condition
+        save_to_file([insert.rep for insert in to_merge], type_ + "_collapsed-" + suffix + ".tsv")
+        suffix = suffix + "_"
+
+    # convert InsertCollection back to list of (representative) Inserts
+    return [insert.rep for insert in merged[-1]]
+
+
+def get_hc_inserts(inserts, type_, suffix="", config=config):
+    """
+    Filter for high-confidence (hc) inserts only.
+
+    Args:
+        inserts: List of Insertion() objects to filter
+
+        type_ (str): Description of type of inserts, 
+                     "insertions" or "itds",
+                     for output files.
+    
+        config (dict): Dict containing analysis parameters.
+
+    Returns:
+        Dict with hc inserts, same format as input dict
+    """
+    save_stats("\n-- Filtering {} --".format(type_), config["STATS_FILE"])
+
+    filter_dic = {
+        "number of unique supporting reads": Insert.filter_unique_supp_reads,
+        "number of total supporting reads": Insert.filter_total_supp_reads,
+        "vaf": Insert.filter_vaf}
+
+    filtered = copy.deepcopy(inserts)
+    for filter_type, filter_ in filter_dic.items():
+        passed = [filter_(insert) for insert in filtered]
+        filtered = [insert for (insert, pass_) in zip(filtered, passed) if pass_]
+
+        save_stats("Filtered {} / {} {} based on the {}".format(
+                len(passed) - sum(passed), len(passed), type_, filter_type), config["STATS_FILE"])
+    save_stats("{} {} remain after filtering!".format(len(filtered), type_), config["STATS_FILE"])
+    save_to_file(filtered, type_ + suffix + ".tsv")
+
+    return filtered
+
+
+
+########## MAIN ####################
+if __name__ == '__main__':
+
+    config = parse_config_from_cmdline(config)
+    config["ANNO"] = read_annotation(config["ANNO_FILE"])
+    config["DOMAINS"] = get_domains(config["ANNO"])
+    config["REF"] = read_reference(config["REF_FILE"]).upper()
+
+
+    ## CREATE OUTPUT FOLDER
+    if not os.path.exists(config["OUT_DIR"]):
+        os.makedirs(config["OUT_DIR"])
+
+    ## CHANGE TO OUTPUT FOLDER
+    #  this is required for parallel child processes to retrieve
+    #  the correct config.txt file later on despite static / constant filename
+    os.chdir(config["OUT_DIR"])
+    save_config(config, config["CONFIG_FILE"])
+
+    ## REMOVE OLD STATS FILE & START CREATING A NEW ONE
+    try:
+        os.remove(config["STATS_FILE"])
+    except OSError:
+        pass
+    save_stats("==== PROCESSING SAMPLE {} ====".format(config["SAMPLE"]), config["STATS_FILE"])
+
+    ## READ FASTQ FILES
+    reads = get_reads(config)
 
     ## TRIM trailing AMBIGUOUS 'N's
     reads = [x for x in parallelize(Read.trim_n, reads, config["NKERN"]) if x is not None]
-    save_stats("Number of total reads remainging after N-trimming: {} ({} %)".format(len(reads), len(reads) * 100 / TOTAL_READS), config["STATS_FILE"])
+    save_stats("Number of total reads remainging after N-trimming: {} ({} %)".format(len(reads), len(reads) * 100 / len(reads)), config["STATS_FILE"])
     save_stats("Mean read length after N-trimming: {}".format(np.mean([read.length for read in reads])), config["STATS_FILE"])
 
     ## FILTER ON BQS
     if config["MIN_BQS"] > 0:
         reads = [x for x in parallelize(Read.filter_bqs, reads, config["NKERN"]) if x is not None]
-    save_stats("Number of total reads with mean BQS >= {}: {} ({} %)".format(config["MIN_BQS"], len(reads), len(reads) * 100 / TOTAL_READS), config["STATS_FILE"])
+    save_stats("Number of total reads with mean BQS >= {}: {} ({} %)".format(config["MIN_BQS"], len(reads), len(reads) * 100 / len(reads)), config["STATS_FILE"])
 
-    # get unique reads and counts thereof
+    ## GET UNIQUE READS AND COUNTS THEREOF
     start_time = timeit.default_timer()
     reads = get_unique_reads(reads)
     print("Getting unique reads took {} s\n".format(timeit.default_timer() - start_time))
@@ -1519,7 +1678,7 @@ if __name__ == '__main__':
     else:
         reads = [read for read in reads if read.counts >= config["MIN_READ_COPIES"] ]
         save_stats("Number of unique reads with at least {} copies: {}".format(config["MIN_READ_COPIES"],len(reads)), config["STATS_FILE"])
-    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum([read.counts for read in reads]), sum([read.counts for read in reads]) * 100 / TOTAL_READS), config["STATS_FILE"])
+    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum([read.counts for read in reads]), sum([read.counts for read in reads]) * 100 / len(reads)), config["STATS_FILE"])
 
     ## ALIGN TO REF
     save_stats("\n-- Aligning to Reference --", config["STATS_FILE"])
@@ -1533,31 +1692,11 @@ if __name__ == '__main__':
     # FILTER BASED ON UNALIGNED PRIMERS
     # --> require that primers are always aligned without gaps / indels
     # --> do allow mismatches
-    # --> only works for this specific MRD project! --> 454 has different and multiple primers (2 PCRs!)
     if config["TECH"] == "Illumina":
-        rev_primer = 'GGTTGCCGTCAAAATGCTGAAAG'
-        fwrd_primer = 'GCAATTTAGGTATGAAAGCCAGCTAC'
-        primers_filtered = [read for read in reads if (
-                (read.sense == -1
-                and rev_primer in read.al_ref
-                and read.al_seq.count('-', read.al_ref.find(rev_primer), read.al_ref.find(rev_primer) + len(rev_primer)) <= 0
-                ) or
-                (read.sense == 1
-                and fwrd_primer in read.al_ref
-                and read.al_seq.count('-', read.al_ref.find(fwrd_primer), read.al_ref.find(fwrd_primer) + len(fwrd_primer)) <= 0))]
-        primer_fail = [read for read in reads if not ( ### keep this for initial testing only!!!
-                (read.sense == -1
-                and rev_primer in read.al_ref
-                and read.al_seq.count('-', read.al_ref.find(rev_primer), read.al_ref.find(rev_primer) + len(rev_primer)) <= 0
-                ) or
-                (read.sense == 1
-                and fwrd_primer in read.al_ref
-                and read.al_seq.count('-', read.al_ref.find(fwrd_primer), read.al_ref.find(fwrd_primer) + len(fwrd_primer)) <= 0))]
-        save_stats("Filtering {} / {} alignments with indels in primer bases".format( len(reads) - len(primers_filtered), len(reads)), config["STATS_FILE"])
-        reads = primers_filtered
+        reads = filter_alignments_with_gaps_in_primers(reads)
 
     # FINAL STATS
-    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum([read.counts for read in reads]), sum([read.counts for read in reads]) * 100 / TOTAL_READS), config["STATS_FILE"])
+    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum([read.counts for read in reads]), sum([read.counts for read in reads]) * 100 / len(reads)), config["STATS_FILE"])
 
     # REORDER TRAILING INSERTS TO GUARANTEE REF SEQ MORE TRAILING THAN INSERT SEQ AND CORRECT REF_SPAN
     reads = parallelize(Read.reorder_trailing_inserts, reads, config["NKERN"])
@@ -1602,7 +1741,6 @@ if __name__ == '__main__':
     for read in reads:
         inserts.append(read.get_inserts()) 
     inserts = flatten_list([insert for insert in inserts if insert is not None])
-
     print("Collecting inserts took {} s".format(timeit.default_timer() - start_time))
     save_stats("{} insertions were found".format(len(inserts)), config["STATS_FILE"])
 
@@ -1610,23 +1748,11 @@ if __name__ == '__main__':
     # (instead of trimming adapters in advance)
     if config["TECH"] == "Illumina":
         start_time = timeit.default_timer()
-
-        fwrd_adapter = "TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA"
-        rev_adapter = "AGACAGAGAATATGTGTAGAGGCTCGGGTGCTCTG".translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1]
-        adapter_inserts = [insert for insert in inserts if insert.trailing and ((insert.trailing_end == 5 and insert.is_similar_to(Insert(seq=fwrd_adapter[-insert.length:], start=0, end=0, counts=0))) or (insert.trailing_end == 3 and insert.is_similar_to(Insert(seq=rev_adapter[-insert.length:], start=0, end=0, counts=0))))]
-        non_adapter_inserts = [insert for insert in inserts if not insert.trailing or (insert.trailing_end == 5 and not insert.is_similar_to(Insert(seq=fwrd_adapter[-insert.length:], start=0, end=0, counts=0))) or (insert.trailing_end == 3 and not insert.is_similar_to(Insert(seq=rev_adapter[-insert.length:], start=0, end=0, counts=0)))]
-        if adapter_inserts:
-            print(fwrd_adapter)
-            print(rev_adapter)
-        for insert in adapter_inserts:
-            insert.print()
+        inserts = filter_sequencing_adapter_artefacts(inserts)
         print("Filtering inserts for adapter sequences took {} s".format(timeit.default_timer() - start_time))
-        save_stats("{}/{} insertions were part of adapters and filtered".format(len(inserts) - len(non_adapter_inserts), len(inserts)), config["STATS_FILE"])
-        inserts = non_adapter_inserts
 
-
+    # add coverage to inserts 
     start_time = timeit.default_timer()
-    # add coverage to inserts # -> delete timer, move up to insert block above
     for insert in inserts:
         # add coverage
         # --> be sure to normalize start coord to [0,len(REF)[ first
@@ -1656,53 +1782,19 @@ if __name__ == '__main__':
 
     ########################################
     # MERGE INSERTS
-    save_stats("\n-- Merging results --", config["STATS_FILE"])
-
-    merge_dic = {"insertions": inserts, "itds": itds}
-    all_merged = {}
-    for inserts_type,inserts_ in merge_dic.items():
-        all_merged[inserts_type] = []
-        suffix = ""
-        # turn Insert objects into InsertCollection to keep merging methods simple and not have to distinguish between the two
-        to_merge = [InsertCollection(insert) for insert in inserts_]
-        for condition,abrev in [
-                ("is-same",""),
-                ("is-similar","similar"),
-                ("is-close","close"),
-                ("is-same_trailing","trailing")]:
-            to_merge = merge(to_merge, condition)
-            all_merged[inserts_type].append(to_merge)
-            save_stats("{} {} remain after merging".format(len(to_merge), inserts_type), config["STATS_FILE"])
-            suffix = suffix + condition
-            save_to_file([insert.rep for insert in to_merge], inserts_type + "_collapsed-" + suffix + ".tsv")
-            suffix = suffix + "_"
-
-
-    # save as list of Insert(s) to process further as before (vs continuing with list of InsertCollection(s)
-    final_merged = {}
-    for inserts_type in merge_dic:
-        final_merged[inserts_type] = [insert.rep for insert in all_merged[inserts_type][-1]]
+    ins_and_itds = {"insertions": inserts, "itds": itds}
+    
+    merged_ins_and_itds = {}
+    start_time = timeit.default_timer()
+    for type_, inserts_ in ins_and_itds.items():
+        merged_ins_and_itds[type_] = get_merged_inserts(inserts_, type_, config)
     print("Merging took {} s".format(timeit.default_timer() - start_time))
 
 
     ########################################
     # FILTER INSERTS
-    save_stats("\n-- Filtering --", config["STATS_FILE"])
-
-    final_filtered = {}
-    filter_dic = {
-        "number of unique supporting reads": Insert.filter_unique_supp_reads,
-        "number of total supporting reads": Insert.filter_total_supp_reads,
-        "vaf": Insert.filter_vaf}
+    filtered_ins_and_itds = {}
     start_time = timeit.default_timer()
-    for inserts_type,inserts_ in final_merged.items():
-        filtered = copy.deepcopy(inserts_)
-        for filter_type,filter_ in filter_dic.items():
-            passed = [filter_(insert) for insert in filtered]
-            filtered = [insert for (insert,pass_) in zip(filtered, passed) if pass_]
-            save_stats("Filtered {} / {} {} based on the {}".format(
-                len(passed) - sum(passed), len(passed), inserts_type, filter_type), config["STATS_FILE"])
-        save_stats("{} {} remain after filtering!".format(len(filtered), inserts_type), config["STATS_FILE"])
-        save_to_file(filtered, inserts_type + "_collapsed-" + suffix + "hc.tsv")
-        final_filtered[inserts_type] = filtered
+    for type_, inserts_ in merged_ins_and_itds.items():
+        filtered_ins_and_itds[type_] = get_hc_inserts(inserts_, type_, "_collapsed-is-same_is-similar_is-close_is-same_trailing_hc", config)
     print("Filtering took {} s".format(timeit.default_timer() - start_time))
