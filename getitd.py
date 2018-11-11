@@ -1139,25 +1139,6 @@ def read_fastq(fastq_file):
     return reads
 
 
-def read_index_bqs(index_file):
-    """
-    Read index BQS. 
-
-    Args:
-        index_file: Name of the index fastq file, I1 or I2.
-
-    Returns:
-        List of index BQS.
-    """
-    try:
-        with open(index_file, "r") as f:
-            all_lines = f.readlines()
-            index_bqs = all_lines[3::4]
-            index_bqs = [bqs.rstrip(os.linesep) for bqs in index_bqs]
-        return index_bqs
-    except IOError as e:
-        print("---\nCould not read index file {}!\n---".format(index_file))
-
 
 def read_reference(filename):
     """
@@ -1431,8 +1412,6 @@ if __name__ == '__main__':
     parser.add_argument("fastq2", help="FASTQ file of reverse reads (REQUIRED)")
     parser.add_argument("sampleID", help="sample ID used as output folder prefix (REQUIRED)")
     parser.add_argument("minBQS", help="minimum average base quality score (BQS) required by each read (default 30)", type=int, default=30, nargs='?')
-    parser.add_argument("-index1", help="FASTQ file of I1 index (may be omitted)", default=None)
-    parser.add_argument("-index2", help="FASTQ file of I2 index (may be omitted)", default=None)
     parser.add_argument("-reference", help="WT amplicon sequence as reference for read alignment (default ./anno/amplicon.txt)", default="./anno/amplicon.txt", type=str)
     parser.add_argument("-anno", help="WT amplicon sequence annotation (default ./anno/amplicon_kayser.tsv)", default="./anno/amplicon_kayser.tsv", type=str)
     parser.add_argument("-technology", help="Sequencing technology used, options are '454' or 'Illumina' (default)", default="Illumina", type=str)
@@ -1443,9 +1422,6 @@ if __name__ == '__main__':
     parser.add_argument('-mismatch', help="alignment cost of base mismatch (default -10)", default="-10", type=int)
     parser.add_argument('-minscore_inserts', help="fraction of max possible alignment score required for ITD detection and insert collapsing (default 0.5)", default="0.5", type=float)
     parser.add_argument('-minscore_alignments', help="fraction of max possible alignment score required for a read to pass when aligning reads to amplicon reference (default 0.5)", default="0.5", type=float)
-    parser.add_argument('-known_length', help="file with expected ITD length, one on each line (optional)")
-    group.add_argument('-known_vaf', help="file with total expected ITD VAF of all clones (optional)")
-    group.add_argument('-known_ar', help="file with total expected ITD allele ratio of all clones vs WT (optional)")
     parser.add_argument('-min_read_length', help="minimum read length in bp required after N-trimming (default 100)", default="100", type=int)
     parser.add_argument('-filter_reads', help="minimum number of copies of each read required for processing (1 to turn filter off, 2 (default) to discard unique reads)", default="2", type=int)
     parser.add_argument('-filter_ins_unique_reads', help="minimum number of unique reads required to support an insertion for it to be considered 'high confidence' (default 2)", default="2", type=int)
@@ -1455,17 +1431,12 @@ if __name__ == '__main__':
 
     config["R1"] = cmd_args.fastq1
     config["R2"] = cmd_args.fastq2
-    config["I1"] = cmd_args.index1
-    config["I2"] = cmd_args.index2
     config["SAMPLE"] = cmd_args.sampleID
     config["MIN_BQS"] = cmd_args.minBQS
     config["REF_FILE"] = cmd_args.reference
     config["ANNO_FILE"] = cmd_args.anno
     config["TECH"] = cmd_args.technology
     config["NKERN"] = cmd_args.nkern
-    config["KNOWN_LENGTH_FILE"] = cmd_args.known_length
-    config["KNOWN_VAF_FILE"] = cmd_args.known_vaf
-    config["KNOWN_AR_FILE"] = cmd_args.known_ar
     config["OUT_DIR"] = '_'.join([config["SAMPLE"],'minBQS', str(config["MIN_BQS"])])
     config["STATS_FILE"] = os.path.join(config["OUT_DIR"], "stats.txt")
     config["CONFIG_FILE"] = os.path.join(config["OUT_DIR"], "config.txt")
@@ -1489,7 +1460,7 @@ if __name__ == '__main__':
     config["REF"] = read_reference(config["REF_FILE"]).upper()
 
     ## MAKE ALL INPUT & OUTPUT FILE / FOLDER NAMES ABSOLUTE PATHS
-    for path in ["R1", "R2", "I1", "I2", "REF_FILE", "ANNO_FILE", "KNOWN_LENGTH_FILE", "KNOWN_VAF_FILE", "KNOWN_AR_FILE", "OUT_DIR", "STATS_FILE", "CONFIG_FILE"]:
+    for path in ["R1", "R2", "I1", "I2", "REF_FILE", "ANNO_FILE", "OUT_DIR", "STATS_FILE", "CONFIG_FILE"]:
         if config[path] and not os.path.isabs(config[path]):
             config[path] = os.path.join(os.getcwd(), config[path])
 
@@ -1523,22 +1494,6 @@ if __name__ == '__main__':
     print("Reading FASTQ files took {} s".format(timeit.default_timer() - start_time))
     save_stats("Number of total reads: {}".format(len(reads)), config["STATS_FILE"])
     TOTAL_READS = len(reads)
-
-    ## IF GIVEN, GET AND FILTER ON INDEX BQS
-    start_time = timeit.default_timer()
-    if config["I1"] or config["I2"]:
-        if config["I1"]:
-            indices1_bqs = read_index_bqs(config["I1"])
-            indices_bqs = indices1_bqs
-        if config["I2"]:
-            indices2_bqs = read_index_bqs(config["I2"])
-            indices_bqs = indices2_bqs
-        if config["I1"] and config["I2"]:
-            merged_indices_bqs = [index1_bqs + index2_bqs for index1_bqs,index2_bqs in zip(indices1_bqs, indices2_bqs)]
-            indices_bqs = merged_indices_bqs
-        reads = [read for read,index_bqs in zip(reads, indices_bqs) if average_bqs(index_bqs) >= config["MIN_BQS"]]
-        print("Reading and filtering index BQS took {} s".format(timeit.default_timer() - start_time))
-        save_stats("Number of total reads with index BQS >= {}: {} ({} %)".format(config["MIN_BQS"], len(reads), len(reads) * 100 / TOTAL_READS), config["STATS_FILE"])
 
     ## TRIM trailing AMBIGUOUS 'N's
     reads = [x for x in parallelize(Read.trim_n, reads, config["NKERN"]) if x is not None]
