@@ -43,10 +43,14 @@ def load_config(filename):
     with open(filename, "r") as f:
         for line in f:
             key, val = line.strip("\n").split("\t")
-            try:
-                config[key] = float(val)
-            except:
-                config[key] = val
+            if key not in ["Time", "Commandline_argument"]:
+                try:
+                    config[key] = int(val)
+                except:
+                    try:
+                        config[key] = float(val)
+                    except:
+                        config[key] = val
     return config
 
 
