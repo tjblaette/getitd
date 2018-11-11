@@ -1653,16 +1653,17 @@ if __name__ == '__main__':
 
     ## READ FASTQ FILES
     reads = get_reads(config)
+    TOTAL_READS = len(reads)
 
     ## TRIM trailing AMBIGUOUS 'N's
     reads = [x for x in parallelize(Read.trim_n, reads, config["NKERN"]) if x is not None]
-    save_stats("Number of total reads remainging after N-trimming: {} ({} %)".format(len(reads), len(reads) * 100 / len(reads)), config["STATS_FILE"])
+    save_stats("Number of total reads remainging after N-trimming: {} ({} %)".format(len(reads), len(reads) * 100 / TOTAL_READS), config["STATS_FILE"])
     save_stats("Mean read length after N-trimming: {}".format(np.mean([read.length for read in reads])), config["STATS_FILE"])
 
     ## FILTER ON BQS
     if config["MIN_BQS"] > 0:
         reads = [x for x in parallelize(Read.filter_bqs, reads, config["NKERN"]) if x is not None]
-    save_stats("Number of total reads with mean BQS >= {}: {} ({} %)".format(config["MIN_BQS"], len(reads), len(reads) * 100 / len(reads)), config["STATS_FILE"])
+    save_stats("Number of total reads with mean BQS >= {}: {} ({} %)".format(config["MIN_BQS"], len(reads), len(reads) * 100 / TOTAL_READS), config["STATS_FILE"])
 
     ## GET UNIQUE READS AND COUNTS THEREOF
     start_time = timeit.default_timer()
@@ -1678,7 +1679,7 @@ if __name__ == '__main__':
     else:
         reads = [read for read in reads if read.counts >= config["MIN_READ_COPIES"] ]
         save_stats("Number of unique reads with at least {} copies: {}".format(config["MIN_READ_COPIES"],len(reads)), config["STATS_FILE"])
-    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum([read.counts for read in reads]), sum([read.counts for read in reads]) * 100 / len(reads)), config["STATS_FILE"])
+    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum([read.counts for read in reads]), sum([read.counts for read in reads]) * 100 / TOTAL_READS), config["STATS_FILE"])
 
     ## ALIGN TO REF
     save_stats("\n-- Aligning to Reference --", config["STATS_FILE"])
@@ -1696,7 +1697,7 @@ if __name__ == '__main__':
         reads = filter_alignments_with_gaps_in_primers(reads)
 
     # FINAL STATS
-    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum([read.counts for read in reads]), sum([read.counts for read in reads]) * 100 / len(reads)), config["STATS_FILE"])
+    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum([read.counts for read in reads]), sum([read.counts for read in reads]) * 100 / TOTAL_READS), config["STATS_FILE"])
 
     # REORDER TRAILING INSERTS TO GUARANTEE REF SEQ MORE TRAILING THAN INSERT SEQ AND CORRECT REF_SPAN
     reads = parallelize(Read.reorder_trailing_inserts, reads, config["NKERN"])
