@@ -73,17 +73,17 @@ else:
 class Read(object):
     """
     Sequencing read.
-    """ 
+    """
     def __init__(
-                self, 
-                seq, 
+                self,
+                seq,
                 index=None,
-                sense=1, 
-                bqs=None, 
-                index_bqs=None, 
+                sense=1,
+                bqs=None,
+                index_bqs=None,
                 counts=1,
-                al_score=None, 
-                al_seq=None, 
+                al_score=None,
+                al_seq=None,
                 al_ref=None,
                 al_file=None):
         """
@@ -92,11 +92,11 @@ class Read(object):
         Args:
             seq (str): Base pair sequence of the read.
             index (int): Read index to identify paired reads
-                for paired-end sequencing 
+                for paired-end sequencing
                 --> will have the same index
             sense (int): 1 for forward reads, -1 for reverse.
             bqs (str): Base quality scores of the read.
-            index_bqs (str): Base quality scores of the 
+            index_bqs (str): Base quality scores of the
                 corresponding index read.
             counts (int): Total number of reads with these
                 exact attributes.
@@ -104,7 +104,7 @@ class Read(object):
                 alignment.
             al_seq (str): Read sequence aligned to the reference.
             al_ref (str): Reference sequence aligned to the read.
-            al_file (str): Name of the file containing the 
+            al_file (str): Name of the file containing the
                 read-to-reference alignment.
         """
         self.seq = seq
@@ -121,18 +121,18 @@ class Read(object):
         assert self.counts > 0
         if self.bqs is not None:
             assert len(self.seq) == len(self.bqs)
-    
+
     def print(self):
         """
         Pretty print Read.
         """
         pprint.pprint(vars(self))
-    
+
     def reverse_complement(self):
         """
         Reverse complement a given Read.
 
-        Reverse complement the Read's sequence, 
+        Reverse complement the Read's sequence,
         reverse its BQS and invert its sense.
 
         Returns:
@@ -147,7 +147,7 @@ class Read(object):
         else:
             rev.sense = self.sense * -1
         return rev
-    
+
     def trim_n(self, config=config):
         """
         Trim trailing N's at Read's ends.
@@ -166,7 +166,7 @@ class Read(object):
         if self.length < config["MIN_READ_LENGTH"]:
             return None
         return self
-    
+
 
     def filter_bqs(self, config=config):
         """
@@ -174,23 +174,23 @@ class Read(object):
 
         Returns:
             Read when it passes the average BQS filter,
-            None otherwise. 
-            
+            None otherwise.
+
             When no BQS is set, also return the Read.
         """
         if not self.bqs or average_bqs(self.bqs) >= config["MIN_BQS"]:
             if not self.index_bqs or average_bqs(self.index_bqs) >= config["MIN_BQS"]:
                 return self
         return None
-    
+
     def align(self, config=config):
         """
         Align a Read to the WT reference.
-        
+
         For 454 data, I do not know which Read is forward, which is
         reverse - try both and keep the reverse Read if that succeeds
         instead of the forward.
-        
+
         Consider:
             Is there a smart way to handle multiple alignments?
 
@@ -281,7 +281,7 @@ class Read(object):
             List of collected Insert objects.
         """
         inserts = []
-        
+
         # if read contains insert
         if '-' in self.al_ref:
             readn = np.array(list(self.al_seq))
@@ -290,7 +290,7 @@ class Read(object):
 
             # collect all inserts' alignment coords
             insert_idxs_list = get_gaps(self.al_ref)
-           
+
             # check & process each insert found
             for insert_idxs in insert_idxs_list:
                 if len(insert_idxs) >= 6 and "N" not in readn[insert_idxs]:
@@ -303,7 +303,7 @@ class Read(object):
                         reads=[self],
                         counts=self.counts)
                     assert insert.length == len(insert_idxs)
-                    
+
                     if all(readn[0:insert.start] == '-'):
                         insert.trailing_end = 5
                     elif all(readn[insert.end+1:] == '-'):
@@ -317,7 +317,7 @@ class Read(object):
                     #       within the insert, trailing will be False nontheless)
                     # should I discard reads where the primer is not mapped? See lbseq:/media/data/tabl/laura*/mail/primer_unmapped.txt
                     insert.trailing = (self.sense == 1 and insert.trailing_end == 3) or (self.sense == -1 and insert.trailing_end == 5)
-                    
+
                     if insert.trailing or insert.length % 3 == 0:
                         # change insert.start coord
                         #   from: 1st insert/gap bp in read-ref alignment
@@ -338,15 +338,15 @@ class Insert(object):
     Insertion.
     """
     def __init__(
-                self, 
-                seq, 
-                start, 
-                end, 
+                self,
+                seq,
+                start,
+                end,
                 counts,
-                trailing=None, 
-                trailing_end=None, 
-                reads=None, 
-                coverage=None, 
+                trailing=None,
+                trailing_end=None,
+                reads=None,
+                coverage=None,
                 vaf=None):
         """
         Initialize Insert.
@@ -384,7 +384,7 @@ class Insert(object):
             reads = []
         self.reads = reads
         self.sense = set([read.sense for read in reads])
-    
+
     def get_seq(self):
         """"
         Return Insert's sequence.
@@ -468,7 +468,7 @@ class Insert(object):
             # --> (for tandem2-insert: offset = abs((insert_start - insert.length +1) - insert_start))
             if (offset == 1 or offset == self.length - 1) or (self.trailing and (self.trailing_end == 3 and alignment_start < self.start) or (self.trailing_end == 5 and alignment_start > self.start)):
                 # do not allow gaps in tandems of trailing ITDs
-                # -> also filters tandems not covered by read at all 
+                # -> also filters tandems not covered by read at all
                 #    such as small trailing inserts by chance also found in some other part of the the reference
                 #    (can never be the case for non-trailing ITDs anyway)
                 # --> careful: alignment_end is exclusive coord, i.e. the index of the first bp after the alignment!
@@ -519,9 +519,9 @@ class Insert(object):
         Set end coordinate equal to start -> insertion_site
         will be the WT base after the insertion, i.e. start +1
         (start + length has no meaning for non-ITD insertions)
-        
+
         Returns:
-            Prepared Insert. 
+            Prepared Insert.
         """
         to_save = copy.deepcopy(self)
         to_save = to_save.norm_start()
@@ -573,7 +573,7 @@ class Insert(object):
         self.domains = annotated
         return self
 
-    
+
     def print(self):
         """
         Pretty print Insert.
@@ -583,9 +583,9 @@ class Insert(object):
 
     def is_close_to(self, that):
         """
-        Test whether two Inserts are close and 
+        Test whether two Inserts are close and
         located within one insert length of each other.
-        
+
         Args:
             that: Insert to compare to.
 
@@ -595,7 +595,7 @@ class Insert(object):
         if hasattr(self, 'tandem2_start'):
             return abs(self.tandem2_start - that.tandem2_start) <= max(self.length, that.length)
         return abs(self.start - that.start) <= self.length + that.length ## <---- what's the eqivalent for ITDs?? Does this even apply for ITDs? Can trailing ITDs have different length and still describe the same mutation?
-    
+
     def is_similar_to(self, that, config=config):
         """
         Test whether two Inserts' sequences are similar.
@@ -611,7 +611,7 @@ class Insert(object):
         if al_score >= min_score:
             return True
         return False
-    
+
     def should_merge(self, that, condition):
         """
         Test whether two Inserts should be merged.
@@ -634,21 +634,21 @@ class Insert(object):
         elif condition == 'is-same_trailing':
             return self.trailing and that.trailing and self.trailing_end == that.trailing_end and self.sense.intersection(that.sense) and self.is_similar_to(that) and self.is_close_to(that)
         assert False
-    
-    
+
+
     def filter_unique_supp_reads(self, config=config):
         """
         Test whether Insert is supported by a given number of
         distinct supporting reads.
 
         Returns:
-            True when that is the case, False otherwise. 
+            True when that is the case, False otherwise.
         """
         return len(self.reads) >= config["MIN_UNIQUE_READS"]
 
     def filter_total_supp_reads(self, config=config):
         """
-        Test whether Insert is supported by a given minimum number 
+        Test whether Insert is supported by a given minimum number
         of total supporting reads.
 
         Returns:
@@ -659,7 +659,7 @@ class Insert(object):
     def filter_vaf(self, config=config):
         """
         Test whether Insert has at least a given minimum VAF.
-        
+
         Returns:
             True when that is the case, False otherwise.
         """
@@ -685,7 +685,7 @@ class ITD(Insert):
                 start coordinates. For adjacent constellations therefore
                 offset = length.
             external_bp (int): Number of external / non-WT bases inserted
-                before and after the duplicated WT sequence. These are 
+                before and after the duplicated WT sequence. These are
                 included in insert.seq and length and must not be added on top!
         """
         self.seq = insert.seq
@@ -699,7 +699,7 @@ class ITD(Insert):
         self.counts = insert.counts
         self.coverage = insert.coverage
         self.vaf = insert.vaf
-        
+
         self.tandem2_start = tandem2_start
         self.offset = offset
         self.external_bp = external_bp
@@ -708,18 +708,18 @@ class ITD(Insert):
         """
         For trailing ITDs, change length to offset.
         This should be the maximum potential ITD length.
-        
+
         Consider: Should the insert sequence be updated as well?
 
         Returns:
-           ITD, changed if trailing, unchanged if not. 
+           ITD, changed if trailing, unchanged if not.
         """
         if self.trailing:
             self.length = self.offset
             return self
         else:
             return self
-        
+
     def annotate_domains(self, domains):
         """
         Get annotated domains of the ITD's WT tandem.
@@ -744,13 +744,13 @@ class ITD(Insert):
         Prepare ITD for saving to file.
 
         Set the insert start coordinate to that of the second tandem.
-        Normalize start coordinate to [0, len(REF)[ and 
+        Normalize start coordinate to [0, len(REF)[ and
         adjust end coordinate accordingly.
         Convert coordinates from 0- to 1-based to match
         needle output files and annotation table.
-        For trailing ITDs, change the length to the offset, i.e. 
-        distance between insert and second tandem. 
-        
+        For trailing ITDs, change the length to the offset, i.e.
+        distance between insert and second tandem.
+
         Return:
             Prepared ITD.
         """
@@ -785,12 +785,12 @@ class InsertCollection(object):
         """
         self.inserts = [insert]
         self.rep = copy.deepcopy(insert)
-    
+
     def set_representative(self):
         """
         Set InsertCollection's most abundant Insert as its representative.
 
-        Consider: 
+        Consider:
             How to handle trailing inserts? Should longest or most
                 abundant insert be selected?
             Are ever trailing and non-trailing inserts merged? What
@@ -799,7 +799,7 @@ class InsertCollection(object):
                 What would the result be? Should this even be possible?
 
         Returns:
-            InsertCollection with set representative. 
+            InsertCollection with set representative.
         """
         self.rep = copy.deepcopy(self.inserts[[insert.counts for insert in self.inserts].index(max([insert.counts for insert in self.inserts]))])
         # reads and counts must be summed for the representative -> overwrite these (that's why representative needs to be a copy!)
@@ -836,7 +836,7 @@ class InsertCollection(object):
                 merge with.
             condition (str): String encoding condition to be fullfilled
                 for merging.
-    
+
         Returns:
             True when condition is met and InsertCollections should be
             merged, False otherwise.
@@ -846,7 +846,7 @@ class InsertCollection(object):
                 if insert.should_merge(this, condition):
                     return True
         return False
-            
+
 
 def flatten_list(list_):
     """
@@ -924,9 +924,9 @@ def connect_alignment(seq1, seq2):
 
 def get_number_of_digits(number):
     """
-    Count the number of digits in a given number. 
-    
-    Use this, to print that many less spaces in front of each 
+    Count the number of digits in a given number.
+
+    Use this, to print that many less spaces in front of each
     part of the well-formatted read-to-reference alignment.
 
     Args:
@@ -944,10 +944,10 @@ def print_alignment_connection(connection, pre_width, f):
     Print the symbols connecting aligned read and reference, encoding
     match, mismatch and gap at each bp.
 
-    Args: 
+    Args:
         connection (str): String of connecting symbols.
         pre_width (int): Number of spaces printed before the alignment to keep everything formatted.
-        f (file_object): Output file to contain the alignment. 
+        f (file_object): Output file to contain the alignment.
     """
     f.write(' ' * (pre_width +2))
     f.write(connection)
@@ -996,7 +996,7 @@ def print_alignment(read, out_dir, config=config):
     pre_width = 20
     post_width = 7
     score_width = 15
-    
+
     with open(os.path.join(out_dir,read.al_file), 'w') as f:
         f.write('########################################\n')
         f.write('# Program: Biopython\n')
@@ -1041,7 +1041,7 @@ def print_alignment(read, out_dir, config=config):
         f.write('#\n')
         f.write('#=======================================\n')
         f.write('\n')
-        
+
         # split alignment strings into per-line chunks for pretty printing
         alignment_chunks = [(
                 read.al_seq[i:i+width],
@@ -1055,7 +1055,7 @@ def print_alignment(read, out_dir, config=config):
             print_alignment_connection(a, pre_width, f)
             ref_coord = print_alignment_seq(r, ref_coord,pre_width,post_width,f)
             f.write('\n')
-        
+
         f.write('\n')
         f.write('#---------------------------------------\n')
         f.write('#---------------------------------------\n')
@@ -1086,7 +1086,7 @@ def get_min_score(seq1, seq2, min_score):
     """
     For two sequences, calculate the minimum alignment score required
     to pass the respective alignment filter, which is a percentage of the
-    maximum possible alignment score between these sequences - and 
+    maximum possible alignment score between these sequences - and
     therefore dependent on the two aligned sequences' length.
 
     Args:
@@ -1125,7 +1125,7 @@ def read_fastq(fastq_file):
     Read sequence fastq file and extract sequences and BQS.
 
     Args:
-        fastq_file: Name of the fastq file to read, R1 or R2.        
+        fastq_file: Name of the fastq file to read, R1 or R2.
 
     Returns:
         List of Read() objects.
@@ -1158,7 +1158,7 @@ def read_reference(filename):
     Args:
         filename (str): Name of the file to be read.
 
-    Returns: 
+    Returns:
         Reference sequence, stripped of trailing newlines.
     """
     with open(filename, 'r') as f:
@@ -1171,7 +1171,7 @@ def read_reference(filename):
 def read_annotation(filename):
     """
     Read in WT reference annotation file.
-    
+
     For each bp of the WT reference, provides genomic, transcriptomic
     and proteomic coordinate, exon/intron annotation and the respective
     reference bp.
@@ -1194,10 +1194,10 @@ def get_domains(anno):
 
     Args:
        anno (pd.DataFrame): Annotation supplied by user with one row
-                per reference bp and at least two columns: 
-                "region" contains the domain name and 
+                per reference bp and at least two columns:
+                "region" contains the domain name and
                 "amplicon_bp" the annotated coordinates.
-     
+
     Returns:
         List of tuples (domain_name, start_coord, end_coord) where
         coordinates refer to amplicon bp.
@@ -1243,10 +1243,10 @@ def ar_to_vaf(ar):
 
     Args:
         ar (float): AR to convert.
-    
+
     Returns:
         VAF (float)
-    
+
     """
     return ar/(ar + 1) * 100 # * 100 because VAF is in %
 
@@ -1257,7 +1257,7 @@ def vaf_to_ar(vaf):
     VAF (variant allele frequency) = V-AF
     AR (allele ratio) = V-AF / WT-AF
     V-AF + WT-AF = 100 (%)
-    
+
     Note:
         if VAF == 100:
             AR = -1
@@ -1280,7 +1280,7 @@ def merge(inserts, condition):
     Args:
         inserts ([InsertCollection]): List of insertions to merge.
         condition (str): Encodes condition to determine whether
-                insertions do describe the same mutation. One of 
+                insertions do describe the same mutation. One of
                 "is-same", "is-similar", "is-close", "is-same_trailing"
 
     Returns:
@@ -1306,11 +1306,11 @@ def merge(inserts, condition):
 def save_to_file(inserts, filename, config=config):
     """
     Write insertions detected to TSV file.
-    
+
     Add additional columns with sample ID, actual coordinate of the
-    insertion site, allelic ratio (MUT : WT) and counts and alignment 
-    filenames of each of the distinct supporting reads. If annotation 
-    was supplied, add that as well. 
+    insertion site, allelic ratio (MUT : WT) and counts and alignment
+    filenames of each of the distinct supporting reads. If annotation
+    was supplied, add that as well.
 
     Args:
         inserts ([InsertCollection]): List of inserts to save.
@@ -1351,21 +1351,21 @@ def save_to_file(inserts, filename, config=config):
 def get_unique_reads(reads):
     """
     Merge reads with identical read sequences.
-    
-    Create a Read() object and sum up supporting read counts 
+
+    Create a Read() object and sum up supporting read counts
     in Read.counts for each Read.seq, keep reads of different
     orientation distinct, i.e. create one Read for each combination
-    of Read.seq and Read.sense. 
+    of Read.seq and Read.sense.
 
     This is really slow. Come up with something better!
     Would it help to process forward/reverse reads separately?
 
     Args:
         reads ([Read]): Reads to merge, may share the same Read.seq.
-    
+
     Returns:
         Merged reads ([Read]), each with a unique Read.seq.
-        
+
     """
     seqs = [read.seq for read in reads]
     unique_seqs, inverse_indices = np.unique(seqs, return_inverse=True)
@@ -1441,7 +1441,7 @@ def parse_config_from_cmdline(config=config):
     """
     Get analysis parameters from commandline.
 
-    Args: 
+    Args:
         config (dict): Dict to save parameters to
 
     Returns:
@@ -1544,8 +1544,8 @@ def filter_sequencing_adapter_artefacts(inserts):
     fwrd_adapter = "TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA"
     rev_adapter = "AGACAGAGAATATGTGTAGAGGCTCGGGTGCTCTG".translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1]
     non_adapter_inserts = [insert for insert in inserts if
-            not insert.trailing 
-            or (insert.trailing_end == 5 and not insert.is_similar_to(Insert(seq=fwrd_adapter[-insert.length:], start=0, end=0, counts=0))) 
+            not insert.trailing
+            or (insert.trailing_end == 5 and not insert.is_similar_to(Insert(seq=fwrd_adapter[-insert.length:], start=0, end=0, counts=0)))
             or (insert.trailing_end == 3 and not insert.is_similar_to(Insert(seq=rev_adapter[-insert.length:], start=0, end=0, counts=0)))
             ]
 
@@ -1556,7 +1556,7 @@ def filter_sequencing_adapter_artefacts(inserts):
 def get_merged_inserts(inserts, type_, config):
     """
     Merge Inserts based on different conditions.
-    
+
     Args:
         inserts: List of Inserts to merge.
         type_ (str): "insertions" or "itds",
@@ -1595,10 +1595,10 @@ def get_hc_inserts(inserts, type_, suffix="", config=config):
     Args:
         inserts: List of Insertion() objects to filter
 
-        type_ (str): Description of type of inserts, 
+        type_ (str): Description of type of inserts,
                      "insertions" or "itds",
                      for output files.
-    
+
         config (dict): Dict containing analysis parameters.
 
     Returns:
@@ -1739,7 +1739,7 @@ if __name__ == '__main__':
     inserts = []
     start_time = timeit.default_timer()
     for read in reads:
-        inserts.append(read.get_inserts()) 
+        inserts.append(read.get_inserts())
     inserts = flatten_list([insert for insert in inserts if insert is not None])
     print("Collecting inserts took {} s".format(timeit.default_timer() - start_time))
     save_stats("{} insertions were found".format(len(inserts)), config["STATS_FILE"])
@@ -1751,7 +1751,7 @@ if __name__ == '__main__':
         inserts = filter_sequencing_adapter_artefacts(inserts)
         print("Filtering inserts for adapter sequences took {} s".format(timeit.default_timer() - start_time))
 
-    # add coverage to inserts 
+    # add coverage to inserts
     start_time = timeit.default_timer()
     for insert in inserts:
         # add coverage
@@ -1773,7 +1773,7 @@ if __name__ == '__main__':
     for insert in inserts:
         itds.append(insert.get_itd(config))
     itds = [itd for itd in itds if itd is not None]
-    
+
     inserts = sorted(inserts, key=Insert.get_seq)
     itds = sorted(itds, key=Insert.get_seq)
     print("Collecting ITDs took {} s".format(timeit.default_timer() - start_time))
@@ -1783,7 +1783,7 @@ if __name__ == '__main__':
     ########################################
     # MERGE INSERTS
     ins_and_itds = {"insertions": inserts, "itds": itds}
-    
+
     merged_ins_and_itds = {}
     start_time = timeit.default_timer()
     for type_, inserts_ in ins_and_itds.items():
