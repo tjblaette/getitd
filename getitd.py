@@ -1452,20 +1452,20 @@ def parse_config_from_cmdline(config=config):
         Filled config dict
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("fastq1", help="FASTQ file of forward reads (REQUIRED)")
-    parser.add_argument("fastq2", help="FASTQ file of reverse reads (REQUIRED)")
     parser.add_argument("sampleID", help="sample ID used as output folder prefix (REQUIRED)")
-    parser.add_argument("minBQS", help="minimum average base quality score (BQS) required by each read (default 30)", type=int, default=30, nargs='?')
+    parser.add_argument("fastq1", help="FASTQ file of forward reads (REQUIRED)")
+    parser.add_argument("fastq2", help="FASTQ file of reverse reads (optional)", nargs="?")
     parser.add_argument("-reference", help="WT amplicon sequence as reference for read alignment (default ./anno/amplicon.txt)", default="./anno/amplicon.txt", type=str)
     parser.add_argument("-anno", help="WT amplicon sequence annotation (default ./anno/amplicon_kayser.tsv)", default="./anno/amplicon_kayser.tsv", type=str)
-    parser.add_argument("-technology", help="Sequencing technology used, options are '454' or 'Illumina' (default)", default="Illumina", type=str)
-    parser.add_argument('-nkern', help="number of cores to use for parallel tasks (default 14)", default="14", type=int)
+    parser.add_argument("-technology", help="Sequencing technology used, options are '454' or 'Illumina' (default)", default="Illumina", type=str, choices=['Illumina', '454'])
+    parser.add_argument('-nkern', help="number of cores to use for parallel tasks (default 12)", default="12", type=int)
     parser.add_argument('-gap_open', help="alignment cost of gap opening (default -20)", default="-20", type=int)
     parser.add_argument('-gap_extend', help="alignment cost of gap extension (default -0.5)", default="-0.5", type=float)
     parser.add_argument('-match', help="alignment cost of base match (default 5)", default="5", type=int)
     parser.add_argument('-mismatch', help="alignment cost of base mismatch (default -10)", default="-10", type=int)
     parser.add_argument('-minscore_inserts', help="fraction of max possible alignment score required for ITD detection and insert collapsing (default 0.5)", default="0.5", type=float)
     parser.add_argument('-minscore_alignments', help="fraction of max possible alignment score required for a read to pass when aligning reads to amplicon reference (default 0.5)", default="0.5", type=float)
+    parser.add_argument("-min_bqs", help="minimum average base quality score (BQS) required by each read (default 30)", type=int, default=30)
     parser.add_argument('-min_read_length', help="minimum read length in bp required after N-trimming (default 100)", default="100", type=int)
     parser.add_argument('-filter_reads', help="minimum number of copies of each read required for processing (1 to turn filter off, 2 (default) to discard unique reads)", default="2", type=int)
     parser.add_argument('-filter_ins_unique_reads', help="minimum number of unique reads required to support an insertion for it to be considered 'high confidence' (default 2)", default="2", type=int)
@@ -1476,7 +1476,7 @@ def parse_config_from_cmdline(config=config):
     config["R1"] = cmd_args.fastq1
     config["R2"] = cmd_args.fastq2
     config["SAMPLE"] = cmd_args.sampleID
-    config["MIN_BQS"] = cmd_args.minBQS
+    config["MIN_BQS"] = cmd_args.min_bqs
     config["REF_FILE"] = cmd_args.reference
     config["ANNO_FILE"] = cmd_args.anno
     config["TECH"] = cmd_args.technology
