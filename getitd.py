@@ -279,6 +279,31 @@ class Read(object):
                 self.print()
         return self
 
+    def contains_indel_free_primer(self, config=config):
+        """
+        Check whether Read contains insertion- and deletion-free
+        primer sequences. When multiple primer sequences are 
+        provided, check that at least one was aligned to without
+        indels.
+
+        Args:
+            config (dict): Contains analysis parameters, including
+                           primer sequences to check for.
+
+        Returns:
+            True if at least one primer was aligned to without indels,
+            False otherwise.
+
+        """
+        if (self.sense == 1
+                and any([primer in self.al_ref and self.al_seq.count('-', self.al_ref.find(primer), self.al_ref.find(primer) + len(primer)) <= 0 for primer in config["FORWARD_PRIMERS"]])):
+            return True
+        elif (self.sense == -1
+                and any([primer in self.al_ref and self.al_seq.count('-', self.al_ref.find(primer), self.al_ref.find(primer) + len(primer)) <= 0 for primer in config["REVERSE_PRIMERS"]])):
+            return True
+        else:
+            return False
+
 
     def get_inserts(self):
         """
@@ -1408,29 +1433,6 @@ def filter_alignment_score(reads, config=config):
             len(reads) - len(reads_filtered), len(reads), config["MIN_SCORE_ALIGNMENTS"] *100), config["STATS_FILE"])
     return reads_filtered
 
-def filter_alignments_with_gaps_in_primers(reads):
-    """
-    Filter reads that are not aligned fully to at least one primer.
-
-    Args:
-        reads: List of Read objects to filter
-
-    Returns:
-        List of passing reads
-    """
-    rev_primer = 'GGTTGCCGTCAAAATGCTGAAAG'
-    fwrd_primer = 'GCAATTTAGGTATGAAAGCCAGCTAC'
-    filtered = [read for read in reads if (
-            (read.sense == -1
-            and rev_primer in read.al_ref
-            and read.al_seq.count('-', read.al_ref.find(rev_primer), read.al_ref.find(rev_primer) + len(rev_primer)) <= 0
-            ) or
-            (read.sense == 1
-            and fwrd_primer in read.al_ref
-            and read.al_seq.count('-', read.al_ref.find(fwrd_primer), read.al_ref.find(fwrd_primer) + len(fwrd_primer)) <= 0))]
-    save_stats("Filtering {} / {} alignments with indels in primer bases".format( len(reads) - len(filtered), len(reads)), config["STATS_FILE"])
-    return filtered
-
 
 def save_stats(stat, filename):
     """
@@ -1460,6 +1462,9 @@ def parse_config_from_cmdline(config=config):
     parser.add_argument("fastq2", help="FASTQ file of reverse reads (optional)", nargs="?")
     parser.add_argument("-reference", help="WT amplicon sequence as reference for read alignment (default ./anno/amplicon.txt)", default="./anno/amplicon.txt", type=str)
     parser.add_argument("-anno", help="WT amplicon sequence annotation (default ./anno/amplicon_kayser.tsv)", default="./anno/amplicon_kayser.tsv", type=str)
+    parser.add_argument("-forward_primer", help="Forward primer sequence(s), separate by space when supplying more than one", default=["GCAATTTAGGTATGAAAGCCAGCTAC"], type=str, nargs="+")
+    parser.add_argument("-reverse_primer", help="Reverse primer sequence(s), separate by space when supplying more than one", default=["GGTTGCCGTCAAAATGCTGAAAG"], type=str, nargs="+")
+    parser.add_argument("-require_indel_free_primers", help="If True, discard reads containing insertions or deletions within the primer sequence (default True)", default=True, type=bool)
     parser.add_argument("-technology", help="Sequencing technology used, options are '454' or 'Illumina' (default)", default="Illumina", type=str, choices=['Illumina', '454'])
     parser.add_argument('-nkern', help="number of cores to use for parallel tasks (default 12)", default="12", type=int)
     parser.add_argument('-gap_open', help="alignment cost of gap opening (default -20)", default="-20", type=int)
@@ -1479,10 +1484,11 @@ def parse_config_from_cmdline(config=config):
     config["R1"] = cmd_args.fastq1
     config["R2"] = cmd_args.fastq2
     config["SAMPLE"] = cmd_args.sampleID
-    config["MIN_BQS"] = cmd_args.min_bqs
     config["REF_FILE"] = cmd_args.reference
     config["ANNO_FILE"] = cmd_args.anno
     config["TECH"] = cmd_args.technology
+    config["FORWARD_PRIMERS"] = cmd_args.forward_primer
+    config["REVERSE_PRIMERS"] = cmd_args.reverse_primer
     config["NKERN"] = cmd_args.nkern
 
     config["COST_MATCH"] = cmd_args.match
@@ -1492,8 +1498,11 @@ def parse_config_from_cmdline(config=config):
     config["MIN_SCORE_INSERTS"] = cmd_args.minscore_inserts
     config["MIN_SCORE_ALIGNMENTS"] = cmd_args.minscore_alignments
 
+    config["MIN_BQS"] = cmd_args.min_bqs
     config["MIN_READ_LENGTH"] = cmd_args.min_read_length
     config["MIN_READ_COPIES"] = cmd_args.filter_reads
+    config["REQUIRE_INDEL_FREE_PRIMERS"] = cmd_args.require_indel_free_primers
+
     config["MIN_TOTAL_READS"] = cmd_args.filter_ins_total_reads
     config["MIN_UNIQUE_READS"] = cmd_args.filter_ins_unique_reads
     config["MIN_VAF"] = cmd_args.filter_ins_vaf
@@ -1703,8 +1712,13 @@ def main(config=config):
     # FILTER BASED ON UNALIGNED PRIMERS
     # --> require that primers are always aligned without gaps / indels
     # --> do allow mismatches
-    if config["TECH"] == "Illumina":
-        reads = filter_alignments_with_gaps_in_primers(reads)
+    if config["REQUIRE_INDEL_FREE_PRIMERS"]:
+        total_alignments = len(reads)
+        reads = [read for read in reads if read.contains_indel_free_primer(config)]
+        save_stats("Filtering {} / {} alignments with indels in primer bases".format(total_alignments - len(reads), total_alignments), config["STATS_FILE"])
+    else:
+        save_stats("Turned OFF indel-free primer filter!", config["STATS_FILE"])
+
 
     # FINAL STATS
     save_stats("Total reads remaining for analysis: {} ({} %)".format(sum([read.counts for read in reads]), sum([read.counts for read in reads]) * 100 / TOTAL_READS), config["STATS_FILE"])
