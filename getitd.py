@@ -667,6 +667,28 @@ class Insert(object):
             return self.trailing and that.trailing and self.trailing_end == that.trailing_end and self.sense.intersection(that.sense) and self.is_similar_to(that) and self.is_close_to(that)
         assert False
 
+    def is_adapter_artefact(self, config=config):
+        """
+        Check if Insert.seq (partially) matches sequencing
+        adapter sequence. If more than one adapter is supplied,
+        flag Insert as adapter artefact as soon as it matches
+        at least one of these.
+
+        Args:
+            config: Analysis parameters, including adapter sequences
+
+        Returns:
+            True, if Insert is an adapter artefact,
+            False otherwise.
+
+        """
+        if (self.trailing
+                and ((self.trailing_end == 5 and self.is_similar_to(Insert(seq=config["FORWARD_ADAPTER"][-self.length:], start=0, end=0, counts=0)))
+                        or (self.trailing_end == 3 and self.is_similar_to(Insert(seq=config["REVERSE_ADAPTER"][-self.length:], start=0, end=0, counts=0))))):
+            return True
+        else:
+            return False
+
 
     def filter_unique_supp_reads(self, config=config):
         """
@@ -1465,6 +1487,8 @@ def parse_config_from_cmdline(config=config):
     parser.add_argument("-forward_primer", help="Forward primer sequence(s), separate by space when supplying more than one", default=["GCAATTTAGGTATGAAAGCCAGCTAC"], type=str, nargs="+")
     parser.add_argument("-reverse_primer", help="Reverse primer sequence(s), separate by space when supplying more than one", default=["GGTTGCCGTCAAAATGCTGAAAG"], type=str, nargs="+")
     parser.add_argument("-require_indel_free_primers", help="If True, discard reads containing insertions or deletions within the primer sequence (default True)", default=True, type=bool)
+    parser.add_argument("-forward_adapter", help="Forward sequencing adapter sequence (default TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA)", default="TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA", type=str)
+    parser.add_argument("-reverse_adapter", help="Reverse sequencing adapter sequence (default CAGAGCACCCGAGCCTCTACACATATTCTCTGTCT)", default="AGACAGAGAATATGTGTAGAGGCTCGGGTGCTCTG".translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1], type=str)
     parser.add_argument("-technology", help="Sequencing technology used, options are '454' or 'Illumina' (default)", default="Illumina", type=str, choices=['Illumina', '454'])
     parser.add_argument('-nkern', help="number of cores to use for parallel tasks (default 12)", default="12", type=int)
     parser.add_argument('-gap_open', help="alignment cost of gap opening (default -20)", default="-20", type=int)
@@ -1484,12 +1508,15 @@ def parse_config_from_cmdline(config=config):
     config["R1"] = cmd_args.fastq1
     config["R2"] = cmd_args.fastq2
     config["SAMPLE"] = cmd_args.sampleID
+    config["NKERN"] = cmd_args.nkern
+
     config["REF_FILE"] = cmd_args.reference
     config["ANNO_FILE"] = cmd_args.anno
     config["TECH"] = cmd_args.technology
     config["FORWARD_PRIMERS"] = cmd_args.forward_primer
     config["REVERSE_PRIMERS"] = cmd_args.reverse_primer
-    config["NKERN"] = cmd_args.nkern
+    config["FORWARD_ADAPTER"] = cmd_args.forward_adapter
+    config["REVERSE_ADAPTER"] = cmd_args.reverse_adapter
 
     config["COST_MATCH"] = cmd_args.match
     config["COST_MISMATCH"] = -abs(cmd_args.mismatch)
@@ -1533,32 +1560,6 @@ def get_reads(config=config):
     print("Reading FASTQ files took {} s".format(timeit.default_timer() - start_time))
     save_stats("Number of total reads: {}".format(len(reads)), config["STATS_FILE"])
     return reads
-
-
-def filter_sequencing_adapter_artefacts(inserts):
-    """
-    Filter Inserts to remove false positives originating from
-    sequencing adapters partially contained within the read.
-    (Alternatively, one could trim reads in advance but using
-    the generated alignment instead should ensure that really
-    no unnecessary sequence is removed.)
-
-    Args:
-        inserts: List of Inserts to filter.
-
-    Returns:
-        List of passing Inserts.
-    """
-    fwrd_adapter = "TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA"
-    rev_adapter = "AGACAGAGAATATGTGTAGAGGCTCGGGTGCTCTG".translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1]
-    non_adapter_inserts = [insert for insert in inserts if
-            not insert.trailing
-            or (insert.trailing_end == 5 and not insert.is_similar_to(Insert(seq=fwrd_adapter[-insert.length:], start=0, end=0, counts=0)))
-            or (insert.trailing_end == 3 and not insert.is_similar_to(Insert(seq=rev_adapter[-insert.length:], start=0, end=0, counts=0)))
-            ]
-
-    save_stats("{}/{} insertions were part of adapters and filtered".format(len(inserts) - len(non_adapter_inserts), len(inserts)), config["STATS_FILE"])
-    return non_adapter_inserts
 
 
 def get_merged_inserts(inserts, type_, config):
@@ -1771,10 +1772,11 @@ def main(config=config):
 
     # filter inserts that are actually adapter sequences
     # (instead of trimming adapters in advance)
-    if config["TECH"] == "Illumina":
-        start_time = timeit.default_timer()
-        inserts = filter_sequencing_adapter_artefacts(inserts)
-        print("Filtering inserts for adapter sequences took {} s".format(timeit.default_timer() - start_time))
+    start_time = timeit.default_timer()
+    total_inserts = len(inserts)
+    inserts = [insert for insert in inserts if not insert.is_adapter_artefact(config)]
+    save_stats("{}/{} insertions were part of adapters and filtered".format(total_inserts - len(inserts), total_inserts), config["STATS_FILE"])
+    print("Filtering inserts for adapter sequences took {} s".format(timeit.default_timer() - start_time))
 
     # add coverage to inserts
     start_time = timeit.default_timer()
