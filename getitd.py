@@ -1452,7 +1452,6 @@ def parse_config_from_cmdline(config=config):
         Filled config dict
     """
     parser = argparse.ArgumentParser()
-    group = parser.add_mutually_exclusive_group()
     parser.add_argument("fastq1", help="FASTQ file of forward reads (REQUIRED)")
     parser.add_argument("fastq2", help="FASTQ file of reverse reads (REQUIRED)")
     parser.add_argument("sampleID", help="sample ID used as output folder prefix (REQUIRED)")
