@@ -54,15 +54,15 @@ if __name__ == "__main__":
     fieldValues = easygui.multenterbox(msg, title, fieldNames, fieldValues)
 
     # make sure that none of the fields was left blank
+    valid_input = False
     while True:
-        if not fieldValues: 
-            break
         errmsg = ""
         for key, val in zip(fieldNames, fieldValues):
           if val.strip() == "":
             errmsg = errmsg + '{} is a required field.\n\n'.format(key)
         if not errmsg:
-             break 
+            valid_input = True
+            break
         fieldValues = easygui.multenterbox(errmsg, title, fieldNames, fieldValues)
 
     config = {}
@@ -71,6 +71,6 @@ if __name__ == "__main__":
             config[key] = val
     print(config)
     
-
-    getitd.save_config(config, "config.txt")
+    if valid_input:
+        getitd.save_config(config, "config.txt")
         

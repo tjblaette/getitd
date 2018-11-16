@@ -60,7 +60,7 @@ def load_config(filename):
 # -->  they cannot access config {} values set in __main__
 # --> to circumvent this, __main__ saves config and children
 #     spawned by multiprocessing load it from file
-if __name__ == '__mp_main__':
+if __name__ in ['__mp_main__', 'getitd']:
     try:
         current_dir = os.getcwd()
         config = load_config(os.path.join(current_dir, "config.txt"))
@@ -69,7 +69,10 @@ if __name__ == '__mp_main__':
 else:
     # mimic Windows style process spawning on Linux:
     # multiprocessing.set_start_method("spawn")
-    config = {}
+    try:
+        config
+    except NameError:
+        config = {}
 
 
 
