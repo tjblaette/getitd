@@ -1700,7 +1700,7 @@ def main(config=config):
     else:
         reads = [read for read in reads if read.counts >= config["MIN_READ_COPIES"] ]
         save_stats("Number of unique reads with at least {} copies: {}".format(config["MIN_READ_COPIES"],len(reads)), config["STATS_FILE"])
-    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum([read.counts for read in reads]), sum([read.counts for read in reads]) * 100 / TOTAL_READS), config["STATS_FILE"])
+    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum((read.counts for read in reads)), sum((read.counts for read in reads)) * 100 / TOTAL_READS), config["STATS_FILE"])
 
     ## ALIGN TO REF
     save_stats("\n-- Aligning to Reference --", config["STATS_FILE"])
@@ -1723,7 +1723,7 @@ def main(config=config):
 
 
     # FINAL STATS
-    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum([read.counts for read in reads]), sum([read.counts for read in reads]) * 100 / TOTAL_READS), config["STATS_FILE"])
+    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum((read.counts for read in reads)), sum((read.counts for read in reads)) * 100 / TOTAL_READS), config["STATS_FILE"])
 
     # REORDER TRAILING INSERTS TO GUARANTEE REF SEQ MORE TRAILING THAN INSERT SEQ AND CORRECT REF_SPAN
     reads = parallelize(Read.reorder_trailing_inserts, reads, config["NKERN"])
@@ -1754,8 +1754,8 @@ def main(config=config):
         spanning_reads = [read for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1]]
         spanning_reads_index = flatten_list([read.index for read in spanning_reads])
         ref_coverage_total.append(len(set(spanning_reads_index)))
-        ref_coverage_frwd.append(sum([read.counts for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1] and read.sense == 1]))
-        ref_coverage_rev.append(sum([read.counts for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1] and read.sense == -1]))
+        ref_coverage_frwd.append(sum((read.counts for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1] and read.sense == 1)))
+        ref_coverage_rev.append(sum((read.counts for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1] and read.sense == -1)))
     ref_coverage = {"all_reads": ref_coverage_total, "forward_reads": ref_coverage_frwd, "reverse_reads": ref_coverage_rev}
     print("Calculating coverage took {} s".format(timeit.default_timer() - start_time))
 
@@ -1764,10 +1764,8 @@ def main(config=config):
     # COLLECT INSERTS
     save_stats("\n-- Looking for insertions & ITDs --", config["STATS_FILE"])
 
-    inserts = []
     start_time = timeit.default_timer()
-    for read in reads:
-        inserts.append(read.get_inserts())
+    inserts = [read.get_inserts() for read in reads]
     inserts = flatten_list([insert for insert in inserts if insert is not None])
     print("Collecting inserts took {} s".format(timeit.default_timer() - start_time))
     save_stats("{} insertions were found".format(len(inserts)), config["STATS_FILE"])
@@ -1797,10 +1795,9 @@ def main(config=config):
     # COLLECT ITDs
     # --> put this in a method and use parallelize to speed things up!
     # --> (can I also do that for reads above when there are possibly multiple inserts per read?) -> yes: return [inserts found] per itd, remove None, flatten list
-    itds = []
+
     start_time = timeit.default_timer()
-    for insert in inserts:
-        itds.append(insert.get_itd(config))
+    itds = [insert.get_itd(config) for insert in inserts]
     itds = [itd for itd in itds if itd is not None]
 
     inserts = sorted(inserts, key=Insert.get_seq)
