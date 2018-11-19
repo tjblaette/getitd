@@ -28,7 +28,12 @@ if __name__ == "__main__":
             "MIN_TOTAL_READS",
             "MIN_UNIQUE_READS",
             "MIN_VAF",
-            "TECH"
+            "TECH",
+            "FORWARD_PRIMERS",
+            "REVERSE_PRIMERS",
+            "REQUIRE_INDEL_FREE_PRIMERS",
+            "FORWARD ADAPTER",
+            "REVERSE ADAPTER"
             ]
     fieldValues = [
 #            "",
@@ -49,7 +54,12 @@ if __name__ == "__main__":
             "1",
             "2",
             "0.006",
-            "Illumina"
+            "Illumina",
+            "GCAATTTAGGTATGAAAGCCAGCTAC",
+            "CTTTCAGCATTTTGACGGCAACC",
+            "True",
+            "TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA",
+            "GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGA"
             ]
     fieldValues = easygui.multenterbox(msg, title, fieldNames, fieldValues)
 

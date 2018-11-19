@@ -6,6 +6,7 @@ import datetime
 import multiprocessing
 import argparse
 import pandas as pd
+from numpy import inf # to read config["COST_ALIGNED"] from file
 import numpy as np
 import decimal as dc
 dc.getcontext().prec = 5
@@ -51,6 +52,10 @@ def load_config(filename):
                         config[key] = float(val)
                     except:
                         config[key] = val
+
+    # recognize string as dict
+    if "COST_ALIGNED" in config:
+        config["COST_ALIGNED"] = eval(config["COST_ALIGNED"])
     return config
 
 
@@ -1528,7 +1533,6 @@ def parse_config_from_cmdline(config):
 
     config["COST_MATCH"] = cmd_args.match
     config["COST_MISMATCH"] = -abs(cmd_args.mismatch)
-    config["COST_ALIGNED"] = {(c1, c2): get_alignment_score(c1, c2, config) for c1, c2 in itertools.combinations_with_replacement(["A","T","G","C","Z","N"], 2)}
     config["COST_GAPOPEN"] = -abs(cmd_args.gap_open)
     config["COST_GAPEXTEND"] = -abs(cmd_args.gap_extend)
     config["MIN_SCORE_INSERTS"] = cmd_args.minscore_inserts
@@ -1662,6 +1666,7 @@ def main(config):
     config["ANNO"] = read_annotation(config["ANNO_FILE"])
     config["DOMAINS"] = get_domains(config["ANNO"])
     config["REF"] = read_reference(config["REF_FILE"]).upper()
+    config["COST_ALIGNED"] = {(c1, c2): get_alignment_score(c1, c2, config) for c1, c2 in itertools.product(["A","T","G","C","Z","N"], repeat=2)}
 
 
     ## CREATE OUTPUT FOLDER
