@@ -66,6 +66,7 @@ if __name__ in ['__mp_main__', 'getitd']:
         config = load_config(os.path.join(current_dir, "config.txt"))
     except OSError:
         print("NO CONFIG FOUND")
+        config = {}
 else:
     # mimic Windows style process spawning on Linux:
     # multiprocessing.set_start_method("spawn")
@@ -279,7 +280,7 @@ class Read(object):
                 self.print()
         return self
 
-    def contains_indel_free_primer(self, config=config):
+    def contains_indel_free_primer(self, config):
         """
         Check whether Read contains insertion- and deletion-free
         primer sequences. When multiple primer sequences are 
@@ -454,11 +455,11 @@ class Insert(object):
         Set Insert's coverage based on supporting reads' sense.
         """
         if self.sense == {1}:
-            self.coverage = ref_coverage["forward_reads"][copy.deepcopy(self).norm_start().start]
+            self.coverage = ref_coverage["forward_reads"][copy.deepcopy(self).norm_start(config).start]
         elif self.sense == {-1}:
-            self.coverage = ref_coverage["reverse_reads"][copy.deepcopy(self).norm_start().start]
+            self.coverage = ref_coverage["reverse_reads"][copy.deepcopy(self).norm_start(config).start]
         elif self.sense == {1,-1}:
-            self.coverage = ref_coverage["all_reads"][copy.deepcopy(self).norm_start().start]
+            self.coverage = ref_coverage["all_reads"][copy.deepcopy(self).norm_start(config).start]
         return self
 
     def calc_vaf(self):
@@ -472,7 +473,7 @@ class Insert(object):
         assert self.vaf >= 0 and self.vaf <= 100
         return self
 
-    def get_itd(self, config=config):
+    def get_itd(self, config):
         """
         Check whether Insert qualifies as an ITD.
 
@@ -532,7 +533,7 @@ class Insert(object):
         return None
 
 
-    def norm_start(self, config=config):
+    def norm_start(self, config):
         """
         Normalize Insert's start coordinate to [0, len(REF)[.
 
@@ -542,7 +543,7 @@ class Insert(object):
         self.start = min(max(0,self.start), len(config["REF"])-1)
         return self
 
-    def prep_for_save(self):
+    def prep_for_save(self, config):
         """
         Prepare Insert for saving to file by normalizing start
         coordinates to [0, len(REF)[.
@@ -552,16 +553,19 @@ class Insert(object):
         will be the WT base after the insertion, i.e. start +1
         (start + length has no meaning for non-ITD insertions)
 
+        Args:
+            config (dict): Dict containing analysis parameters
+
         Returns:
             Prepared Insert.
         """
         to_save = copy.deepcopy(self)
-        to_save = to_save.norm_start()
+        to_save = to_save.norm_start(config)
         to_save.start += 1
         to_save.end = to_save.start
         return to_save
 
-    def annotate(self, coord, to_annotate, config=config):
+    def annotate(self, coord, to_annotate, config):
         """
         Add specific annotation to Insertion.
 
@@ -628,7 +632,7 @@ class Insert(object):
             return abs(self.tandem2_start - that.tandem2_start) <= max(self.length, that.length)
         return abs(self.start - that.start) <= self.length + that.length ## <---- what's the eqivalent for ITDs?? Does this even apply for ITDs? Can trailing ITDs have different length and still describe the same mutation?
 
-    def is_similar_to(self, that, config=config):
+    def is_similar_to(self, that, config):
         """
         Test whether two Inserts' sequences are similar.
 
@@ -644,7 +648,7 @@ class Insert(object):
             return True
         return False
 
-    def should_merge(self, that, condition):
+    def should_merge(self, that, condition, config):
         """
         Test whether two Inserts should be merged.
 
@@ -660,14 +664,14 @@ class Insert(object):
         if condition == 'is-same':
             return self.seq == that.seq and self.start == that.start
         elif condition == 'is-similar':
-            return self.length == that.length and self.start == that.start and self.is_similar_to(that)
+            return self.length == that.length and self.start == that.start and self.is_similar_to(that, config)
         elif condition == 'is-close':
-            return self.length == that.length and self.is_similar_to(that) and self.is_close_to(that)
+            return self.length == that.length and self.is_similar_to(that, config) and self.is_close_to(that)
         elif condition == 'is-same_trailing':
-            return self.trailing and that.trailing and self.trailing_end == that.trailing_end and self.sense.intersection(that.sense) and self.is_similar_to(that) and self.is_close_to(that)
+            return self.trailing and that.trailing and self.trailing_end == that.trailing_end and self.sense.intersection(that.sense) and self.is_similar_to(that, config) and self.is_close_to(that)
         assert False
 
-    def is_adapter_artefact(self, config=config):
+    def is_adapter_artefact(self, config):
         """
         Check if Insert.seq (partially) matches sequencing
         adapter sequence.
@@ -688,7 +692,7 @@ class Insert(object):
             return False
 
 
-    def filter_unique_supp_reads(self, config=config):
+    def filter_unique_supp_reads(self, config):
         """
         Test whether Insert is supported by a given number of
         distinct supporting reads.
@@ -698,7 +702,7 @@ class Insert(object):
         """
         return len(self.reads) >= config["MIN_UNIQUE_READS"]
 
-    def filter_total_supp_reads(self, config=config):
+    def filter_total_supp_reads(self, config):
         """
         Test whether Insert is supported by a given minimum number
         of total supporting reads.
@@ -708,7 +712,7 @@ class Insert(object):
         """
         return self.counts >= config["MIN_TOTAL_READS"]
 
-    def filter_vaf(self, config=config):
+    def filter_vaf(self, config):
         """
         Test whether Insert has at least a given minimum VAF.
 
@@ -791,7 +795,7 @@ class ITD(Insert):
         self.domains = annotated
         return self
 
-    def prep_for_save(self, config=config):
+    def prep_for_save(self, config):
         """
         Prepare ITD for saving to file.
 
@@ -802,6 +806,9 @@ class ITD(Insert):
         needle output files and annotation table.
         For trailing ITDs, change the length to the offset, i.e.
         distance between insert and second tandem.
+
+        Args:
+            config (dict): Dict containing analysis parameters.
 
         Return:
             Prepared ITD.
@@ -815,7 +822,7 @@ class ITD(Insert):
             self.reads[0].print()
             to_save.print()
         assert to_save.end <= len(config["REF"])
-        to_save = to_save.norm_start()
+        to_save = to_save.norm_start(config)
         to_save.start += 1
         to_save.end += 1
         return to_save
@@ -879,7 +886,7 @@ class InsertCollection(object):
         self = self.set_representative()
         return self
 
-    def should_merge(self, that, condition):
+    def should_merge(self, that, condition, config):
         """
         Test whether two InsertCollections should be merged.
 
@@ -895,7 +902,7 @@ class InsertCollection(object):
         """
         for insert in self.inserts:
             for this in that.inserts:
-                if insert.should_merge(this, condition):
+                if insert.should_merge(this, condition, config):
                     return True
         return False
 
@@ -1028,7 +1035,7 @@ def print_alignment_seq(seq, seq_coord, pre_width, post_width, f):
     f.write(str(seq_coord) + '\n')
     return seq_coord
 
-def print_alignment(read, out_dir, config=config):
+def print_alignment(read, out_dir, config):
     """
     Print read-to-reference alignment in a nice format, inspired by EMBOSS needle output.
 
@@ -1113,7 +1120,7 @@ def print_alignment(read, out_dir, config=config):
         f.write('#---------------------------------------\n')
 
 
-def get_alignment_score(char1,char2, config=config):
+def get_alignment_score(char1,char2, config):
     """
     Calculate the alignment score of two aligned bases.
 
@@ -1325,7 +1332,7 @@ def vaf_to_ar(vaf):
         return -1
     return vaf/(100 - vaf)
 
-def merge(inserts, condition, ref_coverage):
+def merge(inserts, condition, ref_coverage, config):
     """
     Merge insertions describing the same mutation.
 
@@ -1345,7 +1352,7 @@ def merge(inserts, condition, ref_coverage):
         for insert_collection in inserts:
             was_merged = False
             for minsert_collection in merged[::-1]:
-                if minsert_collection.should_merge(insert_collection, condition):
+                if minsert_collection.should_merge(insert_collection, condition, config):
                     minsert_collection = minsert_collection.merge(insert_collection, ref_coverage)
                     was_merged = True
                     still_need_to_merge = True
@@ -1355,7 +1362,7 @@ def merge(inserts, condition, ref_coverage):
         inserts = merged
     return merged
 
-def save_to_file(inserts, filename, config=config):
+def save_to_file(inserts, filename, config):
     """
     Write insertions detected to TSV file.
 
@@ -1369,7 +1376,7 @@ def save_to_file(inserts, filename, config=config):
         filename (str): Name of the file, will be saved in specified OUT_DIR.
     """
     if inserts:
-        to_save = [insert.prep_for_save() for insert in inserts]
+        to_save = [insert.prep_for_save(config) for insert in inserts]
         if config["ANNO"] is not None:
             for insert in to_save:
                 insert = insert.set_insertion_site()
@@ -1377,9 +1384,9 @@ def save_to_file(inserts, filename, config=config):
                 cols = ["domains"]
                 for to_annotate in ["start", "end", "insertion_site"]:
                     for coord in ["chr13_bp", "transcript_bp", "protein_as"]:
-                        insert = insert.annotate(to_annotate, coord)
+                        insert = insert.annotate(to_annotate, coord, config)
                         cols.append(to_annotate + "_" + coord)
-                insert = insert.annotate("insertion_site", "region")
+                insert = insert.annotate("insertion_site", "region", config)
                 cols.append("insertion_site_domain") # rename in df...
                 #cols = ["domains", "start_chr13_bp", "start_transcript_bp", "start_protein_as", "end_chr13_bp", "end_transcript_bp", "end_protein_as", "insertion_site_protein_as"]
 
@@ -1433,7 +1440,7 @@ def get_unique_reads(reads):
     return unique_reads
 
 
-def filter_alignment_score(reads, config=config):
+def filter_alignment_score(reads, config):
     """
     Filter reads based on alignment score.
 
@@ -1466,7 +1473,7 @@ def save_stats(stat, filename):
     with open(filename, "a") as f:
         f.write(stat + "\n")
 
-def parse_config_from_cmdline(config=config):
+def parse_config_from_cmdline(config):
     """
     Get analysis parameters from commandline.
 
@@ -1539,7 +1546,7 @@ def parse_config_from_cmdline(config=config):
     return config
 
 
-def get_reads(config=config):
+def get_reads(config):
     """
     Read in FASTQ files.
 
@@ -1564,7 +1571,7 @@ def get_reads(config=config):
     return reads
 
 
-def get_merged_inserts(inserts, type_, ref_coverage, config=config):
+def get_merged_inserts(inserts, type_, ref_coverage, config):
     """
     Merge Inserts based on different conditions.
 
@@ -1588,18 +1595,18 @@ def get_merged_inserts(inserts, type_, ref_coverage, config=config):
             "is-similar",
             "is-close",
             "is-same_trailing"]:
-        to_merge = merge(to_merge, condition, ref_coverage)
+        to_merge = merge(to_merge, condition, ref_coverage, config)
         merged.append(to_merge)
         save_stats("{} {} remain after merging".format(len(to_merge), type_), config["STATS_FILE"])
         suffix = suffix + condition
-        save_to_file([insert.rep for insert in to_merge], type_ + "_collapsed-" + suffix + ".tsv")
+        save_to_file([insert.rep for insert in to_merge], type_ + "_collapsed-" + suffix + ".tsv", config)
         suffix = suffix + "_"
 
     # convert InsertCollection back to list of (representative) Inserts
     return [insert.rep for insert in merged[-1]]
 
 
-def get_hc_inserts(inserts, type_, suffix="", config=config):
+def get_hc_inserts(inserts, type_, config, suffix=""):
     """
     Filter for high-confidence (hc) inserts only.
 
@@ -1624,22 +1631,23 @@ def get_hc_inserts(inserts, type_, suffix="", config=config):
 
     filtered = copy.deepcopy(inserts)
     for filter_type, filter_ in filter_dic.items():
-        passed = [filter_(insert) for insert in filtered]
+        passed = [filter_(insert, config) for insert in filtered]
         filtered = [insert for (insert, pass_) in zip(filtered, passed) if pass_]
 
         save_stats("Filtered {} / {} {} based on the {}".format(
                 len(passed) - sum(passed), len(passed), type_, filter_type), config["STATS_FILE"])
     save_stats("{} {} remain after filtering!".format(len(filtered), type_), config["STATS_FILE"])
-    save_to_file(filtered, type_ + suffix + ".tsv")
+    save_to_file(filtered, type_ + suffix + ".tsv", config)
 
     return filtered
+
 
 def make_file_path_absolute(file_):
     if not os.path.isabs(file_):
         file_ = os.path.join(os.getcwd(), file_)
     return file_
 
-def main(config=config):
+def main(config):
 
     # PROCESS INPUTS
     config["OUT_DIR"] = '_'.join([config["SAMPLE"], "getitd"])
@@ -1710,7 +1718,7 @@ def main(config=config):
     print("Alignment took {} s".format(timeit.default_timer() - start_time))
 
     # FILTER BASED ON ALIGNMENT SCORE (INCL FAILED ALIGNMENTS WITH read.al_score is None)
-    reads = filter_alignment_score(reads)
+    reads = filter_alignment_score(reads, config)
 
     # FILTER BASED ON UNALIGNED PRIMERS
     # --> require that primers are always aligned without gaps / indels
@@ -1738,7 +1746,7 @@ def main(config=config):
 
     for i,read in enumerate(reads):
         reads[i].al_file = 'needle_{}.txt'.format(i)
-        print_alignment(reads[i], needle_dir)
+        print_alignment(reads[i], needle_dir, config)
 
     if not reads:
         save_stats("\nNO READS TO PROCESS!", config["STATS_FILE"])
@@ -1823,7 +1831,7 @@ def main(config=config):
     filtered_ins_and_itds = {}
     start_time = timeit.default_timer()
     for type_, inserts_ in merged_ins_and_itds.items():
-        filtered_ins_and_itds[type_] = get_hc_inserts(inserts_, type_, "_collapsed-is-same_is-similar_is-close_is-same_trailing_hc", config)
+        filtered_ins_and_itds[type_] = get_hc_inserts(inserts_, type_, config, "_collapsed-is-same_is-similar_is-close_is-same_trailing_hc")
     print("Filtering took {} s".format(timeit.default_timer() - start_time))
 
 
