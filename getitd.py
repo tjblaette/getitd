@@ -204,14 +204,14 @@ class Read(object):
         Returns:
             Aligned Read. May be reversed for 454.
         """
-        alignment = bio.align.globalcs(self.seq, config["REF"], get_alignment_score,
-            config["COST_GAPOPEN"], config["COST_GAPEXTEND"], penalize_end_gaps=False)
+        alignment = bio.align.globalds(self.seq, config["REF"], config["COST_ALIGNED"],
+                config["COST_GAPOPEN"], config["COST_GAPEXTEND"], penalize_end_gaps=False)
         if alignment:
             self.al_seq, self.al_ref, self.al_score = alignment[-1][0:3]
 
         if config["TECH"] == '454':
             rev = self.reverse_complement()
-            rev_alignment = bio.align.globalcs(rev.seq, config["REF"], get_alignment_score,
+            rev_alignment = bio.align.globalds(rev.seq, config["REF"], config["COST_ALIGNED"],
                 config["COST_GAPOPEN"], config["COST_GAPEXTEND"], penalize_end_gaps=False)
             if (rev_alignment and
                     (self.al_score is None or rev_alignment[-1][2] > self.al_score)):
@@ -483,7 +483,7 @@ class Insert(object):
             ITD if the Insert qualifies as one.
             None otherwise.
         """
-        alignments = bio.align.localcs(self.seq, config["REF"], get_alignment_score, config["COST_GAPOPEN"], config["COST_GAPEXTEND"])
+        alignments = bio.align.localds(self.seq, config["REF"], config["COST_ALIGNED"], config["COST_GAPOPEN"], config["COST_GAPEXTEND"])
         alignments = [al for al in alignments if integral_insert_realignment(al[0],self.length)]
         if not alignments:
             return None
@@ -639,7 +639,7 @@ class Insert(object):
             True when they are similar, False otherwise.
         """
         min_score = get_min_score(self.seq, that.seq, config["MIN_SCORE_INSERTS"])
-        al_score = bio.align.globalcs(self.seq, that.seq, get_alignment_score, config["COST_GAPOPEN"], config["COST_GAPEXTEND"], one_alignment_only=True, score_only=True, penalize_end_gaps=False)
+        al_score = bio.align.globalds(self.seq, that.seq, config["COST_ALIGNED"], config["COST_GAPOPEN"], config["COST_GAPEXTEND"], one_alignment_only=True, score_only=True, penalize_end_gaps=False)
         if al_score >= min_score:
             return True
         return False
@@ -1521,6 +1521,7 @@ def parse_config_from_cmdline(config=config):
 
     config["COST_MATCH"] = cmd_args.match
     config["COST_MISMATCH"] = -abs(cmd_args.mismatch)
+    config["COST_ALIGNED"] = {(c1, c2): get_alignment_score(c1, c2, config) for c1, c2 in itertools.combinations_with_replacement(["A","T","G","C","Z","N"], 2)}
     config["COST_GAPOPEN"] = -abs(cmd_args.gap_open)
     config["COST_GAPEXTEND"] = -abs(cmd_args.gap_extend)
     config["MIN_SCORE_INSERTS"] = cmd_args.minscore_inserts
