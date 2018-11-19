@@ -670,9 +670,7 @@ class Insert(object):
     def is_adapter_artefact(self, config=config):
         """
         Check if Insert.seq (partially) matches sequencing
-        adapter sequence. If more than one adapter is supplied,
-        flag Insert as adapter artefact as soon as it matches
-        at least one of these.
+        adapter sequence.
 
         Args:
             config: Analysis parameters, including adapter sequences
@@ -683,8 +681,8 @@ class Insert(object):
 
         """
         if (self.trailing
-                and ((self.trailing_end == 5 and self.is_similar_to(Insert(seq=config["FORWARD_ADAPTER"][-self.length:], start=0, end=0, counts=0)))
-                        or (self.trailing_end == 3 and self.is_similar_to(Insert(seq=config["REVERSE_ADAPTER"][-self.length:], start=0, end=0, counts=0))))):
+                and ((self.trailing_end == 5 and self.is_similar_to(Insert(seq=config["FORWARD_ADAPTER"][-self.length:], start=0, end=0, counts=0), config))
+                        or (self.trailing_end == 3 and self.is_similar_to(Insert(seq=config["REVERSE_ADAPTER"][:self.length:], start=0, end=0, counts=0), config)))):
             return True
         else:
             return False
@@ -1484,11 +1482,11 @@ def parse_config_from_cmdline(config=config):
     parser.add_argument("fastq2", help="FASTQ file of reverse reads (optional)", nargs="?")
     parser.add_argument("-reference", help="WT amplicon sequence as reference for read alignment (default ./anno/amplicon.txt)", default="./anno/amplicon.txt", type=str)
     parser.add_argument("-anno", help="WT amplicon sequence annotation (default ./anno/amplicon_kayser.tsv)", default="./anno/amplicon_kayser.tsv", type=str)
-    parser.add_argument("-forward_primer", help="Forward primer sequence(s), separate by space when supplying more than one", default=["GCAATTTAGGTATGAAAGCCAGCTAC"], type=str, nargs="+")
-    parser.add_argument("-reverse_primer", help="Reverse primer sequence(s), separate by space when supplying more than one", default=["GGTTGCCGTCAAAATGCTGAAAG"], type=str, nargs="+")
+    parser.add_argument("-forward_primer", help="Forward primer gene-specific sequence(s) as present at the 5' end of supplied forward reads. Separate by space when supplying more than one (default GCAATTTAGGTATGAAAGCCAGCTAC)", default=["GCAATTTAGGTATGAAAGCCAGCTAC"], type=str, nargs="+")
+    parser.add_argument("-reverse_primer", help="Reverse primer gene-specific sequence(s) as present at the 5' end of supplied reverse reads. Separate by space when supplying more than one (default CTTTCAGCATTTTGACGGCAACC)", default=["CTTTCAGCATTTTGACGGCAACC"], type=str, nargs="+")
     parser.add_argument("-require_indel_free_primers", help="If True, discard reads containing insertions or deletions within the primer sequence (default True)", default=True, type=bool)
-    parser.add_argument("-forward_adapter", help="Forward sequencing adapter sequence (default TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA)", default="TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA", type=str)
-    parser.add_argument("-reverse_adapter", help="Reverse sequencing adapter sequence (default CAGAGCACCCGAGCCTCTACACATATTCTCTGTCT)", default="AGACAGAGAATATGTGTAGAGGCTCGGGTGCTCTG".translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1], type=str)
+    parser.add_argument("-forward_adapter", help="Forward reads' sequencing adapter sequence as potentially present at the 5' end of the supplied forward reads (default TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA)", default="TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA", type=str)
+    parser.add_argument("-reverse_adapter", help="Reverse reads' sequencing adapter sequence as potentially present at the 5' end of the supplied reverse reads (default GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGA)", default="GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGA", type=str)
     parser.add_argument("-technology", help="Sequencing technology used, options are '454' or 'Illumina' (default)", default="Illumina", type=str, choices=['Illumina', '454'])
     parser.add_argument('-nkern', help="number of cores to use for parallel tasks (default 12)", default="12", type=int)
     parser.add_argument('-gap_open', help="alignment cost of gap opening (default -36)", default="-36", type=int)
@@ -1513,10 +1511,13 @@ def parse_config_from_cmdline(config=config):
     config["REF_FILE"] = cmd_args.reference
     config["ANNO_FILE"] = cmd_args.anno
     config["TECH"] = cmd_args.technology
+
+    # R2 reads are reverse-complemented prior to alignment to the WT reference sequence
+    # --> reverse-complement any sequence later to be found within reverse-complemented R2 reads
     config["FORWARD_PRIMERS"] = cmd_args.forward_primer
-    config["REVERSE_PRIMERS"] = cmd_args.reverse_primer
+    config["REVERSE_PRIMERS"] = [primer.translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1] for primer in cmd_args.reverse_primer]
     config["FORWARD_ADAPTER"] = cmd_args.forward_adapter
-    config["REVERSE_ADAPTER"] = cmd_args.reverse_adapter
+    config["REVERSE_ADAPTER"] = cmd_args.reverse_adapter.translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1]
 
     config["COST_MATCH"] = cmd_args.match
     config["COST_MISMATCH"] = -abs(cmd_args.mismatch)
