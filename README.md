@@ -13,7 +13,7 @@ python3
 - biopython
 - easygui
 
-The pandas, numpy and biopython modules are required for the core getITD program. The easygui module is optional and only required by the make_getitd_config.py script that uses a simple graphical interface to create a config file containing the getITD analysis parameters for the provided getitd_from_config_wrapper.py script. 
+The pandas, numpy and biopython modules are required for the core getITD program. The easygui module is optional and only required by the make_getitd_config.py script that uses a simple graphical interface to create a config file that can be used to define future getITD analysis parameters. To run an analysis using a preconfigured config file, use the provided getitd_from_config_wrapper.py script. Setup and usage of the core getITD program and the provided wrapper scripts is described in detail below.
 
 ## Setup (Linux / Ubuntu & MacOS)
 #### If applicable: Set proxy
@@ -95,7 +95,8 @@ Repeat these two steps to reach the desired destination.
 
 Alternatively, provide full or relative paths to all files, including the _getitd.py_ script, input FASTQ files and reference and annotation files, whenever you use getITD. 
 
-## Input
+## getITD core program
+### Input
 ###### Required:
 The only required inputs are a sample ID to name output files and folders and the actual FASTQ files containing the sequencing data to process. Supply these in the correct order (see also the examples below):
 
@@ -236,7 +237,7 @@ optional arguments:
 
 ```
 
-## Output 
+### Output 
 ##### Files
 For each sample, an output directory will be created in the current directory, named using the provided sample ID. 
 Inside, all of the generated output files reside:
@@ -254,7 +255,7 @@ Inside, all of the generated output files reside:
 At each filtering step, the number of reads and insertions passing the specified requirements are printed. This basically corresponds to the content of _stats.txt_.
 Currently, also the computation time of various steps is printed, but presumably this will change in the future. 
 
-## Example
+### Example
 ##### Using default parameters
 To analyze the provided test data, change to the getitd folder and, on Linux / MacOS, run:
 ```
@@ -329,7 +330,7 @@ On Windows, run:
 py -3 getitd.py -nkern=2 test test\test_R1.fastq test\test_R2.fastq
 ```
 
-## How it works
+### How it works
 1. Read in FASTQ files
     - Read in forward reads and BQS (R1)
     - Read in and reverse complement reverse reads and BQS (R2)
@@ -358,3 +359,14 @@ py -3 getitd.py -nkern=2 test test\test_R1.fastq test\test_R2.fastq
 9. Filter insertions and ITDs independently, require
     - at least two different supporting reads
     - a minimum variant allele frequency (VAF) of 0.006 %
+
+
+## getITD wrappers - running getITD without the commandline 
+getitd.py automatically saves the parameters used for any analysis to the config.txt file in the respective analysis output folder. This file can be used to rerun getITD on the same or any other sample using the exact same analysis parameters without passing these explicitely on the command line, using the getitd_from_config_wrapper.py script. Alternatively, such a config.txt file can be generated directly and for any sample by  make_getitd_config.py. This script provides a simple graphical interface where the desired analysis parameters can be entered. This script was mainly intended to facilitate the use of getITD on Windows but also runs on Linux and Mac: The generated config.txt file can be passed to a second wrapper script, getitd_from_config_wrapper.py, which initiates getITD analysis using the provided config file. Placing a config.txt file in the same directory as getitd_from_config_wrapper.py as well as the FASTQ file(s) to analyze, double-clicking the wrapper script will start the respective analysis of all of the provided FASTQ files. 
+
+### Wrapper to create config.txt file 
+
+
+
+### Wrapper to run getITD using existing config.txt file
+
