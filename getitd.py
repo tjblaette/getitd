@@ -273,16 +273,16 @@ class Read(object):
             insert_idxs = get_gaps(self.al_ref)
             if self.al_seq[insert_idxs[0][-1] + 1] == '-':
                 del_idxs = get_gaps(self.al_seq)
-                self.print()
-                print(insert_idxs)
-                print(del_idxs)
+                #self.print()
+                #print(insert_idxs)
+                #print(del_idxs)
                 self.al_seq = self.al_seq[del_idxs[0][0] : del_idxs[0][-1] + 1] \
                         + self.al_seq[insert_idxs[0][0] : insert_idxs[0][-1] + 1] \
                         + self.al_seq[del_idxs[0][-1] + 1 : ]
                 self.al_ref = self.al_ref[del_idxs[0][0] : del_idxs[0][-1] + 1] \
                         + self.al_ref[insert_idxs[0][0] : insert_idxs[0][-1] + 1] \
                         + self.al_ref[del_idxs[0][-1] + 1 : ]
-                self.print()
+                #self.print()
         return self
 
     def contains_indel_free_primer(self, config):
@@ -1249,7 +1249,7 @@ def read_annotation(filename):
     try:
         return pd.read_csv(filename, sep='\t')
     except IOError as e:
-        print("No annotation file given")
+        print("\nAnnotation file was not provided or cannot be accessed!\n")
         return None
 
 def get_domains(anno):
