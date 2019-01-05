@@ -311,7 +311,7 @@ class Read(object):
             return False
 
 
-    def get_inserts(self):
+    def get_inserts(self, config):
         """
         Collect all inserts contained within a given Read.
 
@@ -342,19 +342,7 @@ class Read(object):
                         counts=self.counts)
                     assert insert.length == len(insert_idxs)
 
-                    if all(readn[0:insert.start] == '-'):
-                        insert.trailing_end = 5
-                    elif all(readn[insert.end+1:] == '-'):
-                        insert.trailing_end = 3
-                    else:
-                        insert.trailing_end = 0
-                    # inserts are considered trailing when it is unclear whether they were covered completely or not
-                    # --> because primers guarantee that amplicon starts and ends with WT ref bases,
-                    #       forward reads cannot have 5' and reverse reads cannot have 3' trailing insertions
-                    #       (trailing_end would be set respectively but as insertions will in fact be fully contained
-                    #       within the insert, trailing will be False nontheless)
-                    # should I discard reads where the primer is not mapped? See lbseq:/media/data/tabl/laura*/mail/primer_unmapped.txt
-                    insert.trailing = (self.sense == 1 and insert.trailing_end == 3) or (self.sense == -1 and insert.trailing_end == 5)
+                    insert = insert.get_trailing(config)
 
                     if insert.trailing or insert.length % 3 == 0:
                         # change insert.start coord
@@ -477,6 +465,100 @@ class Insert(object):
         self.vaf = dc.Decimal(self.counts) / self.coverage * 100
         assert self.vaf >= 0 and self.vaf <= 100
         return self
+
+    def get_trailing(self, config):
+        """
+        Check whether Insert is trailing and set attributes Insert.trailing and
+        Insert.trailing_end accordingly.
+
+        Inserts are considered "trailing" when it is unclear whether they were covered completely
+        by the read or not. Trailing reads are not required to be in-frame and also do not have
+        to be adjacent to a matching WT tandem to be considered ITDs.
+
+        Note: Because primers guarantee that amplicons start and end with WT reference bases,
+        forward reads cannot have 5' and reverse reads cannot have 3' trailing insertions
+        (even if insertions begin or end at the 5' / 3' end, they will always be fully covered
+         by the read)
+
+        Note also: Because the alignment calculates a gap-open cost when changing from gaps in the
+        reference sequence directly to gaps in the sample sequence (or vice versa), the aligner 
+        will map any final base of the insertion where bases by chance match that of the reference.
+
+        For example below, the final "G" should not be mapped. Because it is mapped, the insertion
+        is no longer truly at the very 3' end of the read and therefore not actually "trailing". 
+        To compensate, and recognize this insertion as the ITD that it is, config["MAX_TRAILING_BP"]
+        can be set > 0 to recognize insertions with at most X trailing bp mapped as "trailing"
+        anyway.
+
+
+                    1 GAAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCT     50
+                      |.||||||||||||||||||||||||||||||||||||||||||||||||
+                    1 GCAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCT     50
+
+                   51 CAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTC    100
+                      ||||||||||||||||||||||||||||||||||||||||||||||||||
+                   51 CAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTC    100
+
+                  101 AAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTG    150
+                      ||||||||||||||||||||||||||||||||||||||||||||||||||
+                  101 AAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTG    150
+
+                  151 CCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCA    200
+                      ||||||||||||||||||||||||||||||||||||||||||||||||||
+                  151 CCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCA    200
+
+                  201 CGTACTCACCATTTGTCTTTGCAGGGAAGCCACAGGTGACCGGCTCCTCA    250
+                      |||||||||||||||||||||||||||||                     
+                  201 CGTACTCACCATTTGTCTTTGCAGGGAAG---------------------    229
+
+                  251 G-------------------------------------------------    251
+                      |                                                 
+                  230 GTACTAGGATCAGGTGCTTTTGGAAAAGTGATGAACGCAACAGCTTATGG    279
+
+                  252 --------------------------------------------------    251
+                                                                        
+                  280 AATTAGCAAAACAGGAGTCTCAATCCAGGTTGCCGTCAAAATGCTGAAAG    329
+
+        Args:
+            self (Insert) to process.
+
+            config (dict) with config["MAX_TRAILING_BP"] set for cutoff.
+
+        Returns:
+            self (Insert) with self.trailing (bool) and self.trailing_end ({0,3,5}) set.
+        """
+        readn = np.array(list(self.reads[0].al_seq))
+        print("read:")
+        self.reads[0].print()
+        print("insert:")
+        self.print()
+
+        if self.sense == {1}:
+            three_prime_of_ins = readn[self.end+1:]
+            print("three_prime_of_ins")
+            print(three_prime_of_ins)
+            number_of_aligned_trailing_bp = len(three_prime_of_ins) - sum(three_prime_of_ins == "-")
+            print("number_of_aligned_trailing_bp")
+            print(number_of_aligned_trailing_bp)
+
+            if number_of_aligned_trailing_bp <= config["MAX_TRAILING_BP"]:
+                self.trailing = True
+                self.trailing_end = 3
+                return self
+
+        if self.sense == {-1}:
+            five_prime_of_ins = readn[0:self.start]
+            number_of_aligned_trailing_bp = len(five_prime_of_ins) - sum(five_prime_of_ins == "-")
+
+            if number_of_aligned_trailing_bp <= config["MAX_TRAILING_BP"]:
+                self.trailing = True
+                self.trailing_end = 5
+                return self
+
+        self.trailing = False
+        self.trailing_end = 0
+        return self
+
 
     def get_itd(self, config):
         """
@@ -1505,6 +1587,7 @@ def parse_config_from_cmdline(config):
     parser.add_argument('-gap_extend', help="alignment cost of gap extension (default -0.5)", default="-0.5", type=float)
     parser.add_argument('-match', help="alignment cost of base match (default 5)", default="5", type=int)
     parser.add_argument('-mismatch', help="alignment cost of base mismatch (default -15)", default="-15", type=int)
+    parser.add_argument('-max_trailing_bp', help="maximum number of bp between the start / end of an insertion and the start / end of the read to consider the insertion 'trailing'. Trailing insertions are not required to be in-frame and will be considered ITDs even if the matching WT tandem is not directly adjacent. Set this to 0 to disable (default 3).", default="3", type=int)
     parser.add_argument('-minscore_inserts', help="fraction of max possible alignment score required for ITD detection and insert collapsing (default 0.5)", default="0.5", type=float)
     parser.add_argument('-minscore_alignments', help="fraction of max possible alignment score required for a read to pass when aligning reads to amplicon reference (default 0.5)", default="0.5", type=float)
     parser.add_argument("-min_bqs", help="minimum average base quality score (BQS) required by each read (default 30)", type=int, default=30)
@@ -1542,6 +1625,7 @@ def parse_config_from_cmdline(config):
     config["MIN_READ_LENGTH"] = cmd_args.min_read_length
     config["MIN_READ_COPIES"] = cmd_args.filter_reads
     config["REQUIRE_INDEL_FREE_PRIMERS"] = cmd_args.require_indel_free_primers
+    config["MAX_TRAILING_BP"] = cmd_args.max_trailing_bp
 
     config["MIN_TOTAL_READS"] = cmd_args.filter_ins_total_reads
     config["MIN_UNIQUE_READS"] = cmd_args.filter_ins_unique_reads
@@ -1779,7 +1863,7 @@ def main(config):
     save_stats("\n-- Looking for insertions & ITDs --", config["STATS_FILE"])
 
     start_time = timeit.default_timer()
-    inserts = [read.get_inserts() for read in reads]
+    inserts = [read.get_inserts(config) for read in reads]
     inserts = flatten_list([insert for insert in inserts if insert is not None])
     print("Collecting inserts took {} s".format(timeit.default_timer() - start_time))
     save_stats("{} insertions were found".format(len(inserts)), config["STATS_FILE"])

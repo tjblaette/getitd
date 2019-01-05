@@ -28,6 +28,8 @@ config["ANNO_FILE"] = "./anno/amplicon_kayser.tsv"
 config["ANNO"] = getitd.read_annotation(config["ANNO_FILE"])
 config["DOMAINS"] = getitd.get_domains(config["ANNO"])
 
+config["MAX_TRAILING_BP"] = 3
+
 getitd.config = {}
 for key in config:
     getitd.config[key] = config[key]
@@ -145,7 +147,7 @@ def test_align_wt_R1_with_5prime_insert():
 
 def test_molm_21bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAGG").align(config).get_ref_span().get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 21
@@ -160,7 +162,7 @@ def test_molm_21bp():
 
 def test_molm_21bp_02():
     read = getitd.Read(seq="AAAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAGG").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 21
@@ -176,7 +178,7 @@ def test_molm_21bp_02():
 
 def test_1610_9263_90bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTT").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 90
@@ -194,7 +196,7 @@ def test_1610_9263_90bp():
 
 def test_1610_9263_78bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAATGGGCTGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTC").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 78
@@ -212,7 +214,7 @@ def test_1610_9263_78bp():
 def test_1610_9181_174bp():
     read = getitd.Read(seq="AACATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAGGTACTAGGATCACCTTCTGATT").align(config).get_ref_span()
     read.print()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     print(inserts)
     assert len(inserts) == 1
     insert = inserts[0]
@@ -232,7 +234,7 @@ def test_1610_9181_174bp():
 def test_1610_9181_174bp_02():
     read = getitd.Read(seq="GCAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAGGTACTAGGATCACCTTCTGATT").align(config).get_ref_span()
     read.print()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     print(inserts)
     assert len(inserts) == 1
     insert = inserts[0]
@@ -252,7 +254,7 @@ def test_1610_9181_174bp_02():
 
 def test_1610_9181_45bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTGGGGTGGAACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTAC").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 45
@@ -269,7 +271,7 @@ def test_1610_9181_45bp():
 
 def test_1610_9181_27bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCCCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAACCAGAAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 27
@@ -286,7 +288,7 @@ def test_1610_9181_27bp():
 
 def test_1610_6948_54bp():
     read = getitd.Read(seq="AAAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAAT").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 54
@@ -302,7 +304,7 @@ def test_1610_6948_54bp():
 
 def test_1610_8230_9bp():
     read = getitd.Read(seq="AACAATCTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATGGCTTCATTATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAGGTACTAGGATCA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 9
@@ -316,7 +318,7 @@ def test_1610_8230_9bp():
 
 def test_1610_111_60bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCT").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 60
@@ -330,7 +332,7 @@ def test_1610_111_60bp():
 
 def test_1610_111_39bp():
     read = getitd.Read(seq="AGCAATTTAGGTATGAAAGCCAGCTACAGATGGCACAGGCGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 39
@@ -344,7 +346,7 @@ def test_1610_111_39bp():
 
 def test_1610_14_21bp():
     read = getitd.Read(seq="AAGCAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 21
@@ -358,7 +360,7 @@ def test_1610_14_21bp():
 
 def test_1610_14_21bp_02():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 21
@@ -372,7 +374,7 @@ def test_1610_14_21bp_02():
 
 def test_1610_150_93bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 93
@@ -386,7 +388,7 @@ def test_1610_150_93bp():
 
 def test_1610_150_36bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAGGGCGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTT").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 36
@@ -400,7 +402,7 @@ def test_1610_150_36bp():
 
 def test_1610_189_87bp():
     read = getitd.Read(seq="AGAAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATCCCACCGGGTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGATTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTG").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 87
@@ -414,7 +416,7 @@ def test_1610_189_87bp():
 
 def test_1610_189_87bp_02():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATCCCACCGGGTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTG").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 87
@@ -428,7 +430,7 @@ def test_1610_189_87bp_02():
 
 def test_1610_189_87bp_03():
     read = getitd.Read(seq="AGAAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATCCCACCGGGTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGATTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 87
@@ -442,7 +444,7 @@ def test_1610_189_87bp_03():
 
 def test_1610_232_42bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTGGTCCCTTCCTTAGTGAAGGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 42
@@ -456,7 +458,7 @@ def test_1610_232_42bp():
 
 def test_1610_232_60bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAGCCACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCACCATTTCTTTTCCATTGGAAAATCT").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 60
@@ -470,7 +472,7 @@ def test_1610_232_60bp():
 
 def test_1610_232_60bp_02():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAGCCACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCT").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 60
@@ -484,7 +486,7 @@ def test_1610_232_60bp_02():
 
 def test_1610_264_198bp():
     read = getitd.Read(seq="ACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAGCCACAGGTGACCGGCTCCTCAA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     itd = insert.get_itd(config)
@@ -498,7 +500,7 @@ def test_1610_264_198bp():
 
 def test_1610_264_198bp_02():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAGCCACAGGTGACCGGCTCCTCA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     itd = insert.get_itd(config)
@@ -511,7 +513,7 @@ def test_1610_264_198bp_02():
 
 def test_1610_264_198bp_03():
     read = getitd.Read(seq="AGCAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAGGCACTAGGGACCGGCGCCTTA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.trailing == True
@@ -526,7 +528,7 @@ def test_1610_264_198bp_03():
 
 def test_1610_38_42bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAACCTTTTCCACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGAACTCA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 42
@@ -540,7 +542,7 @@ def test_1610_38_42bp():
 
 def test_1610_38_42bp_02():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAACCTTTTCCACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 42
@@ -554,7 +556,7 @@ def test_1610_38_42bp_02():
 
 def test_1610_38_42bp_03():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAACCTTTTCCACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGAACTCA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 42
@@ -568,7 +570,7 @@ def test_1610_38_42bp_03():
 
 def test_1610_7_72bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCC").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 72
@@ -582,7 +584,7 @@ def test_1610_7_72bp():
 
 def test_1610_7_72_02():
     read = getitd.Read(seq="AGAAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCC").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 72
@@ -596,7 +598,7 @@ def test_1610_7_72_02():
 
 def test_1610_76_21bp():
     read = getitd.Read(seq="AAAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACCCACCATTTGTCTTTCCAGGGAAGG").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 21
@@ -610,7 +612,7 @@ def test_1610_76_21bp():
 
 def test_1610_76_69bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATT").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 69
@@ -624,7 +626,7 @@ def test_1610_76_69bp():
 
 def test_1610_76_21bp_02():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAG").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 21
@@ -641,7 +643,7 @@ def test_1610_76_21bp_02():
 
 def test_1610_145_27bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 27
@@ -655,7 +657,7 @@ def test_1610_145_27bp():
 
 def test_1610_42_27bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATCCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 27
@@ -668,7 +670,7 @@ def test_1610_42_27bp():
 
 def test_1610_54_36bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTT").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 36
@@ -681,7 +683,7 @@ def test_1610_54_36bp():
 
 def test_1610_89_45bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGACCTCCTCGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTAC").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 45
@@ -702,7 +704,7 @@ def test_pl21_126bp():
     read.print()
     read.al_file = "pl21.txt"
     getitd.print_alignment(read, ".", config)
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     print(inserts)
     assert len(inserts) == 1
     insert = inserts[0]
@@ -720,7 +722,7 @@ def maybe_test_pl21_126bp_artificial():
     read.print()
     read.al_file = "pl21_artificial.txt"
     getitd.print_alignment(read, ".", config)
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     print(inserts)
     assert len(inserts) == 1
     insert = inserts[0]
@@ -739,7 +741,7 @@ def maybe_test_pl21_126bp_artificial():
 
 def test_1610_109_75bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGGTGACCGGCTCGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGGTTCTGCAGCATTTCTTT").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 75
@@ -753,7 +755,7 @@ def test_1610_109_75bp():
 
 def test_1610_115_24bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGG").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 24
@@ -767,7 +769,7 @@ def test_1610_115_24bp():
 
 def test_1610_133_66bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAATGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 66
@@ -781,7 +783,7 @@ def test_1610_133_66bp():
 
 def test_1610_15_21bp():
     read = getitd.Read(seq="ACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAGG").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 21
@@ -794,7 +796,7 @@ def test_1610_15_21bp():
 
 def test_1610_15_180bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGCTCCTCAGATAATGAGTACTTCTAC").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     itd = insert.get_itd(config)
@@ -808,7 +810,7 @@ def test_1610_15_180bp():
 
 def test_1610_164_21bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAG").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 21
@@ -822,7 +824,7 @@ def test_1610_164_21bp():
 
 def test_1610_164_99bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGACGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGC").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 99
@@ -836,7 +838,7 @@ def test_1610_164_99bp():
 
 def test_1610_17_39bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 39
@@ -850,7 +852,7 @@ def test_1610_17_39bp():
 
 def test_1610_197_39bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 39
@@ -864,7 +866,7 @@ def test_1610_197_39bp():
 
 def test_1610_197_66bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAATGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 66
@@ -878,7 +880,7 @@ def test_1610_197_66bp():
 
 def test_1610_209_54bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 54
@@ -892,7 +894,7 @@ def test_1610_209_54bp():
 
 def test_1610_21_57bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 57
@@ -906,7 +908,7 @@ def test_1610_21_57bp():
 
 def test_1610_224_48bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGGGGAATTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACG").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 48
@@ -920,7 +922,7 @@ def test_1610_224_48bp():
 
 def test_1610_240_75bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTT").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 75
@@ -934,7 +936,7 @@ def test_1610_240_75bp():
 
 def test_1610_281_54bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATAGGAGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 54
@@ -948,7 +950,7 @@ def test_1610_281_54bp():
 
 def test_1610_49_45bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTAC").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 45
@@ -962,7 +964,7 @@ def test_1610_49_45bp():
 
 def test_1610_52_54bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 54
@@ -976,7 +978,7 @@ def test_1610_52_54bp():
 
 def test_1610_6_54bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAAGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 54
@@ -990,7 +992,7 @@ def test_1610_6_54bp():
 
 def test_1610_86_45bp():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCCGACCGGAAAAATGGTCGGTCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTAC").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 45
@@ -1007,7 +1009,7 @@ def test_1610_86_45bp():
 
 def test_1610_111_39bp_02():
     read = getitd.Read(seq="ACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCAT").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 39
@@ -1021,7 +1023,7 @@ def test_1610_111_39bp_02():
 
 def test_1610_111_60bp_02():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCT").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 60
@@ -1035,7 +1037,7 @@ def test_1610_111_60bp_02():
 
 def test_1610_189_87bp_04():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATCCCACCGGGTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTG").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 87
@@ -1049,7 +1051,7 @@ def test_1610_189_87bp_04():
 
 def test_1610_232_42bp_02():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTGGTCCCTTCCTTAGTGAAGGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 42
@@ -1063,7 +1065,7 @@ def test_1610_232_42bp_02():
 
 def test_1610_232_60bp_03():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAGCCACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCT").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     assert insert.length == 60
@@ -1077,7 +1079,7 @@ def test_1610_232_60bp_03():
 
 def test_1610_264_198bp_03():
     read = getitd.Read(seq="AACAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAGCCACAGGTGACCGGCTCCTCA").align(config).get_ref_span()
-    inserts = read.get_inserts()
+    inserts = read.get_inserts(config)
     assert len(inserts) == 1
     insert = inserts[0]
     itd = insert.get_itd(config)
@@ -1087,3 +1089,20 @@ def test_1610_264_198bp_03():
     itd.annotate("insertion_site", "protein_as", config)
     assert abs(itd.length - 198) <= 1
     assert itd.insertion_site_protein_as in ["614", "615"]
+
+def test_1610_264_198bp_04():
+    read = getitd.Read(seq="GAAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAGCCACAGGTGACCGGCTCCTCAG").align(config).get_ref_span()
+    read.print()
+    inserts = read.get_inserts(config)
+    assert len(inserts) == 1
+    insert = inserts[0]
+    insert.print()
+    itd = insert.get_itd(config)
+    itd.print()
+    assert itd is not None
+    itd = itd.prep_for_save(config)
+    itd.set_insertion_site()
+    itd.annotate("insertion_site", "protein_as", config)
+    assert abs(itd.length - 198) <= 1
+    assert itd.insertion_site_protein_as in ["614", "615"]
+
