@@ -528,18 +528,10 @@ class Insert(object):
             self (Insert) with self.trailing (bool) and self.trailing_end ({0,3,5}) set.
         """
         readn = np.array(list(self.reads[0].al_seq))
-        print("read:")
-        self.reads[0].print()
-        print("insert:")
-        self.print()
 
         if self.sense == {1}:
             three_prime_of_ins = readn[self.end+1:]
-            print("three_prime_of_ins")
-            print(three_prime_of_ins)
             number_of_aligned_trailing_bp = len(three_prime_of_ins) - sum(three_prime_of_ins == "-")
-            print("number_of_aligned_trailing_bp")
-            print(number_of_aligned_trailing_bp)
 
             if number_of_aligned_trailing_bp <= config["MAX_TRAILING_BP"]:
                 self.trailing = True
