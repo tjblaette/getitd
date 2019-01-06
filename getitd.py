@@ -358,6 +358,90 @@ class Read(object):
                         inserts.append(insert)
         return inserts
 
+    def print_alignment(read, config):
+        """
+        Print read-to-reference alignment in a nice format, inspired by EMBOSS needle output.
+
+        Args:
+            read (Read): Read whose alignment will be printed.
+            config (dict): Contains alignment costs and output folder name.
+        """
+        al = connect_alignment(read.al_seq, read.al_ref)
+        al_len = len(read.al_seq)
+
+        command = 'bio.align.globalcs'
+        command_seq = 'read.seq'
+        command_ref = 'REF'
+        command_score_function = "get_alignment_score"
+
+        width = 50
+        pre_width = 20
+        post_width = 7
+        score_width = 15
+
+        with open(os.path.join(config["OUT_NEEDLE"], read.al_file), 'w') as f:
+            f.write('########################################\n')
+            f.write('# Program: Biopython\n')
+            f.write('# Rundate: {}\n'.format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%d")))
+            f.write('# Commandline: {}(\n'.format(command))
+            f.write('#    {},\n'.format(command_seq))
+            f.write('#    {},\n'.format(command_ref))
+            f.write('#    {},\n'.format(command_score_function))
+            f.write('#    {},\n'.format(config["COST_GAPOPEN"]))
+            f.write('#    {})\n'.format(config["COST_GAPEXTEND"]))
+            f.write('# Align_format: srspair\n')
+            f.write('# Report_file: {}\n'.format(read.al_file))
+            f.write('########################################\n')
+            f.write('\n')
+            f.write('#=======================================\n')
+            f.write('#\n')
+            f.write('# Aligned_sequences: 2\n')
+            f.write('# Sample: {}\n'.format(''.join([x for x in read.al_seq if x != '-'])))
+            f.write('# Reference: {}\n'.format(''.join([x for x in read.al_ref if x != '-']).lower()))
+            f.write('# Matrix: EDNAFULL\n')
+            f.write('# Gap_penalty: {}\n'.format(config["COST_GAPOPEN"]))
+            f.write('# Extend_penalty: {}\n'.format(config["COST_GAPEXTEND"]))
+            f.write('#\n')
+            f.write('# Length: {}\n'.format(al_len))
+            identity = '{}/{} ({}%)\n'.format(
+                al.count('|'),
+                al_len,
+                round(al.count('|') / al_len * 100, 1))
+            similarity = '{}/{} ({}%)\n'.format(
+                al.count('|') + al.count('.'),
+                al_len,
+                round((al.count('|') + al.count('.')) / al_len * 100, 1))
+            gaps = '{}/{} ({}%)\n'.format(
+                al_len - al.count('|') - al.count('.'),
+                al_len,
+                round((al_len - al.count('|') - al.count('.')) / al_len * 100,1))
+            f.write('# Identity:     {}'.format(' ' * (score_width - len(identity)) + identity))
+            f.write('# Similarity:   {}'.format(' ' * (score_width - len(similarity)) + similarity))
+            f.write('# Gaps:         {}'.format(' ' * (score_width - len(gaps)) + gaps))
+            f.write('# Score: {}\n'.format(read.al_score))
+            f.write('#\n')
+            f.write('#\n')
+            f.write('#=======================================\n')
+            f.write('\n')
+
+            # split alignment strings into per-line chunks for pretty printing
+            alignment_chunks = [(
+                    read.al_seq[i:i+width],
+                    al[i:i+width],
+                    read.al_ref[i:i+width])
+                    for i in range(0, al_len, width)]
+            seq_coord = 0
+            ref_coord = 0
+            for s, a, r in alignment_chunks:
+                seq_coord = print_alignment_seq(s, seq_coord,pre_width,post_width,f)
+                print_alignment_connection(a, pre_width, f)
+                ref_coord = print_alignment_seq(r, ref_coord,pre_width,post_width,f)
+                f.write('\n')
+
+            f.write('\n')
+            f.write('#---------------------------------------\n')
+            f.write('#---------------------------------------\n')
+
 
 class Insert(object):
     """
@@ -536,6 +620,36 @@ class Insert(object):
             if number_of_aligned_trailing_bp <= config["MAX_TRAILING_BP"]:
                 self.trailing = True
                 self.trailing_end = 3
+
+                # fix nearly-trailing insert alignments to make them actually trailing
+                if number_of_aligned_trailing_bp > 0:
+                    # fix supporting read    TODO: OVERWRITE ALIGNMENT FILE WITH UPDATE READ ALIGNMENT!!
+                    # -> there is only one read because this is done before merging!
+                    # --> fix read first to use self.end before changing it!
+                    self.print()
+                    self.reads[0].print()
+                    assert len(self.reads) == 1
+                    self.reads[0].al_score = self.reads[0].al_score - config["COST_MATCH"] * number_of_aligned_trailing_bp
+
+                    prev_len = len(self.reads[0].al_seq)
+                    self.reads[0].al_seq = self.reads[0].al_seq[: self.end + number_of_aligned_trailing_bp +1]  + '-' * number_of_aligned_trailing_bp + self.reads[0].al_seq[self.end + number_of_aligned_trailing_bp +1 :]
+                    assert prev_len + number_of_aligned_trailing_bp == len(self.reads[0].al_seq)
+
+                    prev_len = len(self.reads[0].al_ref)
+                    self.reads[0].al_ref = self.reads[0].al_ref[: self.end] + '-' * number_of_aligned_trailing_bp + self.reads[0].al_ref[self.end :]
+                    assert prev_len + number_of_aligned_trailing_bp == len(self.reads[0].al_ref)
+                    if self.reads[0].al_file is not None:
+                        self.reads[0].print_alignment(config)
+
+                    # fix insert
+                    self.seq = self.seq + ''.join(three_prime_of_ins[:number_of_aligned_trailing_bp])
+                    assert len(three_prime_of_ins[:number_of_aligned_trailing_bp]) == number_of_aligned_trailing_bp
+                    self.end = self.end + number_of_aligned_trailing_bp
+                    self.length = self.end - self.start +1
+
+                    self.print()
+                    self.reads[0].print()
+
                 return self
 
         if self.sense == {-1}:
@@ -545,6 +659,39 @@ class Insert(object):
             if number_of_aligned_trailing_bp <= config["MAX_TRAILING_BP"]:
                 self.trailing = True
                 self.trailing_end = 5
+
+                # fix nearly-trailing insert alignments to make them actually trailing
+                if number_of_aligned_trailing_bp > 0:
+                    # fix supporting read 
+                    # -> there is only one read because this is done before merging!
+                    # --> fix read first to use self.end before changing it!
+                    self.print()
+                    self.reads[0].print()
+                    assert len(self.reads) == 1
+                    self.reads[0].al_score = self.reads[0].al_score - config["COST_MATCH"] * number_of_aligned_trailing_bp
+
+                    prev_len = len(self.reads[0].al_seq)
+                    self.reads[0].al_seq = self.reads[0].al_seq[: self.start - number_of_aligned_trailing_bp]  + '-' * number_of_aligned_trailing_bp + self.reads[0].al_seq[self.start - number_of_aligned_trailing_bp :]
+                    assert prev_len + number_of_aligned_trailing_bp == len(self.reads[0].al_seq)
+
+                    prev_len = len(self.reads[0].al_ref)
+                    self.reads[0].al_ref = self.reads[0].al_ref[: self.start] + '-' * number_of_aligned_trailing_bp + self.reads[0].al_ref[self.start :]
+                    assert prev_len + number_of_aligned_trailing_bp == len(self.reads[0].al_ref)
+                    if self.reads[0].al_file is not None:
+                        self.reads[0].print_alignment(config)
+
+                    # fix insert
+                    print(self.seq)
+                    print(number_of_aligned_trailing_bp)
+                    print(five_prime_of_ins)
+                    self.seq = ''.join(five_prime_of_ins[-number_of_aligned_trailing_bp :]) + self.seq
+                    assert len(five_prime_of_ins[-number_of_aligned_trailing_bp :]) == number_of_aligned_trailing_bp
+                    self.start = self.start - number_of_aligned_trailing_bp
+                    self.length = self.end - self.start +1
+
+                    self.print()
+                    self.reads[0].print()
+
                 return self
 
         self.trailing = False
@@ -590,7 +737,7 @@ class Insert(object):
                     # --> revert trailing to be able to apply more stringent filters of non-trailing inserts
                     if self.trailing and (offset == 1 or offset == self.length - 1):
                         self.trailing = False
-                        print("UNTRAILED: {}".format(vars(read)))
+                        print("UNTRAILED: {}".format(vars(self.reads[0])))
                         if self.length % 3 != 0:
                             print("BUT NOT IN FRAME!!!")
                             return None
@@ -1113,90 +1260,6 @@ def print_alignment_seq(seq, seq_coord, pre_width, post_width, f):
     f.write(' ' * (post_width - get_number_of_digits(seq_coord)))
     f.write(str(seq_coord) + '\n')
     return seq_coord
-
-def print_alignment(read, out_dir, config):
-    """
-    Print read-to-reference alignment in a nice format, inspired by EMBOSS needle output.
-
-    Args:
-        read (Read): Read whose alignment will be printed.
-        out_dir (str): Name of output directory to save alignment files to.
-    """
-    al = connect_alignment(read.al_seq, read.al_ref)
-    al_len = len(read.al_seq)
-
-    command = 'bio.align.globalcs'
-    command_seq = 'read.seq'
-    command_ref = 'REF'
-    command_score_function = "get_alignment_score"
-
-    width = 50
-    pre_width = 20
-    post_width = 7
-    score_width = 15
-
-    with open(os.path.join(out_dir,read.al_file), 'w') as f:
-        f.write('########################################\n')
-        f.write('# Program: Biopython\n')
-        f.write('# Rundate: {}\n'.format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%d")))
-        f.write('# Commandline: {}(\n'.format(command))
-        f.write('#    {},\n'.format(command_seq))
-        f.write('#    {},\n'.format(command_ref))
-        f.write('#    {},\n'.format(command_score_function))
-        f.write('#    {},\n'.format(config["COST_GAPOPEN"]))
-        f.write('#    {})\n'.format(config["COST_GAPEXTEND"]))
-        f.write('# Align_format: srspair\n')
-        f.write('# Report_file: {}\n'.format(read.al_file))
-        f.write('########################################\n')
-        f.write('\n')
-        f.write('#=======================================\n')
-        f.write('#\n')
-        f.write('# Aligned_sequences: 2\n')
-        f.write('# Sample: {}\n'.format(''.join([x for x in read.al_seq if x != '-'])))
-        f.write('# Reference: {}\n'.format(''.join([x for x in read.al_ref if x != '-']).lower()))
-        f.write('# Matrix: EDNAFULL\n')
-        f.write('# Gap_penalty: {}\n'.format(config["COST_GAPOPEN"]))
-        f.write('# Extend_penalty: {}\n'.format(config["COST_GAPEXTEND"]))
-        f.write('#\n')
-        f.write('# Length: {}\n'.format(al_len))
-        identity = '{}/{} ({}%)\n'.format(
-            al.count('|'),
-            al_len,
-            round(al.count('|') / al_len * 100, 1))
-        similarity = '{}/{} ({}%)\n'.format(
-            al.count('|') + al.count('.'),
-            al_len,
-            round((al.count('|') + al.count('.')) / al_len * 100, 1))
-        gaps = '{}/{} ({}%)\n'.format(
-            al_len - al.count('|') - al.count('.'),
-            al_len,
-            round((al_len - al.count('|') - al.count('.')) / al_len * 100,1))
-        f.write('# Identity:     {}'.format(' ' * (score_width - len(identity)) + identity))
-        f.write('# Similarity:   {}'.format(' ' * (score_width - len(similarity)) + similarity))
-        f.write('# Gaps:         {}'.format(' ' * (score_width - len(gaps)) + gaps))
-        f.write('# Score: {}\n'.format(read.al_score))
-        f.write('#\n')
-        f.write('#\n')
-        f.write('#=======================================\n')
-        f.write('\n')
-
-        # split alignment strings into per-line chunks for pretty printing
-        alignment_chunks = [(
-                read.al_seq[i:i+width],
-                al[i:i+width],
-                read.al_ref[i:i+width])
-                for i in range(0, al_len, width)]
-        seq_coord = 0
-        ref_coord = 0
-        for s, a, r in alignment_chunks:
-            seq_coord = print_alignment_seq(s, seq_coord,pre_width,post_width,f)
-            print_alignment_connection(a, pre_width, f)
-            ref_coord = print_alignment_seq(r, ref_coord,pre_width,post_width,f)
-            f.write('\n')
-
-        f.write('\n')
-        f.write('#---------------------------------------\n')
-        f.write('#---------------------------------------\n')
 
 
 def get_alignment_score(char1,char2, config):
@@ -1731,6 +1794,7 @@ def main(config):
 
     # PROCESS INPUTS
     config["OUT_DIR"] = '_'.join([config["SAMPLE"], "getitd"])
+    config["OUT_NEEDLE"] = os.path.join(config["OUT_DIR"],'out_needle')
     config["STATS_FILE"] = os.path.join(config["OUT_DIR"], "stats.txt")
     config["CONFIG_FILE"] = os.path.join(config["OUT_DIR"], "config.txt")
 
@@ -1821,13 +1885,12 @@ def main(config):
 
     # PRINT PASSING ALIGNMENTS
     # create output file directory for alignments print-outs
-    needle_dir = os.path.join(config["OUT_DIR"],'out_needle')
-    if not os.path.exists(needle_dir):
-        os.makedirs(needle_dir)
+    if not os.path.exists(config["OUT_NEEDLE"]):
+        os.makedirs(config["OUT_NEEDLE"])
 
     for i,read in enumerate(reads):
         reads[i].al_file = 'needle_{}.txt'.format(i)
-        print_alignment(reads[i], needle_dir, config)
+        reads[i].print_alignment(config)
 
     if not reads:
         save_stats("\nNO READS TO PROCESS!", config["STATS_FILE"])
