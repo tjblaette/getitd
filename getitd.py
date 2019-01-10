@@ -612,6 +612,8 @@ class Insert(object):
             self (Insert) with self.trailing (bool) and self.trailing_end ({0,3,5}) set.
         """
         readn = np.array(list(self.reads[0].al_seq))
+        if self.reads[0].seq == "TTTTTCTCTGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAGGTACTAGGATCAGGTGCTTTTGGAAAAGTGATGAACGCAACAGCTTATGGAATTAGCAAAACAGGAGTCTCAATCCAGGTTGCCGTCAAAATGCTGAAAGT":
+            print("Hickup read before fix nearly-trailing")
 
         if self.sense == {1}:
             three_prime_of_ins = readn[self.end+1:]
@@ -686,7 +688,27 @@ class Insert(object):
                     print(five_prime_of_ins)
                     self.seq = ''.join(five_prime_of_ins[-number_of_aligned_trailing_bp :]) + self.seq
                     assert len(five_prime_of_ins[-number_of_aligned_trailing_bp :]) == number_of_aligned_trailing_bp
-                    self.start = self.start - number_of_aligned_trailing_bp
+                    #self.start = self.start - number_of_aligned_trailing_bp
+                    # start / preceding WT base does not actually change from
+#
+#                    0 --------------------------------------------------      0
+#                                                                        
+#                    1 GCAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCT     50
+#
+#                    1 -------------------------------------TTTTTCTCTGAAT     13
+#                                                                    ||||
+#                   51 CAGATAATGAGTACTTCTACGTTGATTTCAGAGAATAT--------GAAT     92
+#
+#                   to:
+#
+#                    0 --------------------------------------------------      0
+#                                                                        
+#                    1 GCAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCT     50
+#
+#                    1 --------------------------------------TTTTTCTCTGAA     12
+#                                                                     |||
+#                   51 CAGATAATGAGTACTTCTACGTTGATTTCAGAGAATAT---------GAA     91
+
                     self.length = self.end - self.start +1
 
                     self.print()
@@ -1041,8 +1063,25 @@ class ITD(Insert):
         """
         to_save = copy.deepcopy(self)
         to_save = to_save.fix_trailing_length()
-        to_save.start = to_save.tandem2_start
-        to_save.end = to_save.start + to_save.length - 1
+        if to_save.trailing_end == 5 and to_save.start > to_save.tandem2_start:
+            print("HOW DID THIS HAPPEN??")
+            to_save.print()
+            to_save.reads[0].print()
+        if to_save.start < to_save.tandem2_start and not to_save.trailing:
+            print("OR HOW CAN THIS BE?")
+            to_save.print()
+            to_save.reads[0].print()
+        if to_save.trailing_end == 5 and to_save.start < to_save.tandem2_start: # start should always be < tandem2_start for 5' trailing ITDs?!
+            to_save.print()
+            to_save.reads[0].print()
+            print("WT tandem: {}".format(config["REF"][to_save.tandem2_start:to_save.tandem2_start + len(to_save.seq)]))
+            to_save.end = to_save.tandem2_start + len(to_save.seq)
+            to_save.start = to_save.end - to_save.length +1
+            to_save.print()
+            print(config["REF"][to_save.start:to_save.end])
+        else:
+            to_save.start = to_save.tandem2_start
+            to_save.end = to_save.start + to_save.length - 1
         if to_save.end > len(config["REF"]):
             self.print()
             self.reads[0].print()
@@ -1794,7 +1833,7 @@ def main(config):
 
     # PROCESS INPUTS
     config["OUT_DIR"] = '_'.join([config["SAMPLE"], "getitd"])
-    config["OUT_NEEDLE"] = os.path.join(config["OUT_DIR"],'out_needle')
+    config["OUT_NEEDLE"] = 'out_needle'
     config["STATS_FILE"] = os.path.join(config["OUT_DIR"], "stats.txt")
     config["CONFIG_FILE"] = os.path.join(config["OUT_DIR"], "config.txt")
 
