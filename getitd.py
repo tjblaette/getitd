@@ -626,9 +626,6 @@ class Insert(object):
                     # fix supporting read
                     # -> there is only one read because this is done before merging!
                     # --> fix read first to use self.end before changing it!
-#                    print("PRE-FIX of Insert + supp. reads:")
-#                    self.print()
-#                    self.reads[0].print()
                     assert len(self.reads) == 1
                     self.reads[0].al_score = self.reads[0].al_score - config["COST_MATCH"] * number_of_aligned_trailing_bp
 
@@ -642,30 +639,6 @@ class Insert(object):
                     if self.reads[0].al_file is not None:
                         self.reads[0].print_alignment(config)
 
-#####################
-
-                    readn = np.array(list(self.reads[0].al_seq))
-                    refn = np.array(list(self.reads[0].al_ref))
-                    assert(len(readn) == len(refn))
-
-                    # collect all inserts' alignment coords
-                    insert_idxs_list = get_gaps(self.reads[0].al_ref)
-
-                    # check & process each insert found
-                    for insert_idxs in insert_idxs_list:
-                        if len(insert_idxs) >= 6 and "N" not in readn[insert_idxs]:
-                            insert_start = insert_idxs[0]
-                            insert_end = insert_idxs[-1]
-                            insert = Insert(
-                                seq=self.reads[0].al_seq[insert_start:insert_end+1],
-                                start=insert_start,
-                                end=insert_end,
-                                reads=[self.reads[0]],
-                                counts=self.counts)
-                            assert insert.length == len(insert_idxs)
-
-###################
-
                     # fix insert
                     self.seq = self.seq + ''.join(three_prime_of_ins[:number_of_aligned_trailing_bp])
                     assert len(three_prime_of_ins[:number_of_aligned_trailing_bp]) == number_of_aligned_trailing_bp
@@ -673,12 +646,6 @@ class Insert(object):
                     self.length = self.length + number_of_aligned_trailing_bp
                     assert self.end - self.start +1 == self.length
                     assert self.length == len(self.seq)
-
-                    if len(insert_idxs_list) == 1: # if there is one insertion only, check:
-                        assert self.start == insert.start
-                        assert self.end == insert.end
-                        assert self.length == insert.length
-                        assert self.seq == insert.seq
 
                 return self
 
@@ -696,9 +663,6 @@ class Insert(object):
                     # fix supporting read 
                     # -> there is only one read because this is done before merging!
                     # --> fix read first to use self.end before changing it!
-#                    print("PRE-FIX of Insert + supp. reads:")
-#                    self.print()
-#                    self.reads[0].print()
                     assert len(self.reads) == 1
                     self.reads[0].al_score = self.reads[0].al_score - config["COST_MATCH"] * number_of_aligned_trailing_bp
 
@@ -712,77 +676,24 @@ class Insert(object):
                     if self.reads[0].al_file is not None:
                         self.reads[0].print_alignment(config)
 
-#####################
-
-                    readn = np.array(list(self.reads[0].al_seq))
-                    refn = np.array(list(self.reads[0].al_ref))
-                    assert(len(readn) == len(refn))
-
-                    # collect all inserts' alignment coords
-                    insert_idxs_list = get_gaps(self.reads[0].al_ref)
-
-                    # check & process each insert found
-                    for insert_idxs in insert_idxs_list:
-                        if len(insert_idxs) >= 6 and "N" not in readn[insert_idxs]:
-                            insert_start = insert_idxs[0]
-                            insert_end = insert_idxs[-1]
-                            insert = Insert(
-                                seq=self.reads[0].al_seq[insert_start:insert_end+1],
-                                start=insert_start,
-                                end=insert_end,
-                                reads=[self.reads[0]],
-                                counts=self.counts)
-                            assert insert.length == len(insert_idxs)
-
-###################
-
 #                    # fix insert
-#                    print(self.seq)
-#                    print(number_of_aligned_trailing_bp)
-#                    print(five_prime_of_ins)
                     self.seq = ''.join(five_prime_of_ins[-number_of_aligned_trailing_bp :]) + self.seq
                     assert len(five_prime_of_ins[-number_of_aligned_trailing_bp :]) == number_of_aligned_trailing_bp
 
                     # start does not actually change from
-#
-#                    0 --------------------------------------------------      0
-#                                                                        
-#                    1 GCAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCT     50
-#
 #                    1 -------------------------------------TTTTTCTCTGAAT     13
 #                                                                    ||||
 #                   51 CAGATAATGAGTACTTCTACGTTGATTTCAGAGAATAT--------GAAT     92
 #
 #                   to:
-#
-#                    0 --------------------------------------------------      0
-#                                                                        
-#                    1 GCAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCT     50
-#
 #                    1 --------------------------------------TTTTTCTCTGAA     12
 #                                                                     |||
 #                   51 CAGATAATGAGTACTTCTACGTTGATTTCAGAGAATAT---------GAA     91
-#
 
-                    #self.start = self.start - number_of_aligned_trailing_bp
                     self.end = self.end + number_of_aligned_trailing_bp
                     self.length = self.length + number_of_aligned_trailing_bp
                     assert self.end - self.start +1 == self.length
                     assert self.length == len(self.seq)
-
-#                    print("FIXED insert + supp. read:")
-#                    self.print()
-#                    self.reads[0].print()
-#    
-#                    print("SHOULD be:")
-#                    insert.print()
-#                    insert.reads[0].print()
-
-                    if len(insert_idxs_list) == 1: # if there is one insertion only, check:
-                        assert self.start == insert.start
-                        assert self.end == insert.end
-                        assert self.length == insert.length
-                        assert self.seq == insert.seq
 
                 return self
 
@@ -1135,24 +1046,14 @@ class ITD(Insert):
         to_save = to_save.fix_trailing_length()
         if to_save.trailing_end == 5:
             assert to_save.start < to_save.tandem2_start
-#            print("save 5prime ITD:")
-#            to_save.print()
-#            to_save.reads[0].print()
-#            print("WT tandem: {}".format(config["REF"][to_save.tandem2_start:to_save.tandem2_start + len(to_save.seq)]))
 
             to_save.start = to_save.start +1
             to_save.end = to_save.start + to_save.length -1 + len(to_save.seq) -1
             to_save.length = to_save.end - to_save.start +1
-            
-#            to_save.print()
-#            print(config["REF"][to_save.start:to_save.end +1])
         else:
             to_save.start = to_save.tandem2_start
             to_save.end = to_save.start + to_save.length - 1
-        if to_save.end > len(config["REF"]):
-            self.print()
-            self.reads[0].print()
-            to_save.print()
+
         assert to_save.end <= len(config["REF"])
         to_save = to_save.norm_start(config)
         to_save.start += 1
