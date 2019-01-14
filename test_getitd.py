@@ -31,7 +31,7 @@ config["ANNO_FILE"] = "./anno/amplicon_kayser.tsv"
 config["ANNO"] = getitd.read_annotation(config["ANNO_FILE"])
 config["DOMAINS"] = getitd.get_domains(config["ANNO"])
 
-config["MAX_TRAILING_BP"] = 3
+config["MAX_TRAILING_BP"] = 0
 
 getitd.config = {}
 for key in config:
@@ -1093,7 +1093,7 @@ def test_1610_264_198bp_03():
     assert abs(itd.length - 198) <= 1
     assert itd.insertion_site_protein_as in ["614", "615"]
 
-def test_1610_264_198bp_04():
+def test_1610_264_198bp_04_nonTrailingThoughShouldBeTrailingITD():
     read = getitd.Read(seq="GAAATTTAGGTATGAAAGCCAGCTACAGATGGTACAGGTGACCGGCTCCTCAGATAATGAGTACTTCTACGTTGATTTCAGAGAATATGAATATGATCTCAAATGGGAGTTTCCAAGAGAAAATTTAGAGTTTGGTAAGAATGGAATGTGCCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCACGTACTCACCATTTGTCTTTGCAGGGAAGCCACAGGTGACCGGCTCCTCAG").align(config).get_ref_span()
     read.print()
     inserts = read.get_inserts(config)
