@@ -1622,6 +1622,30 @@ def save_stats(stat, filename):
     with open(filename, "a") as f:
         f.write(stat + "\n")
 
+def str_to_bool(string):
+    """
+    Convert literal str to bool, such that
+        'True' ->  True
+        'False' -> False
+    This is required to parse boolean command line
+    arguments, which are all initially of type str.
+    Calling `bool(str)` evaluates to `True` whenever
+    the str is not empty. Thus, without this function,
+    'False' would also evaluate to `True`.
+
+    Args:
+        string (str): To be converted.
+
+    Returns:
+        Literal boolean (bool) of string.
+    """
+    if string.lower() in ('true', 'True'):
+        return True
+    elif string.lower() in ('false', 'False'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value (True or False) expected.')
+
 def parse_config_from_cmdline(config):
     """
     Get analysis parameters from commandline.
@@ -1640,7 +1664,7 @@ def parse_config_from_cmdline(config):
     parser.add_argument("-anno", help="WT amplicon sequence annotation (default ./anno/amplicon_kayser.tsv)", default="./anno/amplicon_kayser.tsv", type=str)
     parser.add_argument("-forward_primer", help="Forward primer gene-specific sequence(s) as present at the 5' end of supplied forward reads. Separate by space when supplying more than one (default GCAATTTAGGTATGAAAGCCAGCTAC)", default=["GCAATTTAGGTATGAAAGCCAGCTAC"], type=str, nargs="+")
     parser.add_argument("-reverse_primer", help="Reverse primer gene-specific sequence(s) as present at the 5' end of supplied reverse reads. Separate by space when supplying more than one (default CTTTCAGCATTTTGACGGCAACC)", default=["CTTTCAGCATTTTGACGGCAACC"], type=str, nargs="+")
-    parser.add_argument("-require_indel_free_primers", help="If True, discard reads containing insertions or deletions within the primer sequence (default True)", default=True, type=bool)
+    parser.add_argument("-require_indel_free_primers", help="If True, discard reads containing insertions or deletions within the primer sequence (default True)", default=True, type=str_to_bool)
     parser.add_argument("-forward_adapter", help="Forward reads' sequencing adapter sequence as potentially present at the 5' end of the supplied forward reads (default TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA)", default="TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA", type=str)
     parser.add_argument("-reverse_adapter", help="Reverse reads' sequencing adapter sequence as potentially present at the 5' end of the supplied reverse reads (default GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGA)", default="GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGA", type=str)
     parser.add_argument("-technology", help="Sequencing technology used, options are '454' or 'Illumina' (default)", default="Illumina", type=str, choices=['Illumina', '454'])
