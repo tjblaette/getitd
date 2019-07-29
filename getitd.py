@@ -740,9 +740,12 @@ class Insert(object):
                     # --> revert trailing to be able to apply more stringent filters of non-trailing inserts
                     if self.trailing and (offset == 1 or offset == self.length - 1):
                         self.trailing = False
-                        print("UNTRAILED: {}".format(vars(self.reads[0])))
+                        print("----")
+                        print("Corrected an ITD's initial trailing status to 'False': {}".format(vars(self.reads[0])))
                         if self.length % 3 != 0:
-                            print("BUT NOT IN FRAME!!!")
+                            print("This ITD then failed the in-frame filter applied to all non-trailing ITDs and was therefore not called.")
+                            print("Report this warning if there are too many; otherwise safely ignore.")
+                            print("----")
                             return None
                     return ITD(
                         self,
@@ -751,14 +754,17 @@ class Insert(object):
                         external_bp=abs(tandem2_start - alignment_start)
                         )
                 else:
+                    print("----")
                     if tandem2_start + offset > self.reads[0].ref_span[1]:
-                        print("Too long!")
-                    print("ITD's tandem not covered by read and therefore discarded")
-                    self.print()
-                    self.reads[0].print()
-                    print(bio.format_alignment(*alignment))
-                    print("alignment_start: {}".format(alignment_start))
-                    print("alignment_end: {}".format(alignment_end))
+                        print("Found an ITD too long for the respective read (likely false positive):")
+                    print("ITD's WT tandem is not fully covered by the read and the ITD was therefore not called.")
+                    print("Report this warning if there too many; otherwise safely ignore.")
+                    print("----")
+                    #self.print()
+                    #self.reads[0].print()
+                    #print(bio.format_alignment(*alignment))
+                    #print("alignment_start: {}".format(alignment_start))
+                    #print("alignment_end: {}".format(alignment_end))
         return None
 
 
