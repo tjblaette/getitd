@@ -128,7 +128,7 @@ Many optional parameters are available to customize the analysis:
 | `-anno X` | Path and filename of the annotation file used to retrieve chromosomal, transcriptomic and proteomic coordinates and domains for each insertion and ITD identified by getITD. Columns should be tab-separated with header _amplicon_bp_, _region_, _chr_bp_, _transcript_bp_, _protein_as_. Default: _./anno/amplicon_kayser.tsv_. | 
 | `-forward_primer X` | Gene-specific sequence(s) of the forward primer(s) used to generate the sequenced amplicon. The sequence should be identical to the 5' end of supplied forward reads. When sequencing a pool of multiple amplicons, provide information on all primer pairs used. Separate individual sequences by space. Default: _GCAATTTAGGTATGAAAGCCAGCTAC_. |
 | `-reverse_primer X` | Gene-specific sequence(s) of the reverse primer(s) used. This sequence should be identical to the 5' end of supplied reverse reads. When sequencing a pool of multiple amplicons, provide information on all primer pairs used. Separate individual sequences by space. Default: _CTTTCAGCATTTTGACGGCAACC_. |
-| `-require_indel_free_primers X` | If True, discard reads containing insertions or deletions within the primer sequence, as these indicate low sequence fidelity. Default: _True_. |
+| `-require_indel_free_primers X` | If True, discard reads containing insertions or deletions within the primer sequence, as these indicate low sequence fidelity. Note that, if set to _True_, this also filters reads not containing any primer sequence at all, so this must be set to _False_ in case primers have been trimmed. Note that adapters but not primers should be trimmed. Default: _True_. |
 | `-forward_adapter X` | Sequencing adapter of the forward reads' primer as (potentially) present at the 5' end of the supplied forward reads, 5' of the gene-specific primer sequence. Default: _TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA_. |
 | `-reverse_adapter X` | Sequencing adapter of the reverse reads' primer as (potentially) present at the 5' end of the supplied reverse reads, 5' of the gene-specific primer sequence. Default: _GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGA_. |
 | `-technology X` | Sequencing technology used, options are _454_ and _Illumina_. Currently this has no effect for Illumina data. For 454 data, the reads' sense, that is whether they are forward or reverse reads, is inferred from alignment. Default: _Illumina_. |
@@ -167,10 +167,11 @@ usage: getitd.py [-h] [-reference REFERENCE] [-anno ANNO]
                  [-reverse_adapter REVERSE_ADAPTER]
                  [-technology {Illumina,454}] [-nkern NKERN]
                  [-gap_open GAP_OPEN] [-gap_extend GAP_EXTEND] [-match MATCH]
-                 [-mismatch MISMATCH] [-minscore_inserts MINSCORE_INSERTS]
+                 [-mismatch MISMATCH] [-max_trailing_bp MAX_TRAILING_BP]
+                 [-minscore_inserts MINSCORE_INSERTS]
                  [-minscore_alignments MINSCORE_ALIGNMENTS] [-min_bqs MIN_BQS]
                  [-min_read_length MIN_READ_LENGTH]
-                 [-min_read_copies MIN_READ_COPIES]
+                 [-filter_reads FILTER_READS]
                  [-filter_ins_unique_reads FILTER_INS_UNIQUE_READS]
                  [-filter_ins_total_reads FILTER_INS_TOTAL_READS]
                  [-filter_ins_vaf FILTER_INS_VAF]
@@ -198,18 +199,20 @@ optional arguments:
                         space when supplying more than one (default
                         CTTTCAGCATTTTGACGGCAACC)
   -require_indel_free_primers REQUIRE_INDEL_FREE_PRIMERS
-                        If True, discard reads containing insertions or
-                        deletions within the primer sequence (default True)
+                        If True, discard i) reads containing insertions or
+                        deletions within the primer sequence and ii) reads not
+                        containing any primer sequence. Set to False if these
+                        have been trimmed (default True)
   -forward_adapter FORWARD_ADAPTER
-                        Forward reads' sequencing adapter sequence as
-                        potentially present at the 5' end of the supplied
-                        forward reads (default
-                        TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA)
+                        Sequencing adapter of the forward reads' primer as
+                        (potentially) present at the 5' end of the supplied
+                        forward reads, 5' of the gene-specific primer sequence
+                        (default TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA)
   -reverse_adapter REVERSE_ADAPTER
-                        Reverse reads' sequencing adapter sequence as
-                        potentially present at the 5' end of the supplied
-                        reverse reads (default
-                        GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGA)
+                        Sequencing adapter of the reverse reads' primer as
+                        (potentially) present at the 5' end of the supplied
+                        reverse reads, 5' of the gene-specific primer sequence
+                        (default GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGA)
   -technology {Illumina,454}
                         Sequencing technology used, options are '454' or
                         'Illumina' (default)
@@ -219,6 +222,13 @@ optional arguments:
                         alignment cost of gap extension (default -0.5)
   -match MATCH          alignment cost of base match (default 5)
   -mismatch MISMATCH    alignment cost of base mismatch (default -15)
+  -max_trailing_bp MAX_TRAILING_BP
+                        maximum number of aligned bp between the start / end
+                        of an insertion and the start / end of the read to
+                        consider the insertion 'trailing'. Trailing insertions
+                        are not required to be in-frame and will be considered
+                        ITDs even if the matching WT tandem is not directly
+                        adjacent. Set this to 0 to disable (default 0).
   -minscore_inserts MINSCORE_INSERTS
                         fraction of max possible alignment score required for
                         ITD detection and insert collapsing (default 0.5)
@@ -231,7 +241,7 @@ optional arguments:
   -min_read_length MIN_READ_LENGTH
                         minimum read length in bp required after N-trimming
                         (default 100)
-  -min_read_copies MIN_READ_COPIES
+  -filter_reads FILTER_READS
                         minimum number of copies of each read required for
                         processing (1 to turn filter off, 2 (default) to
                         discard unique reads)
