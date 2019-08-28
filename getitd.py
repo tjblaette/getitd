@@ -1591,7 +1591,7 @@ def get_unique_reads(reads):
         list_reads_sense = set([read.sense for read in list_reads])
         for sense in list_reads_sense:
             unique_reads.append(
-                    Read(seq=seq, sense=sense, bqs=None, counts=len(list_reads), index=list_reads_index))
+                    Read(seq=seq, sense=sense, bqs=None, counts=len([this_read for this_read in list_reads if this_read.sense == sense]), index=list_reads_index))
     return unique_reads
 
 
