@@ -126,8 +126,8 @@ Many optional parameters are available to customize the analysis:
 | --- | --- |
 | `-reference X` | Path and filename of the reference to align to. This file should contain a single line of text, namely the WT sequence of the amplicon that was processed. getITD aligns all reads to this reference and detects insertions and ITDs relative to it. Default: _./anno/amplicon.txt_. |
 | `-anno X` | Path and filename of the annotation file used to retrieve chromosomal, transcriptomic and proteomic coordinates and domains for each insertion and ITD identified by getITD. Columns should be tab-separated with header _amplicon_bp_, _region_, _chr_bp_, _transcript_bp_, _protein_as_. Default: _./anno/amplicon_kayser.tsv_. | 
-| `-forward_primer X` | Gene-specific sequence(s) of the forward primer(s) used to generate the sequenced amplicon. The sequence should be identical to the 5' end of supplied forward reads. When sequencing a pool of multiple amplicons, provide information on all primer pairs used. Separate individual sequences by space. Default: _GCAATTTAGGTATGAAAGCCAGCTAC_. |
-| `-reverse_primer X` | Gene-specific sequence(s) of the reverse primer(s) used. This sequence should be identical to the 5' end of supplied reverse reads. When sequencing a pool of multiple amplicons, provide information on all primer pairs used. Separate individual sequences by space. Default: _CTTTCAGCATTTTGACGGCAACC_. |
+| `-forward_primer X` | Gene-specific sequence(s) of the forward primer(s) used to generate the sequenced amplicon. The sequence should be identical to the 5' end of supplied forward reads. When sequencing a pool of multiple amplicons, provide information on all primer pairs used. Separate individual sequences by space. If this is the last optional parameter used, pass also " -- " to signal that what follows are not more primer sequences. Default: _GCAATTTAGGTATGAAAGCCAGCTAC_. |
+| `-reverse_primer X` | Gene-specific sequence(s) of the reverse primer(s) used. This sequence should be identical to the 5' end of supplied reverse reads. When sequencing a pool of multiple amplicons, provide information on all primer pairs used. Separate individual sequences by space. If this is the last optional parameter used, pass also " -- " to signal that what follows are not more primer sequences. Default: _CTTTCAGCATTTTGACGGCAACC_. |
 | `-require_indel_free_primers X` | If True, discard reads containing insertions or deletions within the primer sequence, as these indicate low sequence fidelity. Note that, if set to _True_, this also filters reads not containing any primer sequence at all, so this must be set to _False_ in case primers have been trimmed. Note that adapters but not primers should be trimmed. Default: _True_. |
 | `-forward_adapter X` | Sequencing adapter of the forward reads' primer as (potentially) present at the 5' end of the supplied forward reads, 5' of the gene-specific primer sequence. Default: _TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA_. |
 | `-reverse_adapter X` | Sequencing adapter of the reverse reads' primer as (potentially) present at the 5' end of the supplied reverse reads, 5' of the gene-specific primer sequence. Default: _GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGA_. |
@@ -347,12 +347,23 @@ Filtering took 0.03359447047114372 s
 #### Changing optional parameters
 To change, for example, the  number of cores used for the analysis to _2_, on Linux / MacOS instead run:
 ```
-python3 getitd.py -nkern=2 test test/test_R1.fastq test/test_R2.fastq
+python3 getitd.py -nkern 2 test test/test_R1.fastq test/test_R2.fastq
 ```
 On Windows, run:
 ```
 py -3 getitd.py -nkern=2 test test\test_R1.fastq test\test_R2.fastq
 ```
+
+#### Specifying primer sequences
+Because an arbitrary number of primer sequences can be supplied following the `-forward_primer` and `-reverse_primer` parameters, an explicit signal is required to identify the end of the given list of primer sequences. This can be either any other optional argument which reads in only one word, such as `-nkern`, or the 'empty' argument ` -- `:
+```
+python3 getitd.py -forward_primer GCAATTTAGGTATGAAAGCCAGCTAC -nkern 2 test test/test_R1.fastq test/test_R2.fastq
+```
+or
+```
+python3 getitd.py -forward_primer GCAATTTAGGTATGAAAGCCAGCTAC -- test test/test_R1.fastq test/test_R2.fastq
+```
+
 
 ### How it works
 1. Read in FASTQ files
