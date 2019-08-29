@@ -1706,10 +1706,10 @@ def parse_config_from_cmdline(config):
 
     # R2 reads are reverse-complemented prior to alignment to the WT reference sequence
     # --> reverse-complement any sequence later to be found within reverse-complemented R2 reads
-    config["FORWARD_PRIMERS"] = cmd_args.forward_primer
-    config["REVERSE_PRIMERS"] = [primer.translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1] for primer in cmd_args.reverse_primer]
-    config["FORWARD_ADAPTER"] = cmd_args.forward_adapter
-    config["REVERSE_ADAPTER"] = cmd_args.reverse_adapter.translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1]
+    config["FORWARD_PRIMERS"] = [primer.upper() for primer in cmd_args.forward_primer]
+    config["REVERSE_PRIMERS"] = [primer.upper().translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1] for primer in cmd_args.reverse_primer]
+    config["FORWARD_ADAPTER"] = cmd_args.forward_adapter.upper()
+    config["REVERSE_ADAPTER"] = cmd_args.reverse_adapter.upper().translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1]
 
     config["COST_MATCH"] = cmd_args.match
     config["COST_MISMATCH"] = -abs(cmd_args.mismatch)
