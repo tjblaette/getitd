@@ -1,4 +1,26 @@
 
+# getITD 1.2.0  2019-08-29
+
+### Rename -filter_reads to -min_read_copies
+The new name should be more intuitive and was even already
+used in some parts of the program / documentation. Now, -min_read_copies
+is used consistently throughout getITD.  Functionality is not changed.
+
+### Convert all input primer and adapter sequences to upper case
+Previously, only the reference sequence was input as uppercase but
+adapter and primer sequences were taken exactly as provided.
+Alignment of lower-case sequences would thus fail. To prevent this,
+all sequences are converted to upper-case once read into getITD.
+
+### Clarify primer sequence specification in README.md
+Note that both `-forward_primer` and `-reverse_primer` take an
+arbitrary number of primer sequences and therefore require an
+explicit signal to stop recognizing everything that follows as
+primer sequences. This can be either any other optional argument
+which reads in only a fixed number of arguments or the empty
+argument ` -- `.
+
+
 # getITD 1.1.1  2019-08-29
 
 ### Fix 1.1.0: new option -infer_sense_from_alignment was set but not used

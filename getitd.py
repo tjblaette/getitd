@@ -1673,7 +1673,7 @@ def parse_config_from_cmdline(config):
     parser.add_argument("-require_indel_free_primers", help="If True, discard i) reads containing insertions or deletions within the primer sequence and ii) reads not containing any primer sequence. Set to False if these have been trimmed (default True)", default=True, type=str_to_bool)
     parser.add_argument("-forward_adapter", help="Sequencing adapter of the forward reads' primer as (potentially) present at the 5' end of the supplied forward reads, 5' of the gene-specific primer sequence (default TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA)", default="TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA", type=str)
     parser.add_argument("-reverse_adapter", help="Sequencing adapter of the reverse reads' primer as (potentially) present at the 5' end of the supplied reverse reads, 5' of the gene-specific primer sequence (default GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGA)", default="GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGA", type=str)
-    parser.add_argument("-technology", help="Sequencing technology used, options are '454' or 'Illumina' (default). '454' sets -infer_sense_from_alignment to True and -filter_reads to 1, regardless of the respective command line options used; 'Illumina' will instead use these command line options or their respective defaults.", default="Illumina", type=str, choices=['Illumina', '454'])
+    parser.add_argument("-technology", help="Sequencing technology used, options are '454' or 'Illumina' (default). '454' sets -infer_sense_from_alignment to True and -min_read_copies to 1, regardless of the respective command line options used; 'Illumina' will instead use these command line options or their respective defaults.", default="Illumina", type=str, choices=['Illumina', '454'])
     parser.add_argument("-infer_sense_from_alignment", help="If True, infer each read's sense by aligning it as a forward and reverse read and keeping the better alignment (default False).", default=False, type=str_to_bool)
     parser.add_argument('-nkern', help="number of cores to use for parallel tasks (default 12)", default="12", type=int)
     parser.add_argument('-gap_open', help="alignment cost of gap opening (default -36)", default="-36", type=int)
@@ -1685,7 +1685,7 @@ def parse_config_from_cmdline(config):
     parser.add_argument('-minscore_alignments', help="fraction of max possible alignment score required for a read to pass when aligning reads to amplicon reference (default 0.5)", default="0.5", type=float)
     parser.add_argument("-min_bqs", help="minimum average base quality score (BQS) required by each read (default 30)", type=int, default=30)
     parser.add_argument('-min_read_length', help="minimum read length in bp required after N-trimming (default 100)", default="100", type=int)
-    parser.add_argument('-filter_reads', help="minimum number of copies of each read required for processing (1 to turn filter off, 2 (default) to discard unique reads)", default="2", type=int)
+    parser.add_argument('-min_read_copies', help="minimum number of copies of each read required for processing (1 to turn filter off, 2 (default) to discard unique reads)", default="2", type=int)
     parser.add_argument('-filter_ins_unique_reads', help="minimum number of unique reads required to support an insertion for it to be considered 'high confidence' (default 2)", default="2", type=int)
     parser.add_argument('-filter_ins_total_reads', help="minimum number of total reads required to support an insertion for it to be considered 'high confidence' (default 1)", default="1", type=int)
     parser.add_argument('-filter_ins_vaf', help="minimum variant allele frequency (VAF) required for an insertion to be considered 'high confidence' (default 0.006)", default="0.006", type=float)
@@ -1723,7 +1723,7 @@ def parse_config_from_cmdline(config):
     if config["TECH"] == "454":
         config["MIN_READ_COPIES"] = 1
     else:
-        config["MIN_READ_COPIES"] = cmd_args.filter_reads
+        config["MIN_READ_COPIES"] = cmd_args.min_read_copies
     config["REQUIRE_INDEL_FREE_PRIMERS"] = cmd_args.require_indel_free_primers
     config["MAX_TRAILING_BP"] = cmd_args.max_trailing_bp
 
