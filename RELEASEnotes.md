@@ -1,4 +1,10 @@
 
+# getITD 1.1.1  2019-08-29
+
+### Fix 1.1.0: new option -infer_sense_from_alignment was set but not used
+The new option is now used.
+
+
 # getITD 1.1.0  2019-08-29
 
 ### Add / Change command line options -infer_sense_from_alignment & -technology

@@ -215,7 +215,7 @@ class Read(object):
         if alignment:
             self.al_seq, self.al_ref, self.al_score = alignment[-1][0:3]
 
-        if config["TECH"] == '454':
+        if config["INFER_SENSE_FROM_ALIGNMENT"]:
             rev = self.reverse_complement()
             rev_alignment = bio.align.globalds(rev.seq, config["REF"], config["COST_ALIGNED"],
                 config["COST_GAPOPEN"], config["COST_GAPEXTEND"], penalize_end_gaps=False)
