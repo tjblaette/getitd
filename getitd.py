@@ -1673,7 +1673,8 @@ def parse_config_from_cmdline(config):
     parser.add_argument("-require_indel_free_primers", help="If True, discard i) reads containing insertions or deletions within the primer sequence and ii) reads not containing any primer sequence. Set to False if these have been trimmed (default True)", default=True, type=str_to_bool)
     parser.add_argument("-forward_adapter", help="Sequencing adapter of the forward reads' primer as (potentially) present at the 5' end of the supplied forward reads, 5' of the gene-specific primer sequence (default TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA)", default="TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA", type=str)
     parser.add_argument("-reverse_adapter", help="Sequencing adapter of the reverse reads' primer as (potentially) present at the 5' end of the supplied reverse reads, 5' of the gene-specific primer sequence (default GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGA)", default="GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGA", type=str)
-    parser.add_argument("-technology", help="Sequencing technology used, options are '454' or 'Illumina' (default)", default="Illumina", type=str, choices=['Illumina', '454'])
+    parser.add_argument("-technology", help="Sequencing technology used, options are '454' or 'Illumina' (default). '454' sets -infer_sense_from_alignment to True and -filter_reads to 1, regardless of the respective command line options used; 'Illumina' will instead use these command line options or their respective defaults.", default="Illumina", type=str, choices=['Illumina', '454'])
+    parser.add_argument("-infer_sense_from_alignment", help="If True, infer each read's sense by aligning it as a forward and reverse read and keeping the better alignment (default False).", default=False, type=str_to_bool)
     parser.add_argument('-nkern', help="number of cores to use for parallel tasks (default 12)", default="12", type=int)
     parser.add_argument('-gap_open', help="alignment cost of gap opening (default -36)", default="-36", type=int)
     parser.add_argument('-gap_extend', help="alignment cost of gap extension (default -0.5)", default="-0.5", type=float)
@@ -1698,6 +1699,10 @@ def parse_config_from_cmdline(config):
     config["REF_FILE"] = cmd_args.reference
     config["ANNO_FILE"] = cmd_args.anno
     config["TECH"] = cmd_args.technology
+    if config["TECH"] == "454":
+        config["INFER_SENSE_FROM_ALIGNMENT"] = True
+    else:
+        config["INFER_SENSE_FROM_ALIGNMENT"] = cmd_args.infer_sense_from_alignment
 
     # R2 reads are reverse-complemented prior to alignment to the WT reference sequence
     # --> reverse-complement any sequence later to be found within reverse-complemented R2 reads
@@ -1715,7 +1720,10 @@ def parse_config_from_cmdline(config):
 
     config["MIN_BQS"] = cmd_args.min_bqs
     config["MIN_READ_LENGTH"] = cmd_args.min_read_length
-    config["MIN_READ_COPIES"] = cmd_args.filter_reads
+    if config["TECH"] == "454":
+        config["MIN_READ_COPIES"] = 1
+    else:
+        config["MIN_READ_COPIES"] = cmd_args.filter_reads
     config["REQUIRE_INDEL_FREE_PRIMERS"] = cmd_args.require_indel_free_primers
     config["MAX_TRAILING_BP"] = cmd_args.max_trailing_bp
 
@@ -1895,6 +1903,8 @@ def main(config):
 
     ## ALIGN TO REF
     save_stats("\n-- Aligning to Reference --", config["STATS_FILE"])
+    if config["INFER_SENSE_FROM_ALIGNMENT"]:
+        save_stats("Inferring sense from alignment!", config["STATS_FILE"])
     start_time = timeit.default_timer()
     reads = parallelize(Read.align, reads, config["NKERN"])
     print("Alignment took {} s".format(timeit.default_timer() - start_time))

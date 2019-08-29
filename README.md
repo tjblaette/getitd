@@ -1,4 +1,4 @@
-# getITD v1.0.2
+# getITD v1.1.0
 
 getITD for FLT3-ITD-based MRD monitoring in AML                                                                             
 https://doi.org/10.1038/s41375-019-0483-z
@@ -131,7 +131,8 @@ Many optional parameters are available to customize the analysis:
 | `-require_indel_free_primers X` | If True, discard reads containing insertions or deletions within the primer sequence, as these indicate low sequence fidelity. Note that, if set to _True_, this also filters reads not containing any primer sequence at all, so this must be set to _False_ in case primers have been trimmed. Note that adapters but not primers should be trimmed. Default: _True_. |
 | `-forward_adapter X` | Sequencing adapter of the forward reads' primer as (potentially) present at the 5' end of the supplied forward reads, 5' of the gene-specific primer sequence. Default: _TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA_. |
 | `-reverse_adapter X` | Sequencing adapter of the reverse reads' primer as (potentially) present at the 5' end of the supplied reverse reads, 5' of the gene-specific primer sequence. Default: _GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGA_. |
-| `-technology X` | Sequencing technology used, options are _454_ and _Illumina_. Currently this has no effect for Illumina data. For 454 data, the reads' sense, that is whether they are forward or reverse reads, is inferred from alignment. Default: _Illumina_. |
+| `-technology X` | Sequencing technology used, options are _454_ and _Illumina_. Currently this has no effect for Illumina data. For 454 data, -infer_sense_from_alignment is set to True and -filter_reads is set to 1, command line options passed to these parameters are then ignored. Default: _Illumina_. |
+| `-infer_sense_from_alignment X` | If True, infer each read's sense from alignment by aligning both its actual sequence as well as its reverse-complement and keeping whichever achieves the higher mapping score to the reference. If False, infer each read's sense from the file of origin (R1 vs R2 FASTQ). Default: False. |
 | `-nkern X` | The number of cores to use for parallel tasks. Set to 1 to disable parallelization. Default: _12_. |
 | `-gap_open X` | Alignment cost of a gap opening. Default: _-36_ |
 | `-gap_extend X` | Alignment cost of a gap extension. Default: _-0.5_ |
@@ -141,7 +142,7 @@ Many optional parameters are available to customize the analysis:
 | `-minscore_alignments X` | Fraction of the maximum possible alignment score required between each read and the reference. Reads that do not pass this filter are discarded to eliminate low fidelity sequences. Default: _0.5_. |
 | `-min_bqs X` | Minimum average base quality score (BQS) required by each read. Reads that do not pass this filter are discarded to eliminate sequences likely to contain sequencing errors. Default: _30_. |
 | `-min_read_length X` | Minimum read length required by each read. This filter is applied after trailing _N_ bases are trimmed at both the 5' and 3' end. Reads that do not pass this filter are discarded. Default: _100_. |
-| `-min_read_copies X` | Minimum number of copies of each read required for processing. When set to _2_, all unique read sequences are discarded, based on the assumption that _true_ and _clinically relevant_ sequences will be present at least twice. Disable this filter, by setting it to _1_, when not all reads have the same length as it will otherwise incorrectly discard the majority of input reads. Default: _2_. | 
+| `-filter_reads X` | Minimum number of copies of each read required for processing. When set to _2_, all unique read sequences are discarded, based on the assumption that _true_ and _clinically relevant_ sequences will be present at least twice. Disable this filter, by setting it to _1_, when not all reads have the same length as it will otherwise incorrectly discard the majority of input reads. Default: _2_. |
 | `-filter_ins_unique_reads X` | Minimum number of unique supporting reads required for an insertion / ITD to be considered _high confidence_. Disable this filter by setting it to _1_. Default: _2_. | 
 | `-filter_ins_total_reads X` | Minimum number of total supporting reads required for an insertion / ITD to be considered _high confidence_. Default: _1_ (disabled). |
 | `-filter_ins_vaf X` | Minimum variant allele frequency (VAF), in percent, required for an insertion / ITD to be considered _high confidence_. |
