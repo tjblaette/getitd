@@ -91,7 +91,7 @@ class Read(object):
                 self,
                 seq,
                 index=None,
-                sense=1,
+                sense=None,
                 bqs=None,
                 index_bqs=None,
                 counts=1,
@@ -155,9 +155,7 @@ class Read(object):
         rev.seq = self.seq.translate(str.maketrans('ATCGatcg','TAGCtagc'))[::-1]
         if self.bqs:
             rev.bqs = self.bqs[::-1]
-        if not self.sense:
-            rev.sense = -1
-        else:
+        if self.sense:
             rev.sense = self.sense * -1
         return rev
 
@@ -214,6 +212,8 @@ class Read(object):
                 config["COST_GAPOPEN"], config["COST_GAPEXTEND"], penalize_end_gaps=False)
         if alignment:
             self.al_seq, self.al_ref, self.al_score = alignment[-1][0:3]
+            if not self.sense:
+                self.sense = 1
 
         if config["INFER_SENSE_FROM_ALIGNMENT"]:
             rev = self.reverse_complement()
@@ -222,6 +222,8 @@ class Read(object):
             if (rev_alignment and
                     (self.al_score is None or rev_alignment[-1][2] > self.al_score)):
                 rev.al_seq, rev.al_ref, rev.al_score = rev_alignment[-1][0:3]
+                if not rev.sense:
+                    rev.sense = -1
                 return rev
         return self
 
@@ -1355,7 +1357,7 @@ def read_fastq(fastq_file):
                 read_desc = f.readline()
                 read_bqs = f.readline().rstrip(os.linesep)
                 assert len(read_seq) == len(read_bqs)
-                reads.append(Read(seq=read_seq, index=read_index, bqs=read_bqs, sense=1))
+                reads.append(Read(seq=read_seq, index=read_index, bqs=read_bqs))
                 line = f.readline()
                 read_index += 1
     # catch missing file or permissions
@@ -1747,13 +1749,22 @@ def get_reads(config):
     save_stats("-- Reading FASTQ files --", config["STATS_FILE"])
     start_time = timeit.default_timer()
     reads = read_fastq(config["R1"])
+    # if sense is to be set based on file of origin, set now
+    if not config["INFER_SENSE_FROM_ALIGNMENT"]:
+        for read in reads:
+            read.sense = 1
 
     # IF IT EXISTS:
     # --> reverse-complement R2 reads so that all reads can be aligned to the same reference
     if config["R2"]:
         reads_rev = read_fastq(config["R2"])
-        reads_rev_rev = parallelize(Read.reverse_complement, reads_rev, config["NKERN"])
-        reads = reads + reads_rev_rev
+        # if sense is to be set based on file of origin,
+        #   rev-complement reads and set sense accordingly
+        if not config["INFER_SENSE_FROM_ALIGNMENT"]:
+            reads_rev = parallelize(Read.reverse_complement, reads_rev, config["NKERN"])
+            for read in reads_rev:
+                read.sense = -1
+        reads = reads + reads_rev
     print("Reading FASTQ files took {} s".format(timeit.default_timer() - start_time))
     save_stats("Number of total reads: {}".format(len(reads)), config["STATS_FILE"])
     return reads
