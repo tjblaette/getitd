@@ -1,4 +1,14 @@
 
+# getITD 1.2.2  2019-10-29
+
+### Add recently added config params to make_getitd_config.py
+The parameters `-infer_sense_from_alignment` and `-max_trailing_bp`
+had been missing from the `make_getitd_config.py` script, causing
+getITD to fail when run via `getitd_from_config_wrapper.py`.
+Parameters are now included and the config wrappers are again
+functional.
+
+
 # getITD 1.2.1  2019-09-05
 
 ### Fix -infer_sense_from_alignment
