@@ -29,9 +29,11 @@ if __name__ == "__main__":
             "MIN_UNIQUE_READS",
             "MIN_VAF",
             "TECH",
+            "INFER_SENSE_FROM_ALIGNMENT",
             "FORWARD_PRIMERS",
             "REVERSE_PRIMERS",
             "REQUIRE_INDEL_FREE_PRIMERS",
+            "MAX_TRAILING_BP",
             "FORWARD ADAPTER",
             "REVERSE ADAPTER"
             ]
@@ -55,9 +57,11 @@ if __name__ == "__main__":
             "2",
             "0.006",
             "Illumina",
+            "False",
             "GCAATTTAGGTATGAAAGCCAGCTAC",
             "CTTTCAGCATTTTGACGGCAACC",
             "True",
+            "0",
             "TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA",
             "GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGA"
             ]
