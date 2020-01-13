@@ -290,7 +290,7 @@ class Read(object):
     def contains_indel_free_primer(self, config):
         """
         Check whether Read contains insertion- and deletion-free
-        primer sequences. When multiple primer sequences are 
+        primer sequences. When multiple primer sequences are
         provided, check that at least one was aligned to without
         indels.
 
@@ -567,11 +567,11 @@ class Insert(object):
          by the read)
 
         Note also: Because the alignment calculates a gap-open cost when changing from gaps in the
-        reference sequence directly to gaps in the sample sequence (or vice versa), the aligner 
+        reference sequence directly to gaps in the sample sequence (or vice versa), the aligner
         will map any final base of the insertion where bases by chance match that of the reference.
 
         For example below, the final "G" should not be mapped. Because it is mapped, the insertion
-        is no longer truly at the very 3' end of the read and therefore not actually "trailing". 
+        is no longer truly at the very 3' end of the read and therefore not actually "trailing".
         To compensate, and recognize this insertion as the ITD that it is, config["MAX_TRAILING_BP"]
         can be set > 0 to recognize insertions with at most X trailing bp mapped as "trailing"
         anyway.
@@ -594,15 +594,15 @@ class Insert(object):
                   151 CCAAATGTTTCTGCAGCATTTCTTTTCCATTGGAAAATCTTTAAAATGCA    200
 
                   201 CGTACTCACCATTTGTCTTTGCAGGGAAGCCACAGGTGACCGGCTCCTCA    250
-                      |||||||||||||||||||||||||||||                     
+                      |||||||||||||||||||||||||||||
                   201 CGTACTCACCATTTGTCTTTGCAGGGAAG---------------------    229
 
                   251 G-------------------------------------------------    251
-                      |                                                 
+                      |
                   230 GTACTAGGATCAGGTGCTTTTGGAAAAGTGATGAACGCAACAGCTTATGG    279
 
                   252 --------------------------------------------------    251
-                                                                        
+
                   280 AATTAGCAAAACAGGAGTCTCAATCCAGGTTGCCGTCAAAATGCTGAAAG    329
 
         Args:
@@ -662,7 +662,7 @@ class Insert(object):
 
                 # fix nearly-trailing insert alignments to make them actually trailing
                 if number_of_aligned_trailing_bp > 0:
-                    # fix supporting read 
+                    # fix supporting read
                     # -> there is only one read because this is done before merging!
                     # --> fix read first to use self.end before changing it!
                     assert len(self.reads) == 1
