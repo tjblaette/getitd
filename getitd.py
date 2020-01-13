@@ -760,7 +760,7 @@ class Insert(object):
                     if tandem2_start + offset > self.reads[0].ref_span[1]:
                         print("Found an ITD too long for the respective read (likely false positive):")
                     print("ITD's WT tandem is not fully covered by the read and the ITD was therefore not called.")
-                    print("Report this warning if there too many; otherwise safely ignore.")
+                    print("Report this warning if there are too many; otherwise safely ignore.")
                     print("----")
                     #self.print()
                     #self.reads[0].print()
