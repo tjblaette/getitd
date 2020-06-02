@@ -1,5 +1,4 @@
 import getitd
-import easygui
 import os
 
 
