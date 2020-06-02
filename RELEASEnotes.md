@@ -1,4 +1,13 @@
 
+# getITD 1.2.3  2020-06-02
+
+### Fix getitd_from_config.py
+The parameters `-infer_sense_from_alignment` and `-require_indel_free_primers`
+were not properly read from the provided config file and ended up being
+always set to `True`. This is now fixed, based on a previous fix already
+implemented for getITD 1.0.2.
+
+
 # getITD 1.2.2  2019-10-29
 
 ### Add recently added config params to make_getitd_config.py
