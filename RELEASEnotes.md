@@ -1,3 +1,21 @@
+# getITD 1.3.0  2020-07-30
+
+### Fix internal -minscore_alignments and -minscore_inserts mixup
+The parameter `-minscore_alignments` is supposed to define the minimum
+alignment score required between a read and the reference sequence,
+whereas `-minscore_inserts` should define the minimum alignment
+score required between two inserts or an insert and a potential WT
+tandem when determining whether two insertions/itds should be merged
+and whether an insertion qualifies as an ITD, respectively. (This is
+also how it was/is described in the README and help pages of getITD.)
+Previously, however, `minscore_alignments` had internally been used
+instead of `-minscore_inserts` when filtering insert to WT tandem alignments.
+This mixup is now fixed to match definitions in the README.
+
+Note that this only affects getITD analyses where different, non-default
+values were used for `-minscore_alignments` and `-minscore_inserts`, as
+default values for both parameters are `0.5`, and thus the same.
+
 
 # getITD 1.2.3  2020-06-02
 

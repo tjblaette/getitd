@@ -724,7 +724,7 @@ class Insert(object):
         # to print: print(bio.format_alignment(*alignment))
         alignment = alignments[-1]
         alignment_score, alignment_start, alignment_end = alignment[2:5]
-        if alignment_score >= get_min_score(self.seq, config["REF"], config["MIN_SCORE_ALIGNMENTS"]):
+        if alignment_score >= get_min_score(self.seq, config["REF"], config["MIN_SCORE_INSERTS"]):
             tandem2_start = [i for i,bp in enumerate(alignment[0]) if bp != '-'][0]
             offset = abs(tandem2_start - self.start)
             # offset = 1 for adjacent insert-tandem2
