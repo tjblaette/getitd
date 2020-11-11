@@ -13,6 +13,7 @@ dc.getcontext().prec = 5
 import pprint
 import os
 import copy
+import gzip
 
 
 def save_config(config, filename):
@@ -724,7 +725,7 @@ class Insert(object):
         # to print: print(bio.format_alignment(*alignment))
         alignment = alignments[-1]
         alignment_score, alignment_start, alignment_end = alignment[2:5]
-        if alignment_score >= get_min_score(self.seq, config["REF"], config["MIN_SCORE_ALIGNMENTS"]):
+        if alignment_score >= get_min_score(self.seq, config["REF"], config["MIN_SCORE_INSERTS"]):
             tandem2_start = [i for i,bp in enumerate(alignment[0]) if bp != '-'][0]
             offset = abs(tandem2_start - self.start)
             # offset = 1 for adjacent insert-tandem2
@@ -1349,7 +1350,7 @@ def read_fastq(fastq_file):
     reads = []
     read_index = 0
     try:
-        with open(fastq_file,'r') as f:
+        with gzip.open(fastq_file,'rt') as f:
             line = f.readline()
             while line:
                 read_id = line
@@ -1666,8 +1667,8 @@ def parse_config_from_cmdline(config):
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("sampleID", help="sample ID used as output folder prefix (REQUIRED)")
-    parser.add_argument("fastq1", help="FASTQ file of forward reads (REQUIRED)")
-    parser.add_argument("fastq2", help="FASTQ file of reverse reads (optional)", nargs="?")
+    parser.add_argument("fastq1", help="FASTQ file (gzipped) of forward reads (REQUIRED)")
+    parser.add_argument("fastq2", help="FASTQ file (gzipped)of reverse reads (optional)", nargs="?")
     parser.add_argument("-reference", help="WT amplicon sequence as reference for read alignment (default ./anno/amplicon.txt)", default="./anno/amplicon.txt", type=str)
     parser.add_argument("-anno", help="WT amplicon sequence annotation (default ./anno/amplicon_kayser.tsv)", default="./anno/amplicon_kayser.tsv", type=str)
     parser.add_argument("-forward_primer", help="Forward primer gene-specific sequence(s) as present at the 5' end of supplied forward reads. Separate by space when supplying more than one (default GCAATTTAGGTATGAAAGCCAGCTAC)", default=["GCAATTTAGGTATGAAAGCCAGCTAC"], type=str, nargs="+")
