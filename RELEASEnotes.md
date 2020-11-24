@@ -1,3 +1,16 @@
+# getITD 1.4.0  2020-11-24
+
+### Allow (optionally) gzipped FASTQ files as input
+Previously, all FASTQ files had to be uncompressed before they could
+be analyzed by getITD. Thanks to @methylnick, getITD can now also
+process compressed gzipped files directly.
+
+Note that none of the commands change and it is still possible to
+analyze raw FASTQ files. getITD will automatically detect whether
+a gzipped `fastq.gz` file was used as input or, as before, an
+uncompressed `fastq` file.
+
+
 # getITD 1.3.0  2020-07-30
 
 ### Fix internal -minscore_alignments and -minscore_inserts mixup

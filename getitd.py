@@ -1337,6 +1337,20 @@ def parallelize(function, args, cores):
     with multiprocessing.Pool(cores) as p:
         return p.map(function, args)
 
+def is_gz_file(filename):
+    """
+    Check whether a given file is gzipped or not,
+    using its magic number.
+
+    Args:
+        filename: Name of the file to read.
+
+    Returns:
+        bool, True when gzipped, False otherwise.
+    """
+    with open(filename, 'rb') as f:
+        return f.read(2) == b'\x1f\x8b'
+
 def read_fastq(fastq_file):
     """
     Read sequence fastq file and extract sequences and BQS.
@@ -1350,7 +1364,12 @@ def read_fastq(fastq_file):
     reads = []
     read_index = 0
     try:
-        with gzip.open(fastq_file,'rt') as f:
+        if is_gz_file(fastq_file):
+            open_fct = gzip.open
+        else:
+            open_fct = open
+
+        with open_fct(fastq_file,'rt') as f:
             line = f.readline()
             while line:
                 read_id = line
