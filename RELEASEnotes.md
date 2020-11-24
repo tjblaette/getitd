@@ -1,10 +1,24 @@
+# getITD 1.5.0  2020-11-24
+
+### Change default `-minscore_alignments` from 0.5 to 0.4
+The previous default value was too stringent for both 250 bp
+and 300 bp reads: Some reads with long insertions were wrongly
+filtered so that ITDs could be missed, especially when they
+were long and located towards the middle of the read.
+
+While this affected very few patients in our cohort, it is
+recommended to rerun previously analyzed samples, especially
+when there is an unusually large fraction of reads filtered at
+this step of the analysis, as visible in getITD's output to the
+terminal and `stats.txt` file. (That's how we noticed the problem.)
+
+
 # getITD 1.4.1  2020-11-24
 
 ### Update help page to reflect optionality of gzipped FASTQs
 This is only a minor fix to the output printed with `python getitd.py -h`
 to be explicit about gzipped FASTQ files being optional: Uncompressed
 FASTQ can still be used as input to getITD too.
-
 
 
 # getITD 1.4.0  2020-11-24

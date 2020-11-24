@@ -1,4 +1,4 @@
-# getITD v1.4.1
+# getITD v1.5.0
 
 getITD for FLT3-ITD-based MRD monitoring in AML                                                                             
 https://doi.org/10.1038/s41375-019-0483-z
@@ -143,7 +143,7 @@ Many optional parameters are available to customize the analysis:
 | `-match X` | Alignment cost of a base match. Default: _5_ |
 | `-mismatch X` | Alignment cost of a base mismatch. Default: _-15_ |
 | `-minscore_inserts X` | Fraction of the maximum possible alignment score required between inserts and respective WT tandems when deciding whether these are sufficiently similar to consider them ITDs and inserts supported by distinct reads when determining whether these are supporting the same mutation or not. Higher values will require sequences in both cases to be more similar. Default: _0.5_. |
-| `-minscore_alignments X` | Fraction of the maximum possible alignment score required between each read and the reference. Reads that do not pass this filter are discarded to eliminate low fidelity sequences. Default: _0.5_. |
+| `-minscore_alignments X` | Fraction of the maximum possible alignment score required between each read and the reference. Reads that do not pass this filter are discarded to eliminate low fidelity sequences. Default: _0.4_. |
 | `-min_bqs X` | Minimum average base quality score (BQS) required by each read. Reads that do not pass this filter are discarded to eliminate sequences likely to contain sequencing errors. Default: _30_. |
 | `-min_read_length X` | Minimum read length required by each read. This filter is applied after trailing _N_ bases are trimmed at both the 5' and 3' end. Reads that do not pass this filter are discarded. Default: _100_. |
 | `-min_read_copies X` | Minimum number of copies of each read required for processing. When set to _2_, all unique read sequences are discarded, based on the assumption that _true_ and _clinically relevant_ sequences will be present at least twice. Disable this filter, by setting it to _1_, when not all reads have the same length as it will otherwise incorrectly discard the majority of input reads. Default: _2_. |
@@ -251,7 +251,7 @@ optional arguments:
   -minscore_alignments MINSCORE_ALIGNMENTS
                         fraction of max possible alignment score required for
                         a read to pass when aligning reads to amplicon
-                        reference (default 0.5)
+                        reference (default 0.4)
   -min_bqs MIN_BQS      minimum average base quality score (BQS) required by
                         each read (default 30)
   -min_read_length MIN_READ_LENGTH
