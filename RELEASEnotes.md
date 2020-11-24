@@ -1,3 +1,12 @@
+# getITD 1.4.1  2020-11-24
+
+### Update help page to reflect optionality of gzipped FASTQs
+This is only a minor fix to the output printed with `python getitd.py -h`
+to be explicit about gzipped FASTQ files being optional: Uncompressed
+FASTQ can still be used as input to getITD too.
+
+
+
 # getITD 1.4.0  2020-11-24
 
 ### Allow (optionally) gzipped FASTQ files as input

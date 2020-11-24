@@ -1686,8 +1686,8 @@ def parse_config_from_cmdline(config):
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("sampleID", help="sample ID used as output folder prefix (REQUIRED)")
-    parser.add_argument("fastq1", help="FASTQ file (gzipped) of forward reads (REQUIRED)")
-    parser.add_argument("fastq2", help="FASTQ file (gzipped)of reverse reads (optional)", nargs="?")
+    parser.add_argument("fastq1", help="FASTQ file (optionally gzipped) of forward reads (REQUIRED)")
+    parser.add_argument("fastq2", help="FASTQ file (optionally gzipped) of reverse reads (optional)", nargs="?")
     parser.add_argument("-reference", help="WT amplicon sequence as reference for read alignment (default ./anno/amplicon.txt)", default="./anno/amplicon.txt", type=str)
     parser.add_argument("-anno", help="WT amplicon sequence annotation (default ./anno/amplicon_kayser.tsv)", default="./anno/amplicon_kayser.tsv", type=str)
     parser.add_argument("-forward_primer", help="Forward primer gene-specific sequence(s) as present at the 5' end of supplied forward reads. Separate by space when supplying more than one (default GCAATTTAGGTATGAAAGCCAGCTAC)", default=["GCAATTTAGGTATGAAAGCCAGCTAC"], type=str, nargs="+")
