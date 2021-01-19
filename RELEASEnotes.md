@@ -1,3 +1,11 @@
+# getITD 1.5.3  2021-01-19
+
+### Fix trailing ITD coordinate calculation
+Previously, some 5' trailing ITDs did not have their coordinates
+correctly calculated, which caused getITD to fail on some internal
+checks.
+
+
 # getITD 1.5.2  2021-01-19
 
 ### Fix coverage calculation

@@ -1016,8 +1016,7 @@ class ITD(Insert):
 
     def fix_trailing_length(self):
         """
-        For trailing ITDs, change length to offset.
-        This should be the maximum potential ITD length.
+        For trailing ITDs, change length according to offset.
 
         Consider: Should the insert sequence be updated as well?
 
@@ -1025,10 +1024,11 @@ class ITD(Insert):
            ITD, changed if trailing, unchanged if not.
         """
         if self.trailing:
-            self.length = self.offset
-            return self
-        else:
-            return self
+            if self.trailing_end == 5:
+                self.length += self.offset -1
+            if self.trailing_end == 3:
+                self.length = self.offset +1
+        return self
 
     def annotate_domains(self, domains):
         """
@@ -1058,8 +1058,8 @@ class ITD(Insert):
         adjust end coordinate accordingly.
         Convert coordinates from 0- to 1-based to match
         needle output files and annotation table.
-        For trailing ITDs, change the length to the offset, i.e.
-        distance between insert and second tandem.
+        For trailing ITDs, change the length according to the offset, i.e.
+        distance between the start of insert and second tandem.
 
         Args:
             config (dict): Dict containing analysis parameters.
@@ -1071,10 +1071,8 @@ class ITD(Insert):
         to_save = to_save.fix_trailing_length()
         if to_save.trailing_end == 5:
             assert to_save.start < to_save.tandem2_start
-
-            to_save.start = to_save.start +1
-            to_save.end = to_save.start + to_save.length -1 + len(to_save.seq) -1
-            to_save.length = to_save.end - to_save.start +1
+            to_save.start = to_save.start +1 #TODO: why?
+            to_save.end = to_save.start + to_save.length - 1
         else:
             to_save.start = to_save.tandem2_start
             to_save.end = to_save.start + to_save.length - 1
