@@ -1,3 +1,12 @@
+# getITD 1.5.1  2021-01-19
+
+### Filter out ITDs with presumable insertion sites within the WT tandem
+I found a sample where a short, 6bp trailing insertion generated a spurious
+alignment during ITD detection, which overlapped the insertion site itself.
+To avoid such alignments in the future, an additional filter step was added,
+which should discard these (rare) false hits in the future.
+
+
 # getITD 1.5.0  2020-11-24
 
 ### Change default `-minscore_alignments` from 0.5 to 0.4

@@ -718,6 +718,14 @@ class Insert(object):
         """
         alignments = bio.align.localds(self.seq, config["REF"], config["COST_ALIGNED"], config["COST_GAPOPEN"], config["COST_GAPEXTEND"])
         alignments = [al for al in alignments if integral_insert_realignment(al[0],self.length)]
+        # exclude alignments where the presumable WT tandem overlaps the insertion site (happens with short inserts such as
+        # the following, where GA------ATAT is followed by another GAATAT, which both equally well map to the insert
+        #                   1 ----------------------------------CAATATATATGAATAT     16
+        #                                                             ||||||||||
+        #                  51 CAGATAATGAGTACTTCTACGTTGATTTCAGAGA------ATATGAATAT     94
+        # note that it's >= tandem2_start + length -1 because the last tandem2 bp is allowed to be the insert-preceding WT bp
+        # it does have to be start < tandem2_start though.
+        alignments = [al for al in alignments if self.start < get_first_aligned_bp_index(al[0]) or self.start >= get_first_aligned_bp_index(al[0]) + self.length -1]
         if not alignments:
             return None
         # bio.align arguments: seq1, seq2, match-score, mismatch-score, gapopen-score, gapextend-score
@@ -726,7 +734,7 @@ class Insert(object):
         alignment = alignments[-1]
         alignment_score, alignment_start, alignment_end = alignment[2:5]
         if alignment_score >= get_min_score(self.seq, config["REF"], config["MIN_SCORE_INSERTS"]):
-            tandem2_start = [i for i,bp in enumerate(alignment[0]) if bp != '-'][0]
+            tandem2_start = get_first_aligned_bp_index(alignment[0])
             offset = abs(tandem2_start - self.start)
             # offset = 1 for adjacent insert-tandem2
             # offset = insert.length-1 for adjacent tandem2-insert
@@ -1184,6 +1192,23 @@ def get_gaps(seq):
             gap_idxs_sep.append([e for i,e in group])
         assert np.all(np.concatenate(gap_idxs_sep) == gap_idxs_all)
     return gap_idxs_sep
+
+
+def get_first_aligned_bp_index(alignment_seq):
+    """
+    Given an alignment string, return the index of the first aligned,
+    i.e. non-gap position (0-indexed!).
+
+    Args:
+        alignment_seq (string): String of aligned sequence, consisting of
+            gaps ('-') and non-gap characters, such as "HA-LO" or "----ALO".
+
+    Returns:
+        Integer, >= 0, indicating the first non-gap character within alignment_seq.
+    """
+    index_of_first_aligned_bp =  [i for i,bp in enumerate(alignment_seq) if bp != '-'][0]
+    return index_of_first_aligned_bp
+
 
 
 def average_bqs(bqs):
