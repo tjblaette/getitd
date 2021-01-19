@@ -1,3 +1,20 @@
+# getITD 1.5.2  2021-01-19
+
+### Fix coverage calculation
+Previously, coverage calculation of 5' trailing insertions and ITDs
+was not handled properly. While in most cases this should only lead
+to slightly incorrect VAF estimates, in some extreme cases getITD
+could fail as VAFs came out at > 100%.
+
+This is now handled by using a completely new way of calculating
+the coverage throughout the amplicon: Instead of counting the
+number of sequencing reads aligned to each position, getITD counts
+the number of reads spanning across each pair of bases. This makes
+coverage calculation for insertions, which by definition have no
+real coordinate within the WT reference, much more straight-forward
+and avoids the above problem.
+
+
 # getITD 1.5.1  2021-01-19
 
 ### Filter out ITDs with presumable insertion sites within the WT tandem

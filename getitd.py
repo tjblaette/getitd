@@ -242,12 +242,12 @@ class Read(object):
         self.ref_span = [np.min(ref_covered_bp), np.max(ref_covered_bp)]
 
         # extend ref_span for trailing inserts
-        if refn[-1] == '-':
-            assert readn[-1] != '-'
-            self.ref_span[-1] = len(refn) -1
-        if refn[0] == '-':
-            assert readn[0] != '-'
-            self.ref_span[0] = 0
+        ref_covered = refn[readn != '-']
+        if ref_covered[0] == "-":
+            self.ref_span[0] = self.ref_span[0] - 0.5
+        if ref_covered[-1] == "-":
+            self.ref_span[-1] = self.ref_span[-1] + 0.5
+
         return self
 
     def reorder_trailing_inserts(self):
@@ -530,16 +530,24 @@ class Insert(object):
         self.sense = sense
         return self
 
-    def set_coverage(self, ref_coverage):
+    def set_coverage(self, iref_coverage):
         """
         Set Insert's coverage based on supporting reads' sense.
         """
+        #print("iref_coverage: {}".format(iref_coverage))
+        #print("start: {}".format(self.start))
+        #print("end: {}".format(self.end))
+        #print("sense: {}: ".format(self.sense))
+        #print("normed start used to extract ref_cov: {}".format(copy.deepcopy(self).norm_start(config).start))
+        coverage_pos = self.start + 0.5
+        if self.start < 0:
+            coverage_pos = -0.5
         if self.sense == {1}:
-            self.coverage = ref_coverage["forward_reads"][copy.deepcopy(self).norm_start(config).start]
+            self.coverage = iref_coverage["forward_reads"][coverage_pos]
         elif self.sense == {-1}:
-            self.coverage = ref_coverage["reverse_reads"][copy.deepcopy(self).norm_start(config).start]
+            self.coverage = iref_coverage["reverse_reads"][coverage_pos]
         elif self.sense == {1,-1}:
-            self.coverage = ref_coverage["all_reads"][copy.deepcopy(self).norm_start(config).start]
+            self.coverage = iref_coverage["all_reads"][coverage_pos]
         return self
 
     def calc_vaf(self):
@@ -1119,7 +1127,7 @@ class InsertCollection(object):
         self.rep = self.rep.calc_vaf()
         return self
 
-    def merge(self, insert, ref_coverage):
+    def merge(self, insert, iref_coverage):
         """
         Merge two InsertCollections.
 
@@ -1132,7 +1140,7 @@ class InsertCollection(object):
         self.inserts = self.inserts + insert.inserts
         if self.rep.sense != insert.rep.sense:
             new_sense = self.rep.sense.union(insert.rep.sense)
-            self.inserts = [insert.set_specific_sense(new_sense).set_coverage(ref_coverage) for insert in self.inserts]
+            self.inserts = [insert.set_specific_sense(new_sense).set_coverage(iref_coverage) for insert in self.inserts]
         self = self.set_representative()
         return self
 
@@ -1534,7 +1542,7 @@ def vaf_to_ar(vaf):
         return -1
     return vaf/(100 - vaf)
 
-def merge(inserts, condition, ref_coverage, config):
+def merge(inserts, condition, iref_coverage, config):
     """
     Merge insertions describing the same mutation.
 
@@ -1555,7 +1563,7 @@ def merge(inserts, condition, ref_coverage, config):
             was_merged = False
             for minsert_collection in merged[::-1]:
                 if minsert_collection.should_merge(insert_collection, condition, config):
-                    minsert_collection = minsert_collection.merge(insert_collection, ref_coverage)
+                    minsert_collection = minsert_collection.merge(insert_collection, iref_coverage)
                     was_merged = True
                     still_need_to_merge = True
                     break
@@ -1815,7 +1823,7 @@ def get_reads(config):
     return reads
 
 
-def get_merged_inserts(inserts, type_, ref_coverage, config):
+def get_merged_inserts(inserts, type_, iref_coverage, config):
     """
     Merge Inserts based on different conditions.
 
@@ -1839,7 +1847,7 @@ def get_merged_inserts(inserts, type_, ref_coverage, config):
             "is-similar",
             "is-close",
             "is-same_trailing"]:
-        to_merge = merge(to_merge, condition, ref_coverage, config)
+        to_merge = merge(to_merge, condition, iref_coverage, config)
         merged.append(to_merge)
         save_stats("{} {} remain after merging".format(len(to_merge), type_), config["STATS_FILE"])
         suffix = suffix + condition
@@ -2006,13 +2014,34 @@ def main(config):
     ref_coverage_total = []
     ref_coverage_frwd = []
     ref_coverage_rev = []
+    #print("read.ref_span: {}".format(read.ref_span))
     for coord, bp  in enumerate(config["REF"]):
         spanning_reads = [read for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1]]
         spanning_reads_index = flatten_list([read.index for read in spanning_reads])
-        ref_coverage_total.append(len(set(spanning_reads_index)))
-        ref_coverage_frwd.append(sum((read.counts for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1] and read.sense == 1)))
-        ref_coverage_rev.append(sum((read.counts for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1] and read.sense == -1)))
+        ref_coverage_total.append(len(set(spanning_reads_index))) #do not count paired mates (which have the same read.index) twice
+        ref_coverage_frwd.append(sum([read.counts for read in spanning_reads if read.sense == 1]))
+        ref_coverage_rev.append(sum([read.counts for read in spanning_reads if read.sense == -1]))
+        assert(ref_coverage_frwd[-1] == sum((read.counts for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1] and read.sense == 1)))
+        assert(ref_coverage_rev[-1] == sum((read.counts for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1] and read.sense == -1)))
     ref_coverage = {"all_reads": ref_coverage_total, "forward_reads": ref_coverage_frwd, "reverse_reads": ref_coverage_rev}
+
+    # CALCULATE INTER-BP COVERAGE
+    # -> this is what inserts' coverage will be based on,
+    #    so that only those reads are taken into consideration which span across the same reference base as the insert
+    # --> this will differentiate reads that stop ON the preceding WT base pair from those that actually continue beyond it,
+    #     either with an insertion or with the following WT base. For stopping reads we simply do not know whether they would
+    #     support the insertion or not!
+    iref_coverage_total = dict()
+    iref_coverage_frwd = dict()
+    iref_coverage_rev = dict()
+    iref_coords = np.array(range(len(ref_coverage_total) -1 +2)) -0.5  #-1 for counting inter-bp spaces instead of bp, +2 for 3' and 5' extension beyond amplicon, -0.5 for inter-bp coords
+    for ref_coord, iref_coord in enumerate(iref_coords):
+        spanning_reads = [read for read in reads if iref_coord >= read.ref_span[0] and iref_coord <= read.ref_span[1]]
+        spanning_reads_index = flatten_list([read.index for read in spanning_reads])
+        iref_coverage_total[iref_coord] = len(set(spanning_reads_index)) #do not count paired mates (which have the same read.index) twice
+        iref_coverage_frwd[iref_coord] = sum([read.counts for read in spanning_reads if read.sense == 1])
+        iref_coverage_rev[iref_coord] = sum([read.counts for read in spanning_reads if read.sense == -1])
+    iref_coverage = {"all_reads": iref_coverage_total, "forward_reads": iref_coverage_frwd, "reverse_reads": iref_coverage_rev}
     print("Calculating coverage took {} s".format(timeit.default_timer() - start_time))
 
 
@@ -2042,7 +2071,7 @@ def main(config):
         # --> negative start (-> 5' trailing_end) will result in
         #     coverage = ref_coverage[-X] which will silently report incorrect coverage!!
         insert = insert.set_sense()
-        insert = insert.set_coverage(ref_coverage)
+        insert = insert.set_coverage(iref_coverage)
         insert = insert.calc_vaf()
     print("Annotating coverage took {} s".format(timeit.default_timer() - start_time))
 
@@ -2069,7 +2098,7 @@ def main(config):
     merged_ins_and_itds = {}
     start_time = timeit.default_timer()
     for type_, inserts_ in ins_and_itds.items():
-        merged_ins_and_itds[type_] = get_merged_inserts(inserts_, type_, ref_coverage, config)
+        merged_ins_and_itds[type_] = get_merged_inserts(inserts_, type_, iref_coverage, config)
     print("Merging took {} s".format(timeit.default_timer() - start_time))
 
 
