@@ -351,10 +351,12 @@ class Read(object):
                         # change insert.start coord
                         #   from: 1st insert/gap bp in read-ref alignment
                         #   to: preceding bp in WT ref sequence
-                        #   --> -sum(preceding gaps) -1
+                        #   --> -sum(preceding gaps in reference, which must not be counted in reference-coordinate-space) -1
                         insert.start = insert.start - sum(refn[0:insert.start] == '-') -1
                         # distinguish insertions starting before WT base 0 (5' insertion) and those starting right after base 0 (0 would then be preceding WT base)
                         #   --> later negative/ 5' coords are reset to 0 to hide counterintuitive coords (should I set them to -1???)
+                        #   ==> with default alignment scores, this should not happen anyway (5 bp bonus for single aligned 5' bp vs gap cost after that)
+                        #       because trailing gaps including that one bp would be favored
                         if insert.start == 0:
                             insert.start = -insert.length
                         insert.end = insert.start + insert.length - 1
@@ -561,6 +563,7 @@ class Insert(object):
         assert self.vaf >= 0 and self.vaf <= 100
         return self
 
+    #TODO: is this really so, that there cannot be 5' forward and 3' trailing inserts for forward and reverse reads, respectively? Couldn't primer bind twice to the same amplicon?
     def get_trailing(self, config):
         """
         Check whether Insert is trailing and set attributes Insert.trailing and
@@ -711,7 +714,6 @@ class Insert(object):
         self.trailing = False
         self.trailing_end = 0
         return self
-
 
     def get_itd(self, config):
         """
@@ -925,7 +927,8 @@ class Insert(object):
         elif condition == 'is-close':
             return self.length == that.length and self.is_similar_to(that, config) and self.is_close_to(that)
         elif condition == 'is-same_trailing':
-            return self.trailing and that.trailing and self.trailing_end == that.trailing_end and self.sense.intersection(that.sense) and self.is_similar_to(that, config) and self.is_close_to(that)
+            return self.trailing and that.trailing and self.is_similar_to(that, config) and self.is_close_to(that) # is this too lenient?
+            #return self.trailing and that.trailing and self.trailing_end == that.trailing_end and self.sense.intersection(that.sense) and self.is_similar_to(that, config) and self.is_close_to(that)
         assert False
 
     def is_adapter_artefact(self, config):
@@ -1987,7 +1990,6 @@ def main(config):
         save_stats("Filtering {} / {} alignments with indels in primer bases".format(total_alignments - len(reads), total_alignments), config["STATS_FILE"])
     else:
         save_stats("Turned OFF indel-free primer filter!", config["STATS_FILE"])
-
 
     # FINAL STATS
     save_stats("Total reads remaining for analysis: {} ({} %)".format(sum((read.counts for read in reads)), sum((read.counts for read in reads)) * 100 / TOTAL_READS), config["STATS_FILE"])

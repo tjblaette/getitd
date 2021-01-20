@@ -1,3 +1,19 @@
+# getITD 1.5.5  2021-01-19
+
+### Merge trailing inserts/ITDs regardless of read sense
+Previously, getITD required that trailing inserts could
+only be merged when they were both trailing, shared a
+similar insert sequence, had proximal WT tandems AND
+were supported by reads of the same sense (either forward
+or reverse) AND were trailing on the same end in those reads.
+
+Depending on the assay design used, it is possible to obtain
+overlapping reads of different sense, with trailing inserts
+and different ends, describing the same insertion. To allow
+merging in these cases, the restraint on sense and trailing
+end has been removed for trailing insertions and ITDs.
+
+
 # getITD 1.5.4  2021-01-19
 
 ### Remove explicit retraint that WT tandem is fully sequenced
