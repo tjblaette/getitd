@@ -1,3 +1,19 @@
+# getITD 1.5.4  2021-01-19
+
+### Remove explicit retraint that WT tandem is fully sequenced
+getITD generally requires that at least one of the two tandems
+of an ITD is fully sequenced. Previously, there was an explicit
+check on this implemented, which filtered out all insertions
+which did not fulfill it. This explicit check has now been removed,
+as it did not handle all edge cases correctly, and standard ITDs
+would not need it. It could filter some false positives though,
+so may be reintroduced later.
+
+To better evaluate this change, reads with incomplete WT tandems
+are written to a separate log file in the getITD output folder,
+named "incomplete-wt-tandem.log".
+
+
 # getITD 1.5.3  2021-01-19
 
 ### Fix trailing ITD coordinate calculation

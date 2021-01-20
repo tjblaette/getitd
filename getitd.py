@@ -747,13 +747,13 @@ class Insert(object):
             # offset = 1 for adjacent insert-tandem2
             # offset = insert.length-1 for adjacent tandem2-insert
             # --> (for tandem2-insert: offset = abs((insert_start - insert.length +1) - insert_start))
-            if (offset == 1 or offset == self.length - 1) or (self.trailing and (self.trailing_end == 3 and alignment_start < self.start) or (self.trailing_end == 5 and alignment_start > self.start)):
+            if (offset == 1 or offset == self.length - 1) or (self.trailing and ((self.trailing_end == 3 and alignment_start < self.start) or (self.trailing_end == 5 and alignment_start > self.start))):
                 # do not allow gaps in tandems of trailing ITDs
                 # -> also filters tandems not covered by read at all
                 #    such as small trailing inserts by chance also found in some other part of the the reference
                 #    (can never be the case for non-trailing ITDs anyway)
                 # --> careful: alignment_end is exclusive coord, i.e. the index of the first bp after the alignment!
-                if alignment_start >= self.reads[0].ref_span[0] and alignment_end-1 <= self.reads[0].ref_span[1] and tandem2_start + offset <= self.reads[0].ref_span[1]:
+                if alignment_start >= self.reads[0].ref_span[0] -0.5 and alignment_end-1 <= self.reads[0].ref_span[1] +0.5: # and ((tandem2_start + offset <= self.reads[0].ref_span[1] +0.5):
                     # if by chance insert is completely contained within read in spite of it being trailing
                     # (i.e. insert and tandem have the same length & are adjacent)
                     # --> revert trailing to be able to apply more stringent filters of non-trailing inserts
@@ -774,11 +774,14 @@ class Insert(object):
                         )
                 else:
                     print("----")
-                    if tandem2_start + offset > self.reads[0].ref_span[1]:
-                        print("Found an ITD too long for the respective read (likely false positive):")
-                    print("ITD's WT tandem is not fully covered by the read and the ITD was therefore not called.")
-                    print("Report this warning if there are too many; otherwise safely ignore.")
+                    print("getITD requires the WT tandem to be fully sequenced, but this ITD's WT tandem was not covered completely.")
+                    print("The ITD was therefore considered a likely false positive and not called.")
+                    print("Report this warning if you feel a true positive was missed, otherwise safely ignore.")
                     print("----")
+                    # save offending read sequence to separate log file to enable troubleshoot/ manual check later
+                    with open(os.path.join(config["OUT_DIR"], "incomplete-wt-tandem.log"), "a") as _file:
+                        _file.write(self.reads[0].seq)
+                        _file.write("\n")
                     #self.print()
                     #self.reads[0].print()
                     #print(bio.format_alignment(*alignment))
@@ -1926,9 +1929,10 @@ def main(config):
     os.chdir(config["OUT_DIR"])
     save_config(config, config["CONFIG_FILE"])
 
-    ## REMOVE OLD STATS FILE & START CREATING A NEW ONE
+    ## REMOVE OLD STATS & LOG FILE & START CREATING A NEW ONE
     try:
         os.remove(config["STATS_FILE"])
+        os.remove(os.path.join(config["OUT_DIR"], "incomplete-wt-tandem.log"))
     except OSError:
         pass
     save_stats("\n==== PROCESSING SAMPLE {} ====".format(config["SAMPLE"]), config["STATS_FILE"])
