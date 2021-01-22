@@ -1,3 +1,31 @@
+# getITD 1.5.6  2021-01-22
+
+### Output, and optionally plot, final read coverage across the reference
+To better judge whether coverage across the reference was sufficient
+to call ITDs, getITD will now generate 1-2 additional files per sample:
+
+* `coverage.txt` in the getITD output folder will always be created and
+list the coverage achieved at each position.
+* if `-plot_coverage True` is given, coverage will additionally be plotted
+to `coverage.png` in the same folder.
+
+In both files, coverage is given separately for forward reads only, reverse
+reads only, and all reads combined. Note that total coverage is not necessarily
+the sum of forward and reverse read coverage, as paired-end reads of the same
+physical DNA fragment are counted as one when they overlap.
+
+Note also that i) positions are 0-based, so that the first WT base of the
+reference is labelled `0` and the following bases are counted from there and ii)
+all position coordinates for refer to the inter-bp coordinates implemented in
+v1.5.2: Coordinate `0.5` therefore refers to the "space" between bases 0 and 1,
+`1.5` refers to the space between 1 and 2, and so on. `-0.5` refers to the
+space before the 5' start of the WT reference. Reads are counted as covering
+a coordinate, if both adjacent bases are covered. Thus, if the inter-bp
+coverage at coordinate `0.5` is `10`, this means that ten reads span across
+bases 0 and 1. Similarly, read coverage at coordinate `-0.5` refers to reads
+spanning across the 5' end of the reference with 5' trailing inserts.
+
+
 # getITD 1.5.5  2021-01-19
 
 ### Merge trailing inserts/ITDs regardless of read sense

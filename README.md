@@ -1,11 +1,11 @@
-# getITD v1.5.5
+# getITD v1.5.6
 
 getITD for FLT3-ITD-based MRD monitoring in AML                                                                             
 https://doi.org/10.1038/s41375-019-0483-z
 
 
 ## Author / Support
-T.J. Blätte  
+T.J. Luck, née Blätte
 
 
 ## Overview
@@ -23,8 +23,9 @@ python3
 - numpy
 - biopython
 - easygui
+- matplotlib
 
-The pandas, numpy and biopython modules are required for the core getITD program. The easygui module is optional and only required by the make_getitd_config.py script.
+The pandas, numpy and biopython modules are required for the core getITD program. The easygui and matplotlib modules are optional: easygui is only required by the make_getitd_config.py script, whereas matplotlib is required for coverage plotting (optionally activated using `-plot_coverage True`).
 
 
 ## Setup (Linux / Ubuntu & MacOS)
@@ -37,7 +38,7 @@ export http_proxy=your.proxy.server:your_port
 #### Python3 modules
 To install the necessary python3 modules, open the commandline and enter:
 ```
-pip3 install --user numpy pandas biopython easygui
+pip3 install --user numpy pandas biopython easygui matplotlib
 ```
 
 ##### For convenience: Change to the folder containing the _getitd.py_ program and _anno_ subfolder
@@ -85,7 +86,7 @@ set http_proxy=your.proxy.server:your_port
 #### Install python3 modules:
 Open the Windows commandline (cmd) and install the required python3 modules:
 ```
-pip3 install --user pandas numpy biopython easygui
+pip3 install --user pandas numpy biopython easygui matplotlib
 ```
 If this command fails with a connection error such as the one shown below, you are working behind a firewall and first need to set the correct proxy server as described above under _Set proxy_):
 ```
@@ -135,6 +136,7 @@ Many optional parameters are available to customize the analysis:
 | `-require_indel_free_primers X` | If True, discard reads containing insertions or deletions within the primer sequence, as these indicate low sequence fidelity. Note that, if set to _True_, this also filters reads not containing any primer sequence at all, so this must be set to _False_ in case primers have been trimmed. Note that adapters but not primers should be trimmed. Default: _True_. |
 | `-forward_adapter X` | Sequencing adapter of the forward reads' primer as (potentially) present at the 5' end of the supplied forward reads, 5' of the gene-specific primer sequence. Default: _TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA_. |
 | `-reverse_adapter X` | Sequencing adapter of the reverse reads' primer as (potentially) present at the 5' end of the supplied reverse reads, 5' of the gene-specific primer sequence. Default: _GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGA_. |
+| `-plot_coverage X` | If True, plot coverage distribution across the reference to a png file. Default: False. |
 | `-technology X` | Sequencing technology used, options are _454_ and _Illumina_. Currently this has no effect for Illumina data. For 454 data, -infer_sense_from_alignment is set to True and -min_read_copies is set to 1, command line options passed to these parameters are then ignored. Default: _Illumina_. |
 | `-infer_sense_from_alignment X` | If True, infer each read's sense from alignment by aligning both its actual sequence as well as its reverse-complement and keeping whichever achieves the higher mapping score to the reference. If False, infer each read's sense from the file of origin (R1 vs R2 FASTQ). Default: False. |
 | `-nkern X` | The number of cores to use for parallel tasks. Set to 1 to disable parallelization. Default: _12_. |
@@ -170,7 +172,7 @@ usage: getitd.py [-h] [-reference REFERENCE] [-anno ANNO]
                  [-require_indel_free_primers REQUIRE_INDEL_FREE_PRIMERS]
                  [-forward_adapter FORWARD_ADAPTER]
                  [-reverse_adapter REVERSE_ADAPTER]
-                 [-technology {Illumina,454}]
+                 [-plot_coverage PLOT_COVERAGE] [-technology {Illumina,454}]
                  [-infer_sense_from_alignment INFER_SENSE_FROM_ALIGNMENT]
                  [-nkern NKERN] [-gap_open GAP_OPEN] [-gap_extend GAP_EXTEND]
                  [-match MATCH] [-mismatch MISMATCH]
@@ -220,6 +222,10 @@ optional arguments:
                         (potentially) present at the 5' end of the supplied
                         reverse reads, 5' of the gene-specific primer sequence
                         (default GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGA)
+  -plot_coverage PLOT_COVERAGE
+                        If True, plot read coverage across the reference to
+                        'coverage.png' in the respective output folder
+                        (default False)
   -technology {Illumina,454}
                         Sequencing technology used, options are '454' or
                         'Illumina' (default). '454' sets

@@ -735,6 +735,7 @@ class Insert(object):
         #                  51 CAGATAATGAGTACTTCTACGTTGATTTCAGAGA------ATATGAATAT     94
         # note that it's >= tandem2_start + length -1 because the last tandem2 bp is allowed to be the insert-preceding WT bp
         # it does have to be start < tandem2_start though.
+        # --> note that this filters out triple tandem duplications! (because there is only one tandem length between insert's self.start and tandem2_start, but self.length = 2* tandem length)
         alignments = [al for al in alignments if self.start < get_first_aligned_bp_index(al[0]) or self.start >= get_first_aligned_bp_index(al[0]) + self.length -1]
         if not alignments:
             return None
@@ -1732,6 +1733,7 @@ def parse_config_from_cmdline(config):
     parser.add_argument("-require_indel_free_primers", help="If True, discard i) reads containing insertions or deletions within the primer sequence and ii) reads not containing any primer sequence. Set to False if these have been trimmed (default True)", default=True, type=str_to_bool)
     parser.add_argument("-forward_adapter", help="Sequencing adapter of the forward reads' primer as (potentially) present at the 5' end of the supplied forward reads, 5' of the gene-specific primer sequence (default TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA)", default="TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGA", type=str)
     parser.add_argument("-reverse_adapter", help="Sequencing adapter of the reverse reads' primer as (potentially) present at the 5' end of the supplied reverse reads, 5' of the gene-specific primer sequence (default GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGA)", default="GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGA", type=str)
+    parser.add_argument("-plot_coverage", help="If True, plot read coverage across the reference to 'coverage.png' in the respective output folder (default False)", default=False, type=str_to_bool)
     parser.add_argument("-technology", help="Sequencing technology used, options are '454' or 'Illumina' (default). '454' sets -infer_sense_from_alignment to True and -min_read_copies to 1, regardless of the respective command line options used; 'Illumina' will instead use these command line options or their respective defaults.", default="Illumina", type=str, choices=['Illumina', '454'])
     parser.add_argument("-infer_sense_from_alignment", help="If True, infer each read's sense by aligning it as a forward and reverse read and keeping the better alignment (default False).", default=False, type=str_to_bool)
     parser.add_argument('-nkern', help="number of cores to use for parallel tasks (default 12)", default="12", type=int)
@@ -1762,6 +1764,7 @@ def parse_config_from_cmdline(config):
         config["INFER_SENSE_FROM_ALIGNMENT"] = True
     else:
         config["INFER_SENSE_FROM_ALIGNMENT"] = cmd_args.infer_sense_from_alignment
+    config["PLOT"] = cmd_args.plot_coverage
 
     # R2 reads are reverse-complemented prior to alignment to the WT reference sequence
     # --> reverse-complement any sequence later to be found within reverse-complemented R2 reads
@@ -1903,16 +1906,89 @@ def make_file_path_absolute(file_):
         file_ = os.path.join(os.getcwd(), file_)
     return file_
 
+
+def save_coverage(iref_coverage, config):
+    """
+    Write coverage distribution per inter-bp space
+    to file `config["OUT_COV_FILE"]` in the `config["OUT_DIR"]` folder.
+
+    Args:
+        iref_coverage ([dict]): List oft three dictionaries which each contain
+                the inter-bp coverage of the reference for i) forward reads only,
+                ii) reverse reads only and iii) all reads, merged at the fragment
+                level so that paired reads of the same DNA fragments are not counted
+                twice at any given position.
+        config (dict): Dictionary containing analysis parameters.
+    """
+    cov = pd.DataFrame(iref_coverage)
+    cov.to_csv(config["OUT_COV_FILE"], sep="\t")
+
+
+def plot_coverage(iref_coverage, config):
+    """
+    Plot coverage distribution per inter-bp space
+    to file `config["OUT_COV_PLOT"]` in the `config["OUT_DIR"]` folder.
+
+    Args:
+        iref_coverage ([dict]): List oft three dictionaries which each contain
+                the inter-bp coverage of the reference for i) forward reads only,
+                ii) reverse reads only and iii) all reads, merged at the fragment
+                level so that paired reads of the same DNA fragments are not counted
+                twice at any given position.
+        config (dict): Dictionary containing analysis parameters.
+    """
+    # import only when plotting is desired to avoid depending on matplotlib install?
+    import matplotlib.pyplot as plt
+    plt.switch_backend('Agg')
+
+    fig, axs = plt.subplots(3, figsize=(20, 8), sharex=True, sharey=True)
+    fig.suptitle("Final coverage achieved for " + config["SAMPLE"], fontsize=20)
+
+    forward_plot = axs[0].bar(
+            iref_coverage["all_reads"].keys(),
+            iref_coverage["all_reads"].values(),
+            label="total fragments",
+            linewidth=0,
+            width=1,
+            color="dimgray")
+    forward_plot = axs[1].bar(
+            iref_coverage["forward_reads"].keys(),
+            iref_coverage["forward_reads"].values(),
+            label="forward reads",
+            linewidth=0,
+            width=1,
+            color="tab:blue")
+    forward_plot = axs[2].bar(
+            iref_coverage["reverse_reads"].keys(),
+            iref_coverage["reverse_reads"].values(),
+            label="reverse reads",
+            linewidth=0,
+            width=1,
+            color="tab:orange")
+
+    for ax in axs:
+        # Add some text for labels, title and custom x-axis tick labels, etc.
+        ax.legend()
+
+    axs[2].set_xlabel('reference bp', fontsize=18)
+    axs[1].set_ylabel('# of reads aligned', fontsize=18)
+
+    plt.tight_layout()
+    plt.savefig(config["OUT_COV_PLOT"], dpi=300)
+
+
 def main(config):
 
     # PROCESS INPUTS
     config["OUT_DIR"] = '_'.join([config["SAMPLE"], "getitd"])
     config["OUT_NEEDLE"] = 'out_needle'
+    config["OUT_COV_PLOT"] = os.path.join(config["OUT_DIR"], "coverage.png")
+    config["OUT_COV_FILE"] = os.path.join(config["OUT_DIR"], "coverage.txt")
     config["STATS_FILE"] = os.path.join(config["OUT_DIR"], "stats.txt")
     config["CONFIG_FILE"] = os.path.join(config["OUT_DIR"], "config.txt")
 
     # make all input & output file / folder names absolute paths
-    for file_ in ["R1", "R2", "REF_FILE", "ANNO_FILE", "OUT_DIR", "STATS_FILE", "CONFIG_FILE"]:
+    for file_ in ["R1", "R2", "REF_FILE", "ANNO_FILE", "OUT_DIR", "STATS_FILE", "CONFIG_FILE", "OUT_COV_FILE", "OUT_COV_PLOT"]:
         if config[file_]:
             config[file_] = make_file_path_absolute(config[file_])
 
@@ -2014,31 +2090,17 @@ def main(config):
 
     #######################################
     # CALCULATE COVERAGE
-    start_time = timeit.default_timer()
-    ref_coverage_total = []
-    ref_coverage_frwd = []
-    ref_coverage_rev = []
-    #print("read.ref_span: {}".format(read.ref_span))
-    for coord, bp  in enumerate(config["REF"]):
-        spanning_reads = [read for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1]]
-        spanning_reads_index = flatten_list([read.index for read in spanning_reads])
-        ref_coverage_total.append(len(set(spanning_reads_index))) #do not count paired mates (which have the same read.index) twice
-        ref_coverage_frwd.append(sum([read.counts for read in spanning_reads if read.sense == 1]))
-        ref_coverage_rev.append(sum([read.counts for read in spanning_reads if read.sense == -1]))
-        assert(ref_coverage_frwd[-1] == sum((read.counts for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1] and read.sense == 1)))
-        assert(ref_coverage_rev[-1] == sum((read.counts for read in reads if coord >= read.ref_span[0] and coord <= read.ref_span[1] and read.sense == -1)))
-    ref_coverage = {"all_reads": ref_coverage_total, "forward_reads": ref_coverage_frwd, "reverse_reads": ref_coverage_rev}
-
-    # CALCULATE INTER-BP COVERAGE
+    # use inter-bp instead of bp coverage!
     # -> this is what inserts' coverage will be based on,
     #    so that only those reads are taken into consideration which span across the same reference base as the insert
     # --> this will differentiate reads that stop ON the preceding WT base pair from those that actually continue beyond it,
     #     either with an insertion or with the following WT base. For stopping reads we simply do not know whether they would
     #     support the insertion or not!
+    start_time = timeit.default_timer()
     iref_coverage_total = dict()
     iref_coverage_frwd = dict()
     iref_coverage_rev = dict()
-    iref_coords = np.array(range(len(ref_coverage_total) -1 +2)) -0.5  #-1 for counting inter-bp spaces instead of bp, +2 for 3' and 5' extension beyond amplicon, -0.5 for inter-bp coords
+    iref_coords = np.array(range(len(config["REF"]) -1 +2)) -0.5  #-1 for counting inter-bp spaces instead of bp, +2 for 3' and 5' extension beyond amplicon, -0.5 for inter-bp coords
     for ref_coord, iref_coord in enumerate(iref_coords):
         spanning_reads = [read for read in reads if iref_coord >= read.ref_span[0] and iref_coord <= read.ref_span[1]]
         spanning_reads_index = flatten_list([read.index for read in spanning_reads])
@@ -2048,6 +2110,9 @@ def main(config):
     iref_coverage = {"all_reads": iref_coverage_total, "forward_reads": iref_coverage_frwd, "reverse_reads": iref_coverage_rev}
     print("Calculating coverage took {} s".format(timeit.default_timer() - start_time))
 
+    save_coverage(iref_coverage, config)
+    if config["PLOT"]:
+        plot_coverage(iref_coverage, config)
 
     #######################################
     # COLLECT INSERTS
