@@ -288,6 +288,8 @@ For each sample, an output directory will be created in the current directory, n
 Inside, all of the generated output files reside:
 - config.txt contains parameters, date and time of the analysis
 - stats.txt contains the number of reads and insertions / ITDs processed and filtered at each step of the analysis
+- coverage.txt contains the read coverage across the reference sequence
+- coverage.png contains a plot of that same coverage data (optionally created using `-plot_coverage True`)
 - out\_needle/ contains individual alignment files, needle\_\*.txt, of all the different reads processed
 - itds\_collapsed-is-same\_is-similar\_is-close\_is-same-trailing\_hc.tsv contains filtered high-confidence (hc) ITDs, fully merged
 - itds\_collapsed-is-same\_is-similar\_is-close\_is-same-trailing.tsv contains all ITDs, fully merged
@@ -295,6 +297,8 @@ Inside, all of the generated output files reside:
 - itds\_collapsed-is-same\_is-similar.tsv contains all ITDs, having merged those of the same insertion length and site and similar insert sequences
 - itds\_collapsed-is-same.tsv contains all ITDs, having merged those that share the same insertion length, site and sequence
 - insertions\*.tsv files are analogous to ITD files but list all insertions, regardless of whether these are also ITDs or not
+
+Note that `insertion*tsv` and `itd*tsv` files are only created if at least one insertion or ITD is found, respectively. Config and stats files should exist for all samples.
 
 ##### On stdout
 At each filtering step, the number of reads and insertions passing the specified requirements are printed. This basically corresponds to the content of _stats.txt_.
@@ -397,15 +401,15 @@ python3 getitd.py -forward_primer GCAATTTAGGTATGAAAGCCAGCTAC -- test test/test_R
     - Assume that true & clinically relevant sequences will be present at least twice and discard unique reads
 4. Align each read to the WT amplicon reference sequence using Needlemann-Wunsch alignment algorithm
 5. Filter alignments, require
-    - at least 50 % of the maximum possible alignment score
-    - gap-free alignment to the primer sequence (when these are given)
+    - at least 40% of the maximum possible alignment score
+    - gap-free alignment to the given primer sequence
 6. Collect insertions within passing alignments, require
     - insert length of at least 6 bp
     - absence of ambiguous "N" bases within the actual insert sequence
     - in-frame insert (length divisible by 3) for inserts fully contained within a read
-    - 3' or 5' trailing inserts not fully spanned by the sequenced reads are not required to be in-frame, since their exact length is not actually known then
+    - 3' or 5' trailing inserts not fully spanned by the sequenced reads are not required to be in-frame, since their exact length is not actually known
 7. Collect ITDs from passing insertions, require
-    - insert sequence can be realigned to the WT amplicon sequence, again with at least 50 % of the maximum possible alignment score
+    - insert sequence can be realigned to the WT amplicon sequence, with at least 50% of the maximum possible alignment score
     - for 3' and 5' trailing inserts that insert sequence is not an adapter artefact
 8. Merge total insertions and ITDs independently (considering reads to describe the same event and adding up supporting counts), require
     - that they are actually the same: insert length, site and sequence are identical
