@@ -195,7 +195,7 @@ determined for *two* FASTQ files. This is now fixed, with sense
 truly only set once alignment is successful and based on that alignment,
 so that with -infer_sense_from_alignment set to True, it no longer
 matters in which order two (paired) FASTQ files are supplied or whether
-a single merged file is supplied. 
+a single merged file is supplied.
 
 
 # getITD 1.2.0  2019-08-29
