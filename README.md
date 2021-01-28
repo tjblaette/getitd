@@ -1,4 +1,4 @@
-# getITD v1.5.7
+# getITD v1.5.8
 
 getITD for FLT3-ITD-based MRD monitoring in AML                                                                             
 https://doi.org/10.1038/s41375-019-0483-z
@@ -291,18 +291,18 @@ optional arguments:
 
 ```
 
-### Output 
+### Output
 ##### Files
-For each sample, an output directory will be created in the current directory, named using the provided sample ID. 
+For each sample, an output directory will be created in the current directory, named using the provided sample ID.
 Inside, all of the generated output files reside:
-- config.txt contains parameters, date and time of the analysis
+- config.txt contains parameters, date and time of the analysis, as well as the getITD version that was used
 - stats.txt contains the number of reads and insertions / ITDs processed and filtered at each step of the analysis
 - coverage.txt contains the read coverage across the reference sequence
 - coverage.png contains a plot of that same coverage data (optionally created using `-plot_coverage True`)
 - out\_needle/ contains individual alignment files, needle\_\*.txt, of all the different reads processed
 - itds\_collapsed-is-same\_is-similar\_is-close\_is-same-trailing\_hc.tsv contains filtered high-confidence (hc) ITDs, fully merged
 - itds\_collapsed-is-same\_is-similar\_is-close\_is-same-trailing.tsv contains all ITDs, fully merged
-- itds\_collapsed-is-same\_is-similar\_is-close.tsv contains all ITDs, having merged those of the same insertion length, nearby insertion sites (within one tandem length) and similar insert sequences 
+- itds\_collapsed-is-same\_is-similar\_is-close.tsv contains all ITDs, having merged those of the same insertion length, nearby insertion sites (within one tandem length) and similar insert sequences
 - itds\_collapsed-is-same\_is-similar.tsv contains all ITDs, having merged those of the same insertion length and site and similar insert sequences
 - itds\_collapsed-is-same.tsv contains all ITDs, having merged those that share the same insertion length, site and sequence
 - insertions\*.tsv files are analogous to ITD files but list all insertions, regardless of whether these are also ITDs or not

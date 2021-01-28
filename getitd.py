@@ -1,3 +1,6 @@
+__version__ = '1.5.8'
+
+
 import Bio.pairwise2 as bio
 import timeit
 import collections
@@ -27,6 +30,7 @@ def save_config(config, filename):
     with open(filename, "w") as f:
         f.write("Commandline_argument\tValue\n")
         f.write("Time\t{}\n".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%d")))
+        f.write("getITD_version\t{}\n".format(__version__))
         for param in sorted(config.keys()):
             if param not in ["ANNO", "DOMAINS"]:
                 f.write("{}\t{}\n".format(param, config[param]))

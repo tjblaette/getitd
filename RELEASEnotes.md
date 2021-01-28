@@ -1,3 +1,11 @@
+# getITD 1.5.8  2021-01-28
+
+### Add getITD version to config.txt output
+To keep track of which version was used for which analysis, this info
+is now printed to the `config.txt` output file, right at the top below
+the date and time of the analysis.
+
+
 # getITD 1.5.7  2021-01-28
 
 ### Add parameter to adjust an insertion/ITD's required minimum insert length
