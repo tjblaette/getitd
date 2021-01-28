@@ -1,3 +1,16 @@
+# getITD 1.5.7  2021-01-28
+
+### Add parameter to adjust an insertion/ITD's required minimum insert length
+Previously, getITD called all insertions and ITDs where the insert was at least
+6 bp long. Lower quality samples, however, can be prone to many spurious
+false positive calls, which appear as variable 6-7 bp trailing inserts,
+mapped to ITDs of varying lengths, but supported only at low VAFs by reverse
+reads only. To allow filtering of such cases, an additional parameter
+`-min_insert_seq_length` was introduced. The default value is `6`, to
+recapitulate getITD's previous behaviour, but for low quality samples
+it can now be set to `9` or higher.
+
+
 # getITD 1.5.6  2021-01-22
 
 ### Output, and optionally plot, final read coverage across the reference

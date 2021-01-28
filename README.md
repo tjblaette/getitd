@@ -1,4 +1,4 @@
-# getITD v1.5.6
+# getITD v1.5.7
 
 getITD for FLT3-ITD-based MRD monitoring in AML                                                                             
 https://doi.org/10.1038/s41375-019-0483-z
@@ -147,6 +147,7 @@ Many optional parameters are available to customize the analysis:
 | `-minscore_inserts X` | Fraction of the maximum possible alignment score required between inserts and respective WT tandems when deciding whether these are sufficiently similar to consider them ITDs and inserts supported by distinct reads when determining whether these are supporting the same mutation or not. Higher values will require sequences in both cases to be more similar. Default: _0.5_. |
 | `-minscore_alignments X` | Fraction of the maximum possible alignment score required between each read and the reference. Reads that do not pass this filter are discarded to eliminate low fidelity sequences. Default: _0.4_. |
 | `-min_bqs X` | Minimum average base quality score (BQS) required by each read. Reads that do not pass this filter are discarded to eliminate sequences likely to contain sequencing errors. Default: _30_. |
+| `-min_insert_seq_length X` | Minimum number of sequenced insert bases required for getITD to call an insertion / ITD. Default: _6_. Increase to _9_ or higher to avoid false positives in lower quality samples. |
 | `-min_read_length X` | Minimum read length required by each read. This filter is applied after trailing _N_ bases are trimmed at both the 5' and 3' end. Reads that do not pass this filter are discarded. Default: _100_. |
 | `-min_read_copies X` | Minimum number of copies of each read required for processing. When set to _2_, all unique read sequences are discarded, based on the assumption that _true_ and _clinically relevant_ sequences will be present at least twice. Disable this filter, by setting it to _1_, when not all reads have the same length as it will otherwise incorrectly discard the majority of input reads. Default: _2_. |
 | `-filter_ins_unique_reads X` | Minimum number of unique supporting reads required for an insertion / ITD to be considered _high confidence_. Disable this filter by setting it to _1_. Default: _2_. | 
@@ -181,6 +182,7 @@ usage: getitd.py [-h] [-reference REFERENCE] [-anno ANNO]
                  [-minscore_alignments MINSCORE_ALIGNMENTS] [-min_bqs MIN_BQS]
                  [-min_read_length MIN_READ_LENGTH]
                  [-min_read_copies MIN_READ_COPIES]
+                 [-min_insert_seq_length MIN_INSERT_SEQ_LENGTH]
                  [-filter_ins_unique_reads FILTER_INS_UNIQUE_READS]
                  [-filter_ins_total_reads FILTER_INS_TOTAL_READS]
                  [-filter_ins_vaf FILTER_INS_VAF]
@@ -267,6 +269,13 @@ optional arguments:
                         minimum number of copies of each read required for
                         processing (1 to turn filter off, 2 (default) to
                         discard unique reads)
+  -min_insert_seq_length MIN_INSERT_SEQ_LENGTH
+                        minimum number of insert basepairs which must be
+                        sequenced of each insert for it to be considered by
+                        getITD. For non-trailing ITDs, this is the minimum
+                        insert length; for trailing ITDs, it is the minimum
+                        number of bp of a potentially longer ITD which have to
+                        be sequenced (default 6).
   -filter_ins_unique_reads FILTER_INS_UNIQUE_READS
                         minimum number of unique reads required to support an
                         insertion for it to be considered 'high confidence'
