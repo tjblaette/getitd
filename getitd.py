@@ -1,4 +1,4 @@
-__version__ = '1.5.8'
+__version__ = '1.5.9'
 
 
 import Bio.pairwise2 as bio
@@ -1655,7 +1655,12 @@ def get_unique_reads(reads):
         list_reads_sense = set([read.sense for read in list_reads])
         for sense in list_reads_sense:
             unique_reads.append(
-                    Read(seq=seq, sense=sense, bqs=None, counts=len([this_read for this_read in list_reads if this_read.sense == sense]), index=list_reads_index))
+                    Read(
+                        seq=seq,
+                        sense=sense,
+                        bqs=None,
+                        counts=len([this_read for this_read in list_reads if this_read.sense == sense]),
+                        index=[this_read.index for this_read in list_reads if this_read.sense == sense]))
     return unique_reads
 
 

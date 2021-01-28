@@ -1,3 +1,12 @@
+# getITD 1.5.9  2021-01-28
+
+### Fix bug affecting samples with identical reads in R1 and R2 FASTQ files
+There was previously a small bug in the way reads were handled which shared
+identical sequences but originated from both R1 and R2 fastq files.
+In rare cases, this could cause getITD to fail when calculating an
+insert VAF.
+
+
 # getITD 1.5.8  2021-01-28
 
 ### Add getITD version to config.txt output
