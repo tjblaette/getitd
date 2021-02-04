@@ -1,3 +1,11 @@
+# getITD 1.5.10  2021-02-04
+
+### Reintroduce explicit retraint that WT tandem is fully sequenced
+getITD v1.5.4 removed the constraint that an ITD's WT has to be fully
+sequenced. This filter does seem to be necessary, so it is reimplemented
+with this release.
+
+
 # getITD 1.5.9  2021-01-28
 
 ### Fix bug affecting samples with identical reads in R1 and R2 FASTQ files

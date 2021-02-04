@@ -1,4 +1,4 @@
-__version__ = '1.5.9'
+__version__ = '1.5.10'
 
 
 import Bio.pairwise2 as bio
@@ -755,12 +755,14 @@ class Insert(object):
             # offset = insert.length-1 for adjacent tandem2-insert
             # --> (for tandem2-insert: offset = abs((insert_start - insert.length +1) - insert_start))
             if (offset == 1 or offset == self.length - 1) or (self.trailing and ((self.trailing_end == 3 and alignment_start < self.start) or (self.trailing_end == 5 and alignment_start > self.start))):
-                # do not allow gaps in tandems of trailing ITDs
+                # do not allow gaps in tandems of trailing ITDs <- I'm not actually filtering on this anymore? (Don't think I should either?)
+                # instead: require that WT tandem is fully sequenced (insert-to-WT_tandem alignment may contains gaps though!)
                 # -> also filters tandems not covered by read at all
                 #    such as small trailing inserts by chance also found in some other part of the the reference
                 #    (can never be the case for non-trailing ITDs anyway)
                 # --> careful: alignment_end is exclusive coord, i.e. the index of the first bp after the alignment!
-                if alignment_start >= self.reads[0].ref_span[0] -0.5 and alignment_end-1 <= self.reads[0].ref_span[1] +0.5: # and ((tandem2_start + offset <= self.reads[0].ref_span[1] +0.5):
+                # note to the `if` below: no need to check for self.trailing_end == 3 because the insert (which is at the 3' end) is by definition always sequenced and the 5' end is checked with `alignment_start >= self.reads[0].ref_span[0] -0.5`
+                if alignment_start >= self.reads[0].ref_span[0] -0.5 and ((not self.trailing and tandem2_start +offset <= self.reads[0].ref_span[1] +0.5) or (self.trailing_end == 5 and tandem2_start + self.length <= self.reads[0].ref_span[1] +0.5) or (self.trailing_end == 3)):
                     # if by chance insert is completely contained within read in spite of it being trailing
                     # (i.e. insert and tandem have the same length & are adjacent)
                     # --> revert trailing to be able to apply more stringent filters of non-trailing inserts
