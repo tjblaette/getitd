@@ -1,4 +1,4 @@
-__version__ = '1.5.10'
+__version__ = '1.5.11'
 
 
 import Bio.pairwise2 as bio
@@ -2035,7 +2035,11 @@ def main(config):
 
     ## TRIM trailing AMBIGUOUS 'N's
     reads = [x for x in parallelize(Read.trim_n, reads, config["NKERN"]) if x is not None]
-    save_stats("Number of total reads remainging after N-trimming: {} ({} %)".format(len(reads), len(reads) * 100 / TOTAL_READS), config["STATS_FILE"])
+    save_stats("Number of total reads > {}bp remaining after N-trimming: {} ({} %)".format(config["MIN_READ_LENGTH"], len(reads), len(reads) * 100 / TOTAL_READS), config["STATS_FILE"])
+    if not reads:
+        save_stats("\nNO READS TO PROCESS!", config["STATS_FILE"])
+        save_stats("Consider adjusting `-min_read_length` parameter?\n", config["STATS_FILE"])
+        quit()
     save_stats("Mean read length after N-trimming: {}".format(np.mean([read.length for read in reads])), config["STATS_FILE"])
 
     ## FILTER ON BQS

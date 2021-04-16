@@ -1,3 +1,16 @@
+# getITD 1.5.11  2021-04-16
+
+### Print readable error message when reads are too short for analysis
+By default, getITD trims off terminal N bases of all reads and then
+filters by length to discard sequences too short for analysis. The
+default cutoff is 100bp and shorter reads are discarded. While this
+is reasonable for 150bp or longer reads, it will remove all reads
+that start out being only 100bp long or shorter. Previously, getITD
+failed with an incomprehensible numpy error. Now it prints an
+informative error message and points users to the `-min_read_length`
+parameter that they can adjust accordingly for shorter read protocols.
+
+
 # getITD 1.5.10  2021-02-04
 
 ### Reintroduce explicit retraint that WT tandem is fully sequenced
