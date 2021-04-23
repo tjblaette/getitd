@@ -1,3 +1,17 @@
+# getITD 1.5.12  2021-04-23
+
+### Clean up getITD output messages on incomplete WT tandems
+getITD requires that an ITD's WT tandem is completely covered
+by the read. If the insert maps beyond the read's boundaries, the
+ITD is considered a likely false positive and not called. I'm not
+sure it's a guaranteed false positive in all cases, for all protocols,
+so I am keeping these reads saved to a separate file. What is new now
+is that instead of printing an explanatory info message each time
+such a read is found during the analysis, only one summarizing info
+box is printed after the analysis, where such reads were present.
+This should make the output more readable and concise.
+
+
 # getITD 1.5.11  2021-04-16
 
 ### Print readable error message when reads are too short for analysis

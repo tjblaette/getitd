@@ -1,4 +1,4 @@
-__version__ = '1.5.11'
+__version__ = '1.5.12'
 
 
 import Bio.pairwise2 as bio
@@ -782,11 +782,6 @@ class Insert(object):
                         external_bp=abs(tandem2_start - alignment_start)
                         )
                 else:
-                    print("----")
-                    print("getITD requires the WT tandem to be fully sequenced, but this ITD's WT tandem was not covered completely.")
-                    print("The ITD was therefore considered a likely false positive and not called.")
-                    print("Report this warning if you feel a true positive was missed, otherwise safely ignore.")
-                    print("----")
                     # save offending read sequence to separate log file to enable troubleshoot/ manual check later
                     with open(os.path.join(config["OUT_DIR"], "incomplete-wt-tandem.log"), "a") as _file:
                         _file.write(self.reads[0].seq)
@@ -2195,6 +2190,19 @@ def main(config):
     for type_, inserts_ in merged_ins_and_itds.items():
         filtered_ins_and_itds[type_] = get_hc_inserts(inserts_, type_, config, "_collapsed-is-same_is-similar_is-close_is-same_trailing_hc")
     print("Filtering took {} s".format(timeit.default_timer() - start_time))
+
+
+    ########################################
+    # CHECK FOR INCOMPLETELY COVERED WT READS
+    incomplete_wt_tandem_file = os.path.join(config["OUT_DIR"], "incomplete-wt-tandem.log")
+    if os.path.exists(incomplete_wt_tandem_file):
+        incomplete_wt_tandem_reads = len(open(incomplete_wt_tandem_file).readlines(  ))
+        print("\n----")
+        print("Note: getITD requires the WT tandem to be fully sequenced.")
+        print("This sample contained {} reads whose insert mapped partially beyond the covered sequence.".format(incomplete_wt_tandem_reads))
+        print("These inserts were therefore considered likely false positives and not called as ITDs.")
+        print("They were saved to {} for reference.".format(incomplete_wt_tandem_file))
+        print("Report this warning if you feel a true positive was missed, otherwise safely ignore.\n")
 
 
     ########################################

@@ -1,4 +1,4 @@
-# getITD v1.5.11
+# getITD v1.5.12
 
 getITD for FLT3-ITD-based MRD monitoring in AML
 
