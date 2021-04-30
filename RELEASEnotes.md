@@ -1,3 +1,11 @@
+# getITD 1.5.13  2021-04-30
+
+### Clean up getITD output messages by rounding long decimals
+Both computation time estimates and long fractions are now
+rounded to make output on the console and in `stats.txt` more
+legible.
+
+
 # getITD 1.5.12  2021-04-23
 
 ### Clean up getITD output messages on incomplete WT tandems

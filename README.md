@@ -1,4 +1,4 @@
-# getITD v1.5.12
+# getITD v1.5.13
 
 getITD for FLT3-ITD-based MRD monitoring in AML
 
@@ -329,54 +329,58 @@ Expected output:
 ```console
 ==== PROCESSING SAMPLE test ====
 -- Reading FASTQ files --
-Reading FASTQ files took 0.15001007914543152 s
+Reading FASTQ files took 0.1 s
 Number of total reads: 5000
-Number of total reads remainging after N-trimming: 5000 (100.0 %)
+Number of total reads > 100bp remaining after N-trimming: 5000 (100.0 %)
 Mean read length after N-trimming: 251.0
 Number of total reads with mean BQS >= 30: 4544 (90.88 %)
-Getting unique reads took 0.04079139232635498 s
+Getting unique reads took 0.06 s
 
 Number of unique reads with mean BQS >= 30: 987
 Number of unique reads with at least 2 copies: 170
 Total reads remaining for analysis: 3727 (74.54 %)
 
 -- Aligning to Reference --
-Alignment took 1.0301645826548338 s
-Filtering 0 / 170 low quality alignments with a score < 50.0 % of max
+Alignment took 1.13 s
+Filtering 0 / 170 low quality alignments with a score < 40.0 % of max
 Filtering 20 / 170 alignments with indels in primer bases
 Total reads remaining for analysis: 3669 (73.38 %)
-Calculating coverage took 0.11887545138597488 s
+Calculating coverage took 0.09 s
 
 -- Looking for insertions & ITDs --
-Collecting inserts took 0.020746199414134026 s
+Collecting inserts took 0.04 s
 44 inserts >= 6 bp were found
 0/44 insertions were part of adapters and filtered
-Filtering inserts for adapter sequences took 2.495385706424713e-05 s
-Annotating coverage took 0.005261320620775223 s
-Collecting ITDs took 0.3815697953104973 s
+Filtering inserts for adapter sequences took 0.0 s
+Annotating coverage took 0.0 s
+Collecting ITDs took 0.35 s
 44 ITDs were found
 
--- Merging results --
+-- Merging insertions --
 3 insertions remain after merging
 2 insertions remain after merging
 1 insertions remain after merging
 1 insertions remain after merging
+
+-- Merging itds --
 3 itds remain after merging
 2 itds remain after merging
 1 itds remain after merging
 1 itds remain after merging
-Merging took 0.5721261408179998 s
+Merging took 0.15 s
 
--- Filtering --
-Filtered 0 / 1 insertions based on the vaf
+-- Filtering insertions --
 Filtered 0 / 1 insertions based on the number of unique supporting reads
 Filtered 0 / 1 insertions based on the number of total supporting reads
+Filtered 0 / 1 insertions based on the vaf
 1 insertions remain after filtering!
-Filtered 0 / 1 itds based on the vaf
+
+-- Filtering itds --
 Filtered 0 / 1 itds based on the number of unique supporting reads
 Filtered 0 / 1 itds based on the number of total supporting reads
+Filtered 0 / 1 itds based on the vaf
 1 itds remain after filtering!
-Filtering took 0.03359447047114372 s
+Filtering took 0.03 s
 ```
 
 #### Changing optional parameters

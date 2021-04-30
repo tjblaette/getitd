@@ -1,4 +1,4 @@
-__version__ = '1.5.12'
+__version__ = '1.5.13'
 
 
 import Bio.pairwise2 as bio
@@ -1833,7 +1833,7 @@ def get_reads(config):
             for read in reads_rev:
                 read.sense = -1
         reads = reads + reads_rev
-    print("Reading FASTQ files took {} s".format(timeit.default_timer() - start_time))
+    print("Reading FASTQ files took {} s".format(round(timeit.default_timer() - start_time, 2)))
     save_stats("Number of total reads: {}".format(len(reads)), config["STATS_FILE"])
     return reads
 
@@ -2030,22 +2030,22 @@ def main(config):
 
     ## TRIM trailing AMBIGUOUS 'N's
     reads = [x for x in parallelize(Read.trim_n, reads, config["NKERN"]) if x is not None]
-    save_stats("Number of total reads > {}bp remaining after N-trimming: {} ({} %)".format(config["MIN_READ_LENGTH"], len(reads), len(reads) * 100 / TOTAL_READS), config["STATS_FILE"])
+    save_stats("Number of total reads > {}bp remaining after N-trimming: {} ({} %)".format(config["MIN_READ_LENGTH"], len(reads), round(len(reads) * 100 / TOTAL_READS, 2)), config["STATS_FILE"])
     if not reads:
         save_stats("\nNO READS TO PROCESS!", config["STATS_FILE"])
         save_stats("Consider adjusting `-min_read_length` parameter?\n", config["STATS_FILE"])
         quit()
-    save_stats("Mean read length after N-trimming: {}".format(np.mean([read.length for read in reads])), config["STATS_FILE"])
+    save_stats("Mean read length after N-trimming: {}".format(round(np.mean([read.length for read in reads]), 2)), config["STATS_FILE"])
 
     ## FILTER ON BQS
     if config["MIN_BQS"] > 0:
         reads = [x for x in parallelize(Read.filter_bqs, reads, config["NKERN"]) if x is not None]
-    save_stats("Number of total reads with mean BQS >= {}: {} ({} %)".format(config["MIN_BQS"], len(reads), len(reads) * 100 / TOTAL_READS), config["STATS_FILE"])
+    save_stats("Number of total reads with mean BQS >= {}: {} ({} %)".format(config["MIN_BQS"], len(reads), round(len(reads) * 100 / TOTAL_READS, 2)), config["STATS_FILE"])
 
     ## GET UNIQUE READS AND COUNTS THEREOF
     start_time = timeit.default_timer()
     reads = get_unique_reads(reads)
-    print("Getting unique reads took {} s\n".format(timeit.default_timer() - start_time))
+    print("Getting unique reads took {} s\n".format(round(timeit.default_timer() - start_time, 2)))
     save_stats("Number of unique reads with mean BQS >= {}: {}".format(config["MIN_BQS"],len(reads)), config["STATS_FILE"])
 
     # FILTER UNIQUE READS
@@ -2056,7 +2056,7 @@ def main(config):
     else:
         reads = [read for read in reads if read.counts >= config["MIN_READ_COPIES"] ]
         save_stats("Number of unique reads with at least {} copies: {}".format(config["MIN_READ_COPIES"],len(reads)), config["STATS_FILE"])
-    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum((read.counts for read in reads)), sum((read.counts for read in reads)) * 100 / TOTAL_READS), config["STATS_FILE"])
+    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum((read.counts for read in reads)), round(sum((read.counts for read in reads)) * 100 / TOTAL_READS, 2)), config["STATS_FILE"])
 
     ## ALIGN TO REF
     save_stats("\n-- Aligning to Reference --", config["STATS_FILE"])
@@ -2064,7 +2064,7 @@ def main(config):
         save_stats("Inferring sense from alignment!", config["STATS_FILE"])
     start_time = timeit.default_timer()
     reads = parallelize(Read.align, reads, config["NKERN"])
-    print("Alignment took {} s".format(timeit.default_timer() - start_time))
+    print("Alignment took {} s".format(round(timeit.default_timer() - start_time, 2)))
 
     # FILTER BASED ON ALIGNMENT SCORE (INCL FAILED ALIGNMENTS WITH read.al_score is None)
     reads = filter_alignment_score(reads, config)
@@ -2080,7 +2080,7 @@ def main(config):
         save_stats("Turned OFF indel-free primer filter!", config["STATS_FILE"])
 
     # FINAL STATS
-    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum((read.counts for read in reads)), sum((read.counts for read in reads)) * 100 / TOTAL_READS), config["STATS_FILE"])
+    save_stats("Total reads remaining for analysis: {} ({} %)".format(sum((read.counts for read in reads)), round(sum((read.counts for read in reads)) * 100 / TOTAL_READS, 2)), config["STATS_FILE"])
 
     # REORDER TRAILING INSERTS TO GUARANTEE REF SEQ MORE TRAILING THAN INSERT SEQ AND CORRECT REF_SPAN
     reads = parallelize(Read.reorder_trailing_inserts, reads, config["NKERN"])
@@ -2120,7 +2120,7 @@ def main(config):
         iref_coverage_frwd[iref_coord] = sum([read.counts for read in spanning_reads if read.sense == 1])
         iref_coverage_rev[iref_coord] = sum([read.counts for read in spanning_reads if read.sense == -1])
     iref_coverage = {"all_reads": iref_coverage_total, "forward_reads": iref_coverage_frwd, "reverse_reads": iref_coverage_rev}
-    print("Calculating coverage took {} s".format(timeit.default_timer() - start_time))
+    print("Calculating coverage took {} s".format(round(timeit.default_timer() - start_time, 2)))
 
     save_coverage(iref_coverage, config)
     if config["PLOT"]:
@@ -2133,7 +2133,7 @@ def main(config):
     start_time = timeit.default_timer()
     inserts = [read.get_inserts(config) for read in reads]
     inserts = flatten_list([insert for insert in inserts if insert is not None])
-    print("Collecting inserts took {} s".format(timeit.default_timer() - start_time))
+    print("Collecting inserts took {} s".format(round(timeit.default_timer() - start_time, 2)))
     save_stats("{} inserts >= {} bp were found".format(len(inserts), config["MIN_INSERT_SEQ_LENGTH"]), config["STATS_FILE"])
 
     # filter inserts that are actually adapter sequences
@@ -2142,7 +2142,7 @@ def main(config):
     total_inserts = len(inserts)
     inserts = [insert for insert in inserts if not insert.is_adapter_artefact(config)]
     save_stats("{}/{} insertions were part of adapters and filtered".format(total_inserts - len(inserts), total_inserts), config["STATS_FILE"])
-    print("Filtering inserts for adapter sequences took {} s".format(timeit.default_timer() - start_time))
+    print("Filtering inserts for adapter sequences took {} s".format(round(timeit.default_timer() - start_time, 2)))
 
     # add coverage to inserts
     start_time = timeit.default_timer()
@@ -2154,7 +2154,7 @@ def main(config):
         insert = insert.set_sense()
         insert = insert.set_coverage(iref_coverage)
         insert = insert.calc_vaf()
-    print("Annotating coverage took {} s".format(timeit.default_timer() - start_time))
+    print("Annotating coverage took {} s".format(round(timeit.default_timer() - start_time, 2)))
 
 
     #######################################
@@ -2168,7 +2168,7 @@ def main(config):
 
     inserts = sorted(inserts, key=Insert.get_seq)
     itds = sorted(itds, key=Insert.get_seq)
-    print("Collecting ITDs took {} s".format(timeit.default_timer() - start_time))
+    print("Collecting ITDs took {} s".format(round(timeit.default_timer() - start_time, 2)))
     save_stats("{} ITDs were found".format(len(itds)), config["STATS_FILE"])
 
 
@@ -2180,7 +2180,7 @@ def main(config):
     start_time = timeit.default_timer()
     for type_, inserts_ in ins_and_itds.items():
         merged_ins_and_itds[type_] = get_merged_inserts(inserts_, type_, iref_coverage, config)
-    print("Merging took {} s".format(timeit.default_timer() - start_time))
+    print("Merging took {} s".format(round(timeit.default_timer() - start_time, 2)))
 
 
     ########################################
@@ -2189,7 +2189,7 @@ def main(config):
     start_time = timeit.default_timer()
     for type_, inserts_ in merged_ins_and_itds.items():
         filtered_ins_and_itds[type_] = get_hc_inserts(inserts_, type_, config, "_collapsed-is-same_is-similar_is-close_is-same_trailing_hc")
-    print("Filtering took {} s".format(timeit.default_timer() - start_time))
+    print("Filtering took {} s".format(round(timeit.default_timer() - start_time, 2)))
 
 
     ########################################
