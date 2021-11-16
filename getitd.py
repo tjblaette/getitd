@@ -144,7 +144,7 @@ class Read(object):
         """
         Pretty print Read.
         """
-        pprint.pprint(vars(self))
+        pprint.pprint({key: vars(self)[key] for key in vars(self).keys() if not key == 'index'})
 
     def reverse_complement(self):
         """
