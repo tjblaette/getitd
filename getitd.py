@@ -1,4 +1,4 @@
-__version__ = '1.5.13'
+__version__ = '1.5.14'
 
 
 import Bio.pairwise2 as bio
@@ -790,6 +790,10 @@ class Insert(object):
                 else:
                     # save offending read sequence to separate log file to enable troubleshoot/ manual check later
                     with open(os.path.join(config["OUT_DIR"], "incomplete-wt-tandem.log"), "a") as _file:
+                        _file.write(str(self.reads[0].counts))
+                        _file.write("\t")
+                        _file.write(self.seq)
+                        _file.write("\t")
                         _file.write(self.reads[0].seq)
                         _file.write("\n")
                     #self.print()
@@ -2205,9 +2209,9 @@ def main(config):
         incomplete_wt_tandem_reads = len(open(incomplete_wt_tandem_file).readlines(  ))
         print("\n----")
         print("Note: getITD requires the WT tandem to be fully sequenced.")
-        print("This sample contained {} reads whose insert mapped partially beyond the covered sequence.".format(incomplete_wt_tandem_reads))
+        print("This sample contained {} read(s) whose insert mapped partially beyond the covered sequence.".format(incomplete_wt_tandem_reads))
         print("These inserts were therefore considered likely false positives and not called as ITDs.")
-        print("They were saved to {} for reference.".format(incomplete_wt_tandem_file))
+        print("They were saved to {} for reference,\nincluding the number of occurrences within this sample, the insert sequence and the full read sequence.".format(incomplete_wt_tandem_file))
         print("Report this warning if you feel a true positive was missed, otherwise safely ignore.\n")
 
 

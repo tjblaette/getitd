@@ -1,3 +1,24 @@
+# getITD 1.5.14  2021-11-16
+
+### Fix special cases of 3' trailing inserts & extend incomplete-wt-tandem.log
+Special processing is required to properly recognize and annotate trailing
+inserts. While this was previously done for 5' inserts, it had not yet been
+applied to 3' trailing inserts. This update makes sure trailing inserts on
+both ends of the read are handled in the same way.
+Note that this would previously have affected the coverage estimate of
+some 3' trailing inserts, especially those that were long and located in
+the middle of the reference sequence. In rare cases, it could have caused
+getITD to fail with an assertionError when calculting respective VAFs.
+
+Inserts that map to a WT tandem which is only partially contained within
+the read have previously been written to incomplete-wt-tandem.log with
+their full read sequence only. I have now added read counts, to show the
+number of times each sequence appeared in a given sample, and the insert
+sequence itself, to allow comparison with results in the insertion*.tsv
+output files. This should help users judge how relevant sequences with
+these incompletely sequenced (potential) ITDs are.
+
+
 # getITD 1.5.13  2021-04-30
 
 ### Clean up getITD output messages by rounding long decimals
