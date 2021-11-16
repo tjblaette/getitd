@@ -27,6 +27,7 @@ config["MIN_READ_COPIES"] = 2
 config["MIN_TOTAL_READS"] = 1
 config["MIN_UNIQUE_READS"] = 2
 config["MIN_VAF"] = 0.001
+config["MIN_INSERT_SEQ_LENGTH"] = 6
 
 config["ANNO_FILE"] = "./anno/amplicon_kayser.tsv"
 config["ANNO"] = getitd.read_annotation(config["ANNO_FILE"])
