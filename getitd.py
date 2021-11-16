@@ -290,6 +290,12 @@ class Read(object):
                         + self.al_ref[insert_idxs[0][0] : insert_idxs[0][-1] + 1] \
                         + self.al_ref[del_idxs[0][-1] + 1 : ]
                 #self.print()
+        if self.al_ref[-1] == '-':
+            self.al_ref = self.al_ref[::-1]
+            self.al_seq = self.al_seq[::-1]
+            self = self.reorder_trailing_inserts()
+            self.al_ref = self.al_ref[::-1]
+            self.al_seq = self.al_seq[::-1]
         return self
 
     def contains_indel_free_primer(self, config):
