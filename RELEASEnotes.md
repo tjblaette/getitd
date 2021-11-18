@@ -1,3 +1,12 @@
+# getITD 1.5.15  2021-11-18
+
+### Fix 1.5.14
+The previous update got hung up on sequences with trailing inserts on
+both the 5' and 3' ends, trying to process them again and again in
+and infinite loop. getITD now checks to make sure each end is only
+processed once to allow analysis to actually finish.
+
+
 # getITD 1.5.14  2021-11-16
 
 ### Fix special cases of 3' trailing inserts & extend incomplete-wt-tandem.log

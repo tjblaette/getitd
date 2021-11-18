@@ -1,4 +1,4 @@
-__version__ = '1.5.14'
+__version__ = '1.5.15'
 
 
 import Bio.pairwise2 as bio
@@ -254,7 +254,7 @@ class Read(object):
 
         return self
 
-    def reorder_trailing_inserts(self):
+    def reorder_trailing_inserts(self, rev_checked_already=False):
         """
         Change the alignment of
 
@@ -275,6 +275,15 @@ class Read(object):
         the 5' ref_span is fixed from 0 to 4 to reflect that
         the first four reference bases are not really part of the
         sample read.
+
+        Args:
+            rev_checked_already (bool): Flag to ensure this
+                                        function is only called
+                                        max once recursively.
+
+        Returns:
+            Read, updated or not as required.
+
         """
         if self.al_ref[0] == '-':
             insert_idxs = get_gaps(self.al_ref)
@@ -290,10 +299,10 @@ class Read(object):
                         + self.al_ref[insert_idxs[0][0] : insert_idxs[0][-1] + 1] \
                         + self.al_ref[del_idxs[0][-1] + 1 : ]
                 #self.print()
-        if self.al_ref[-1] == '-':
+        if self.al_ref[-1] == '-' and not rev_checked_already:
             self.al_ref = self.al_ref[::-1]
             self.al_seq = self.al_seq[::-1]
-            self = self.reorder_trailing_inserts()
+            self = self.reorder_trailing_inserts(rev_checked_already=True)
             self.al_ref = self.al_ref[::-1]
             self.al_seq = self.al_seq[::-1]
         return self
