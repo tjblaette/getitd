@@ -1,3 +1,16 @@
+# getITD 1.5.16  2022-07-22
+
+### Add read counts per unique alignment and of total unique reads
+Add two additional columns to all output TSV files:
+"counts_unique_each" contains the number of reads found in the sample
+for each unique alignment, i.e. each of the needle alignment files.
+"counts_unique_total" contains the total number of unqiue reads
+supporting a given insertion/ITD.
+
+"file" and "counts_unique_each" values are sorted so that the most
+abundant read and alignment are ranked first.
+
+
 # getITD 1.5.15  2021-11-18
 
 ### Fix 1.5.14

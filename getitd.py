@@ -1,4 +1,4 @@
-__version__ = '1.5.15'
+__version__ = '1.5.16'
 
 
 import Bio.pairwise2 as bio
@@ -1632,13 +1632,18 @@ def save_to_file(inserts, filename, config):
         df_ins =  pd.DataFrame(dict_ins)
         df_ins["sample"] = [config["SAMPLE"]] * len(to_save)
         df_ins["ar"] = [vaf_to_ar(insert.vaf) for insert in to_save]
-        df_ins["counts_each"] = [[read.counts for read in insert.reads] for insert in to_save]
         df_ins["file"] = [[read.al_file for read in insert.reads] for insert in to_save]
+        df_ins["counts_unique_each"] = [[read.counts for read in insert.reads] for insert in to_save]
+        df_ins["counts_unique_total"] = [len([read.counts for read in insert.reads]) for insert in to_save]
+
+        # sort files and read counts per alignment file based on the number of represented reads
+        df_ins["file"]               = [[f2 for c2,f2 in sorted(zip(c,f), reverse=True)] for f,c in zip(df_ins["file"], df_ins["counts_unique_each"])]
+        df_ins["counts_unique_each"] = [[c2 for c2,f2 in sorted(zip(c,f), reverse=True)] for f,c in zip(df_ins["file"], df_ins["counts_unique_each"])]
 
         if 'external_bp' in df_ins:
             cols = ['external_bp'] + cols
 
-        cols = ['sample','length', 'start', 'vaf', 'ar', 'coverage', 'counts', 'trailing', 'seq', 'sense'] + cols + ['file']
+        cols = ['sample','length', 'start', 'vaf', 'ar', 'coverage', 'counts', 'trailing', 'seq', 'sense'] + cols + ['file', 'counts_unique_each', 'counts_unique_total']
         df_ins = df_ins.rename(index=str, columns={"insertion_site_region": "insertion_site_domain"})
         df_ins[cols].sort_values(by=['length','start','vaf']).to_csv(os.path.join(config["OUT_DIR"],filename), index=False, float_format='%.2e', sep='\t')
 
