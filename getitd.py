@@ -1,4 +1,4 @@
-__version__ = '1.5.16'
+__version__ = '1.5.17'
 
 
 import Bio.pairwise2 as bio

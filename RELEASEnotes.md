@@ -1,3 +1,9 @@
+# getITD 1.5.17  2026-07-28
+
+### Fix of possible list to minumum value comparision
+Minor bug fix, thanks to @joachimwolff
+
+
 # getITD 1.5.16  2022-07-22
 
 ### Add read counts per unique alignment and of total unique reads
